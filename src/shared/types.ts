@@ -12,11 +12,25 @@ import type { VoiceSettings } from './speech-types'
 import type { WorkspaceCleanupUIState } from './workspace-cleanup'
 import type { GitLabProjectSettings } from './gitlab-types'
 import type { TaskProvider } from './task-providers'
+import type { GitBranchChangeStatus } from './git-status-types'
 
 // Re-exported for backward compat with renderer call sites that import
 // `WorkspaceCreateTelemetrySource` from '../../../shared/types'.
 export type { WorkspaceSource as WorkspaceCreateTelemetrySource } from './telemetry-events'
 export type { TaskProvider } from './task-providers'
+export type {
+  GitBranchChangeStatus,
+  GitConflictKind,
+  GitConflictOperation,
+  GitConflictResolutionStatus,
+  GitConflictStatusSource,
+  GitFileStatus,
+  GitStagingArea,
+  GitStatusEntry,
+  GitStatusResult,
+  GitUncommittedEntry,
+  GitUpstreamStatus
+} from './git-status-types'
 
 // ─── Shell PATH hydration ────────────────────────────────────────────
 // Why: shared so the main-side `HydrationResult` discriminator and the
@@ -1970,67 +1984,8 @@ export type FsChangedPayload = {
 }
 
 // ─── Git Status ─────────────────────────────────────────────
-export type GitFileStatus = 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'copied'
-export type GitStagingArea = 'staged' | 'unstaged' | 'untracked'
-export type GitConflictKind =
-  | 'both_modified'
-  | 'both_added'
-  | 'both_deleted'
-  | 'added_by_us'
-  | 'added_by_them'
-  | 'deleted_by_us'
-  | 'deleted_by_them'
-
-export type GitConflictResolutionStatus = 'unresolved' | 'resolved_locally'
-export type GitConflictStatusSource = 'git' | 'session'
-export type GitConflictOperation = 'merge' | 'rebase' | 'cherry-pick' | 'unknown'
-
-// Compatibility note for non-upgraded consumers:
-// Any consumer that has not been upgraded to read `conflictStatus` may still
-// render `modified` styling via the `status` field (which is a compatibility
-// fallback, not a semantic claim). However, such consumers must NOT offer
-// file-existence-dependent affordances (diff loading, drag payloads, editable-
-// file opening) for entries where `conflictStatus === 'unresolved'` — the file
-// may not exist on disk (e.g. both_deleted). This affects file explorer
-// decorations, tab badges, and any surface outside Source Control.
-//
-// `conflictStatusSource` is never set by the main process. The renderer stamps
-// 'git' for live u-records and 'session' for Resolved locally state.
-export type GitUncommittedEntry = {
-  path: string
-  status: GitFileStatus
-  area: GitStagingArea
-  oldPath?: string
-  conflictKind?: GitConflictKind
-  conflictStatus?: GitConflictResolutionStatus
-  conflictStatusSource?: GitConflictStatusSource
-}
-
-export type GitStatusEntry = GitUncommittedEntry
-
-export type GitStatusResult = {
-  entries: GitStatusEntry[]
-  conflictOperation: GitConflictOperation
-  head?: string
-  branch?: string
-  // Why: porcelain v2 status already includes upstream/ahead/behind metadata.
-  // Folding it in lets refresh polling avoid a second pair of git subprocesses.
-  upstreamStatus?: GitUpstreamStatus
-  ignoredPaths?: string[]
-}
-
-// Why: when hasUpstream is false, ahead/behind are placeholder zeros, not a
-// "sync" signal — callers must check hasUpstream before treating 0/0 as in-sync.
-// Kept as a named type because explicit upstream refreshes can still fail for
-// reasons unrelated to working-tree status (e.g., no upstream is expected).
-export type GitUpstreamStatus = {
-  hasUpstream: boolean
-  upstreamName?: string
-  ahead: number
-  behind: number
-}
-
-export type GitBranchChangeStatus = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied'
+// Re-exported from git-status-types.ts so mobile can share the runtime git
+// wire contract without importing this desktop-oriented aggregate type module.
 
 export type GitBranchChangeEntry = {
   path: string

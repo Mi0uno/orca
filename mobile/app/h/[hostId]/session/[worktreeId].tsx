@@ -24,6 +24,7 @@ import {
   Folder,
   File,
   FileText,
+  GitBranch,
   Mic,
   Monitor,
   Plus,
@@ -2376,6 +2377,19 @@ export default function SessionScreen() {
               style={({ pressed }) => [styles.filesButton, pressed && styles.filesButtonPressed]}
               onPress={() =>
                 router.push({
+                  pathname: '/h/[hostId]/source-control/[worktreeId]',
+                  params: { hostId, worktreeId, name: worktreeName || '', origin: 'session' }
+                })
+              }
+              hitSlop={8}
+              accessibilityLabel="Open source control"
+            >
+              <GitBranch size={18} color={colors.textSecondary} strokeWidth={2.1} />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.filesButton, pressed && styles.filesButtonPressed]}
+              onPress={() =>
+                router.push({
                   pathname: '/h/[hostId]/files/[worktreeId]',
                   params: { hostId, worktreeId, name: worktreeName || '' }
                 })
@@ -3197,7 +3211,9 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   toastText: {
-    backgroundColor: 'rgba(20, 22, 39, 0.92)',
+    backgroundColor: colors.bgRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderSubtle,
     color: colors.textPrimary,
     fontSize: 13,
     paddingHorizontal: spacing.lg,
