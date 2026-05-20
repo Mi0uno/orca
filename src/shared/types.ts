@@ -1339,6 +1339,7 @@ export type NotificationSettings = {
   terminalBell: boolean
   suppressWhenFocused: boolean
   customSoundPath: string | null
+  customSoundVolume: number
 }
 
 export type CodexManagedAccount = {
