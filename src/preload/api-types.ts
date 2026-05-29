@@ -122,6 +122,7 @@ import type {
   WorktreeMeta,
   WorktreeRemoteBranchConflictEvent,
   RemoveWorktreeResult,
+  WorktreeDefaultTabsLaunch,
   WorktreeSetupLaunch,
   WorktreeStartupLaunch,
   WorkspaceSessionPatch,
@@ -1971,6 +1972,7 @@ export type PreloadApi = {
         worktreeId: string
         setup?: WorktreeSetupLaunch
         startup?: WorktreeStartupLaunch
+        defaultTabs?: WorktreeDefaultTabsLaunch
       }) => void
     ) => () => void
     onCreateTerminal: (

@@ -52,6 +52,7 @@ export type WorkspaceSessionSnapshot = Pick<
   | 'worktreesByRepo'
   | 'lastKnownRelayPtyIdByTabId'
   | 'lastVisitedAtByWorktreeId'
+  | 'defaultTerminalTabsAppliedByWorktreeId'
 >
 
 // Why: the App-level Zustand subscriber that debounces session writes uses
@@ -83,7 +84,8 @@ export const SESSION_RELEVANT_FIELDS = [
   'repos',
   'worktreesByRepo',
   'lastKnownRelayPtyIdByTabId',
-  'lastVisitedAtByWorktreeId'
+  'lastVisitedAtByWorktreeId',
+  'defaultTerminalTabsAppliedByWorktreeId'
 ] as const satisfies readonly (keyof WorkspaceSessionSnapshot)[]
 
 type _MissingSessionField = Exclude<
@@ -349,7 +351,12 @@ export function buildWorkspaceSessionPayload(
     // Omit when empty so sessions written by builds that never stamped
     // anything don't bloat the payload. See
     // docs/cmd-j-empty-query-ordering.md.
-    lastVisitedAtByWorktreeId: buildLastVisitedAtByWorktreeId(snapshot)
+    lastVisitedAtByWorktreeId: buildLastVisitedAtByWorktreeId(snapshot),
+    defaultTerminalTabsAppliedByWorktreeId:
+      snapshot.defaultTerminalTabsAppliedByWorktreeId &&
+      Object.keys(snapshot.defaultTerminalTabsAppliedByWorktreeId).length > 0
+        ? snapshot.defaultTerminalTabsAppliedByWorktreeId
+        : undefined
   }
 
   return pruneLocalTerminalScrollbackBuffers(payload, snapshot.repos)

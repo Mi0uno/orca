@@ -866,7 +866,7 @@ export function useIpcEvents(): void {
     )
 
     unsubs.push(
-      window.api.ui.onActivateWorktree(({ repoId, worktreeId, setup, startup }) => {
+      window.api.ui.onActivateWorktree(({ repoId, worktreeId, setup, startup, defaultTabs }) => {
         void (async () => {
           if (isRuntimeEnvironmentActive()) {
             // Why: local CLI-created worktree events carry local repo/worktree
@@ -890,6 +890,7 @@ export function useIpcEvents(): void {
           activateAndRevealWorktree(worktreeId, {
             ...(setup ? { setup } : {}),
             ...(startup ? { startup } : {}),
+            ...(defaultTabs ? { defaultTabs } : {}),
             ...(!existedBeforeFetch && existsAfterFetch ? { sidebarRevealBehavior: 'auto' } : {})
           })
         })().catch((error) => {

@@ -35,9 +35,11 @@ import {
   buildPosixRunnerScript,
   buildWindowsRunnerScript,
   createSetupRunnerScript,
+  getDefaultTabsLaunch,
   getEffectiveHooks,
   getEffectiveHooksFromConfig,
   getSetupRunnerEnvVars,
+  loadHooks,
   parseOrcaYaml,
   shouldRunSetupForCreate
 } from '../hooks'
@@ -721,12 +723,18 @@ async function readRemoteEffectiveHooks(
   fsProvider: IFilesystemProvider,
   hooksRootPath: string
 ): Promise<ReturnType<typeof getEffectiveHooksFromConfig>> {
+  return getEffectiveHooksFromConfig(repo, await readRemoteOrcaYaml(fsProvider, hooksRootPath))
+}
+
+async function readRemoteOrcaYaml(
+  fsProvider: IFilesystemProvider,
+  hooksRootPath: string
+): Promise<ReturnType<typeof parseOrcaYaml>> {
   try {
     const result = await fsProvider.readFile(joinWorktreeRelativePath(hooksRootPath, 'orca.yaml'))
-    const yamlHooks = result.isBinary ? null : parseOrcaYaml(result.content)
-    return getEffectiveHooksFromConfig(repo, yamlHooks)
+    return result.isBinary ? null : parseOrcaYaml(result.content)
   } catch {
-    return getEffectiveHooksFromConfig(repo, null)
+    return null
   }
 }
 
@@ -1177,8 +1185,20 @@ export async function createRemoteWorktree(
   // `symlinkPaths` configured have them silently ignored here.
 
   let setup: CreateWorktreeResult['setup']
+  let defaultTabs: CreateWorktreeResult['defaultTabs']
   if (fsProvider) {
-    const hooks = await readRemoteEffectiveHooks(repo, fsProvider, created.path)
+    const yamlHooks = await readRemoteOrcaYaml(fsProvider, created.path)
+    const hooks = getEffectiveHooksFromConfig(repo, yamlHooks)
+    try {
+      defaultTabs = getDefaultTabsLaunch(yamlHooks, repo, args.setupDecision)
+    } catch (error) {
+      // Why: default tab commands share setup's run policy. If the target branch
+      // adds commands without a renderer decision, create the tabs but don't run them.
+      console.warn(`[hooks] default tab commands skipped for ${created.path}:`, error)
+      defaultTabs = yamlHooks?.defaultTabs
+        ? { tabs: yamlHooks.defaultTabs, runCommands: false }
+        : undefined
+    }
     const setupScript = hooks?.scripts.setup
     let shouldLaunchSetup = false
     if (setupScript) {
@@ -1210,6 +1230,7 @@ export async function createRemoteWorktree(
   return {
     worktree,
     ...(setup ? { setup } : {}),
+    ...(defaultTabs ? { defaultTabs } : {}),
     ...(localBaseRefRefresh ? { localBaseRefRefresh } : {})
   }
 }
@@ -1610,7 +1631,20 @@ export async function createLocalWorktree(
   // disabling setup with no UI signal. See #1280 for the original gate and
   // the regression this replaced.
   let setup: CreateWorktreeResult['setup']
-  const setupScript = getEffectiveHooks(repo, worktreePath)?.scripts.setup
+  let defaultTabs: CreateWorktreeResult['defaultTabs']
+  const createdYamlHooks = loadHooks(worktreePath)
+  const createdEffectiveHooks = getEffectiveHooksFromConfig(repo, createdYamlHooks)
+  try {
+    defaultTabs = getDefaultTabsLaunch(createdYamlHooks, repo, args.setupDecision)
+  } catch (error) {
+    // Why: default tab commands share setup's run policy. If the target branch
+    // adds commands without a renderer decision, create the tabs but don't run them.
+    console.warn(`[hooks] default tab commands skipped for ${worktreePath}:`, error)
+    defaultTabs = createdYamlHooks?.defaultTabs
+      ? { tabs: createdYamlHooks.defaultTabs, runCommands: false }
+      : undefined
+  }
+  const setupScript = createdEffectiveHooks?.scripts.setup
   let shouldLaunchSetup = false
   if (setupScript) {
     try {
@@ -1644,6 +1678,7 @@ export async function createLocalWorktree(
   return {
     worktree,
     ...(setup ? { setup } : {}),
+    ...(defaultTabs ? { defaultTabs } : {}),
     ...(addResult.localBaseRefRefresh ? { localBaseRefRefresh: addResult.localBaseRefRefresh } : {})
   }
 }
