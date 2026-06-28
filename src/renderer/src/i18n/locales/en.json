@@ -2237,7 +2237,32 @@
             "2ddbd6fe8a": "checked",
             "ee81adfcef": "View",
             "4d0b72481c": "Ignore",
-            "9cc26c019d": "Remove"
+            "9cc26c019d": "Remove",
+            "0e2d235c63": "Inactive workspace scan ready",
+            "4a35c08764": "Review",
+            "47123d0108": "Scanning inactive workspaces. You can close this and come back.",
+            "9a3be9f2df": "Scanning inactive workspaces. New rows appear here as they finish. You can close this and come back.",
+            "3d957ff117": "No workspaces match these filters.",
+            "e94b1f8bb4": "Clear filters",
+            "efb3843e75": "Filter and sort workspaces",
+            "93b7381d50": "Filters",
+            "a615e24679": "Sort",
+            "4cc5b73efe": "Finding inactive workspaces...",
+            "5bf2e88480": "{{value0}}/{{value1}} {{value2}} scanned",
+            "4361f1534c": "Search workspaces",
+            "6cd8439929": "Age",
+            "38422e7b8d": "Review",
+            "6359dc079a": "Git",
+            "7644af86b2": "Context",
+            "e343b9e9ce": "Sort by",
+            "27acbc2efe": "Direction"
+          },
+          "presentation": {
+            "0bb8d1aa02": "MR #",
+            "b1f1a02943": "PR #"
+          },
+          "presentationFixtures": {
+            "5ed71d83ef": "Review alpha cleanup"
           }
         }
       },
