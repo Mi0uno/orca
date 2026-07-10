@@ -11739,12 +11739,21 @@
             "label": "プロジェクト",
             "browse": "プロジェクトを参照",
             "listLabel": "プロジェクト",
-            "noProjects": "まだプロジェクトがありません。"
+            "noProjects": "まだプロジェクトがありません。",
+            "search": "Search projects..."
           },
           "RunTargetCombobox": {
             "listLabel": "実行ターゲット",
             "label": "実行先",
             "browse": "実行ターゲットを参照"
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git worktrees",
+            "description": "Use branches from this folder instead of plain folder workspaces.",
+            "preparing": "Preparing",
+            "useGitWorktrees": "Use Git worktrees",
+            "initializeGit": "Initialize Git here",
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
           }
         }
       },

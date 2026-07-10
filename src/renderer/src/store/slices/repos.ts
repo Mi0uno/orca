@@ -1408,7 +1408,11 @@ function getRuntimeTargetCachePrefix(
 }
 
 type FolderWorkspacePathStatusRouteOptions = { runtimeEnvironmentId?: string | null }
-type AddRepoPathRouteOptions = { runtimeEnvironmentId?: string | null } & AddRepoOptions
+type AddRepoPathRouteOptions = {
+  runtimeEnvironmentId?: string | null
+  connectionId?: string | null
+  suppressNonGitFolderPrompt?: boolean
+} & AddRepoOptions
 type RuntimeCatalogFetchOptions = { runtimeEnvironmentId?: string | null }
 
 function getFolderWorkspacePathStatusRouteSettings(
@@ -2877,9 +2881,29 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
   addRepoPath: async (path, kind = 'git', options) => {
     try {
       const target = getActiveRuntimeTarget(getAddRepoPathRouteSettings(options, get().settings))
+      const explicitConnectionId = options?.connectionId?.trim() || null
+      const ownerTarget = explicitConnectionId
+        ? ({ kind: 'local' } as ReturnType<typeof getActiveRuntimeTarget>)
+        : target
       let repo: Repo
       try {
-        if (target.kind === 'local') {
+        if (explicitConnectionId) {
+          const result = await window.api.repos.addRemote({
+            connectionId: explicitConnectionId,
+            remotePath: path,
+            kind,
+            ...(options?.initializeGit !== undefined
+              ? { initializeGit: options.initializeGit }
+              : {}),
+            ...(options?.requireExactGitRoot !== undefined
+              ? { requireExactGitRoot: options.requireExactGitRoot }
+              : {})
+          })
+          if ('error' in result) {
+            throw new Error(result.error)
+          }
+          repo = result.repo
+        } else if (target.kind === 'local') {
           const result = await window.api.repos.add({
             path,
             kind,
@@ -2918,6 +2942,9 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
         if (kind !== 'git' || !message.includes('Not a valid git repository')) {
           throw err
         }
+        if (options?.suppressNonGitFolderPrompt) {
+          return null
+        }
         if (target.kind !== 'local') {
           const status = await fetchRuntimeAddProjectPathStatus({ target, path })
           if (status?.exists !== true) {
@@ -2947,7 +2974,7 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
         })
         return null
       }
-      repo = repoWithFetchedOwner(repo, target)
+      repo = repoWithFetchedOwner(repo, ownerTarget)
       const repoIdentity = getRepoHostIdentity(repo)
       const alreadyAdded = get().repos.some((r) => getRepoHostIdentity(r) === repoIdentity)
       if (alreadyAdded) {

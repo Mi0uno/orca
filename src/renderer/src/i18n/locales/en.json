@@ -12021,12 +12021,21 @@
             "label": "Project",
             "browse": "Browse projects",
             "listLabel": "Projects",
-            "noProjects": "No projects yet."
+            "noProjects": "No projects yet.",
+            "search": "Search projects..."
           },
           "RunTargetCombobox": {
             "listLabel": "Run targets",
             "label": "Run on",
             "browse": "Browse run targets"
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git worktrees",
+            "description": "Use branches from this folder instead of plain folder workspaces.",
+            "preparing": "Preparing",
+            "useGitWorktrees": "Use Git worktrees",
+            "initializeGit": "Initialize Git here",
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
           }
         }
       },

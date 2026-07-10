@@ -41,6 +41,7 @@ export const reposAdd: Mock = vi.fn()
 export const reposPickFolder: Mock = vi.fn()
 export const reposClone: Mock = vi.fn()
 export const reposCloneRemote: Mock = vi.fn()
+export const reposAddRemote: Mock = vi.fn()
 export const reposRemove: Mock = vi.fn()
 export const reposUpdate: Mock = vi.fn()
 export const reposReorder: Mock = vi.fn()
@@ -70,6 +71,7 @@ export function installReposRuntimeRoutingHarness(): void {
     reposPickFolder.mockReset()
     reposClone.mockReset()
     reposCloneRemote.mockReset()
+    reposAddRemote.mockReset()
     reposRemove.mockReset()
     reposUpdate.mockReset()
     reposReorder.mockReset()
@@ -94,6 +96,7 @@ export function installReposRuntimeRoutingHarness(): void {
         repos: {
           list: reposList,
           add: reposAdd,
+          addRemote: reposAddRemote,
           clone: reposClone,
           cloneRemote: reposCloneRemote,
           pickFolder: reposPickFolder,

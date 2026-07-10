@@ -11739,12 +11739,21 @@
             "label": "프로젝트",
             "browse": "프로젝트 검색",
             "listLabel": "프로젝트",
-            "noProjects": "아직 프로젝트가 없습니다."
+            "noProjects": "아직 프로젝트가 없습니다.",
+            "search": "프로젝트 검색..."
           },
           "RunTargetCombobox": {
             "listLabel": "실행 대상",
             "label": "실행 위치",
             "browse": "실행 대상 검색"
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git worktrees",
+            "description": "Use branches from this folder instead of plain folder workspaces.",
+            "preparing": "Preparing",
+            "useGitWorktrees": "Use Git worktrees",
+            "initializeGit": "Initialize Git here",
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
           }
         }
       },

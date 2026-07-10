@@ -11759,12 +11759,21 @@
             "label": "项目",
             "browse": "浏览项目",
             "listLabel": "项目",
-            "noProjects": "尚无项目。"
+            "noProjects": "尚无项目。",
+            "search": "搜索项目..."
           },
           "RunTargetCombobox": {
             "listLabel": "运行目标",
             "label": "运行在",
             "browse": "浏览运行目标"
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git 工作树",
+            "description": "使用此文件夹的分支创建工作树，而不是普通文件夹工作区。",
+            "preparing": "正在准备",
+            "useGitWorktrees": "使用 Git 工作树",
+            "initializeGit": "在此初始化 Git",
+            "initializeGitDescription": "如果此文件夹还不是仓库，则创建初始提交。"
           }
         }
       },

@@ -544,6 +544,29 @@ describe('useComposerState host-context boundaries', () => {
 
     expect(section).not.toContain("smartNameMode === 'smart'")
     expect(section).not.toContain('setSourceIntentBlocksCreate')
+  it('lets folder targets switch to exact-root Git worktree creation with optional init', () => {
+    const handler = sourceBetween(
+      HOOK_SOURCE,
+      'const handleUseFolderProjectGitWorktrees = useCallback',
+      'const submitFolderTarget = useCallback'
+    )
+    expect(handler).toContain("addRepoPath(selectedProjectGroup.parentPath, 'git'")
+    expect(handler).toContain('initializeGit: folderGitInitializeOnUse')
+    expect(handler).toContain('requireExactGitRoot: true')
+    expect(handler).toContain('suppressNonGitFolderPrompt: true')
+    expect(handler).toContain('runtimeEnvironmentId: folderTargetRuntimeEnvironmentId')
+    expect(handler).toContain('connectionId: folderTargetConnectionId')
+    expect(handler).toContain('setSelectedProjectGroupId(null)')
+    expect(handler).toContain('handleRepoChange(repo.id, { forceResetStartFrom: true })')
+
+    const cardProps = sourceBetween(
+      HOOK_SOURCE,
+      'const cardProps: ComposerCardProps = {',
+      'return {'
+    )
+    expect(cardProps).toContain('folderProjectGitWorktree: isProjectGroupTarget')
+    expect(cardProps).toContain('initializeGit: folderGitInitializeOnUse')
+    expect(cardProps).toContain('onUseGitWorktrees: handleUseFolderProjectGitWorktrees')
   })
 
   it('selects a project by its own host instead of pinning the current host', () => {
