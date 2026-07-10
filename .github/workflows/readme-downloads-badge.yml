@@ -19,8 +19,12 @@ concurrency:
 
 jobs:
   update:
-    # Why: this workflow commits to main, so forks should not create divergent badge commits.
-    if: github.repository == 'stablyai/orca'
+    # Why: this workflow commits to main, so only release-enabled repos should
+    # create badge commits.
+    if: >-
+      github.repository == 'stablyai/orca' ||
+      github.repository == 'Mi0uno/orca' ||
+      github.repository == 'mi0uno/orca'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
