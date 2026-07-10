@@ -177,7 +177,8 @@ export function useRemoteRepo(
       setRemoteNestedScanId(null)
       const result = await window.api.repos.addRemote({
         connectionId: selectedTargetId,
-        remotePath: trimmedRemotePath
+        remotePath: trimmedRemotePath,
+        requireExactGitRoot: true
       })
       if ('error' in result) {
         throw new Error(result.error)

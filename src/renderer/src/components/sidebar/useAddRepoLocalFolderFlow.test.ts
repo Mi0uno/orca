@@ -106,8 +106,18 @@ describe('useAddRepoLocalFolderFlow', () => {
 
     expect(pickFolders).toHaveBeenCalledTimes(1)
     expect(addRepoPath).toHaveBeenCalledTimes(2)
-    expect(addRepoPath).toHaveBeenNthCalledWith(1, '/projects/alpha')
-    expect(addRepoPath).toHaveBeenNthCalledWith(2, '/projects/beta')
+    expect(addRepoPath).toHaveBeenNthCalledWith(
+      1,
+      '/projects/alpha',
+      'git',
+      expect.objectContaining({ requireExactGitRoot: true })
+    )
+    expect(addRepoPath).toHaveBeenNthCalledWith(
+      2,
+      '/projects/beta',
+      'git',
+      expect.objectContaining({ requireExactGitRoot: true })
+    )
     expect(fetchWorktrees).toHaveBeenCalledWith('alpha', { requireAuthoritative: true })
     expect(fetchWorktrees).toHaveBeenCalledWith('beta', { requireAuthoritative: true })
     expect(onGitRepoReady).toHaveBeenCalledTimes(1)
@@ -146,7 +156,11 @@ describe('useAddRepoLocalFolderFlow', () => {
 
     expect(showNestedRepoReview).not.toHaveBeenCalled()
     expect(addRepoPath).toHaveBeenCalledTimes(1)
-    expect(addRepoPath).toHaveBeenCalledWith('/projects/later')
+    expect(addRepoPath).toHaveBeenCalledWith(
+      '/projects/later',
+      'git',
+      expect.objectContaining({ requireExactGitRoot: true })
+    )
     expect(scanNestedRepos).toHaveBeenCalledTimes(2)
     expect(onGitRepoReady).toHaveBeenCalledWith('later', 'local_folder_picker')
   })
@@ -181,7 +195,84 @@ describe('useAddRepoLocalFolderFlow', () => {
 
     expect(showNestedRepoReview).not.toHaveBeenCalled()
     expect(addRepoPath).toHaveBeenCalledTimes(1)
-    expect(addRepoPath).toHaveBeenCalledWith('/projects/git')
+    expect(addRepoPath).toHaveBeenCalledWith(
+      '/projects/git',
+      'git',
+      expect.objectContaining({ requireExactGitRoot: true })
+    )
     expect(onGitRepoReady).toHaveBeenCalledWith('git', 'local_folder_picker')
+  })
+
+  it('opens selected folders directly in folder mode without scanning nested repos', async () => {
+    pickFolders.mockResolvedValue(['/projects/outer/packages/new-project'])
+    addRepoPath.mockImplementation(async (path: string) => ({
+      ...makeRepo(path),
+      kind: 'folder'
+    }))
+    const { useAddRepoLocalFolderFlow } = await import('./useAddRepoLocalFolderFlow')
+
+    const { handleBrowse } = useAddRepoLocalFolderFlow({
+      isOpen: true,
+      droppedLocalPath: '',
+      activeRuntimeEnvironmentId: null,
+      addProjectKind: 'folder',
+      initializeGitOnAdd: false,
+      addRepoPath,
+      closeModal,
+      fetchWorktrees,
+      scanNestedRepos,
+      setActiveNestedScanId,
+      setNestedScanInProgress,
+      showNestedRepoReview,
+      onGitRepoReady,
+      setIsAdding,
+      setAddProjectBusyLabel
+    })
+
+    await handleBrowse()
+
+    expect(scanNestedRepos).not.toHaveBeenCalled()
+    expect(addRepoPath).toHaveBeenCalledWith(
+      '/projects/outer/packages/new-project',
+      'folder',
+      expect.objectContaining({ requireExactGitRoot: true })
+    )
+    expect(fetchWorktrees).not.toHaveBeenCalled()
+    expect(closeModal).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes initializeGit when browsing in git mode with initialization enabled', async () => {
+    pickFolders.mockResolvedValue(['/projects/outer/packages/new-project'])
+    const { useAddRepoLocalFolderFlow } = await import('./useAddRepoLocalFolderFlow')
+
+    const { handleBrowse } = useAddRepoLocalFolderFlow({
+      isOpen: true,
+      droppedLocalPath: '',
+      activeRuntimeEnvironmentId: null,
+      addProjectKind: 'git',
+      initializeGitOnAdd: true,
+      addRepoPath,
+      closeModal,
+      fetchWorktrees,
+      scanNestedRepos,
+      setActiveNestedScanId,
+      setNestedScanInProgress,
+      showNestedRepoReview,
+      onGitRepoReady,
+      setIsAdding,
+      setAddProjectBusyLabel
+    })
+
+    await handleBrowse()
+
+    expect(scanNestedRepos).not.toHaveBeenCalled()
+    expect(addRepoPath).toHaveBeenCalledWith(
+      '/projects/outer/packages/new-project',
+      'git',
+      expect.objectContaining({
+        initializeGit: true,
+        requireExactGitRoot: true
+      })
+    )
   })
 })

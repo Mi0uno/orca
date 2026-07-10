@@ -9,6 +9,7 @@ import {
 } from '../../../../shared/nested-repo-telemetry'
 import type { AddRepoExistingWorkspaceSource } from '../../../../shared/telemetry-events'
 import type { NestedRepoScanResult, Repo } from '../../../../shared/types'
+import type { AddRepoOptions } from '../../../../shared/add-repo-options'
 import { createNestedRepoScanId } from './add-repo-dialog-types'
 
 type ShowNestedRepoReview = (args: {
@@ -33,7 +34,11 @@ export function useAddRepoServerPathFlow({
   onGitRepoReady,
   setAddProjectBusyLabel
 }: {
-  addRepoPath: (path: string, kind?: 'git' | 'folder') => Promise<Repo | null>
+  addRepoPath: (
+    path: string,
+    kind?: 'git' | 'folder',
+    options?: AddRepoOptions
+  ) => Promise<Repo | null>
   closeModal: () => void
   fetchWorktrees: (repoId: string, options?: { requireAuthoritative?: boolean }) => Promise<unknown>
   getNestedRepoRuntimeKind: (connectionId: string | null) => NestedRepoTelemetryRuntimeKind
@@ -138,7 +143,7 @@ export function useAddRepoServerPathFlow({
           }
         }
         setAddProjectBusyLabel(kind === 'git' ? 'Opening project...' : 'Opening folder...')
-        const repo = await addRepoPath(path, kind)
+        const repo = await addRepoPath(path, kind, { requireExactGitRoot: true })
         if (gen !== serverAddGenRef.current) {
           return
         }

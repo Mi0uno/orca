@@ -72,8 +72,8 @@ const {
     request: vi.fn(),
     notify: vi.fn()
   },
-  gitSpawnMock: vi.fn(),
   gitExecFileAsyncMock: vi.fn(),
+  gitSpawnMock: vi.fn(),
   listWorktreeGraphMock: vi.fn(),
   invalidateAuthorizedRootsCacheMock: vi.fn(),
   prepareLocalWorktreeRootForRepoMock: vi.fn()
@@ -1726,6 +1726,7 @@ describe('repos:add + repos:clone', () => {
     mockStore.getProjectHostSetups.mockReset().mockReturnValue([])
     mockStore.updateProjectHostSetup.mockReset()
     mockWindow.webContents.send.mockReset()
+    gitExecFileAsyncMock.mockReset().mockResolvedValue({ stdout: '', stderr: '' })
     gitSpawnMock.mockReset()
     invalidateAuthorizedRootsCacheMock.mockReset()
     prepareLocalWorktreeRootForRepoMock.mockReset().mockResolvedValue(undefined)
@@ -1810,6 +1811,51 @@ describe('repos:add + repos:clone', () => {
 
     expect(result).toEqual({ repo: existing })
     expect(mockStore.addRepo).not.toHaveBeenCalled()
+  })
+
+  it('rejects a local git repos:add subdirectory when exact root is required', async () => {
+    vi.mocked(getGitRepoRoot).mockReturnValue('/tmp/outer-repo')
+
+    const result = await handlers.get('repos:add')!(null, {
+      path: '/tmp/outer-repo/packages/new-project',
+      kind: 'git',
+      requireExactGitRoot: true
+    })
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining('inside another Git repository')
+    })
+    expect(mockStore.addRepo).not.toHaveBeenCalled()
+    expect(prepareLocalWorktreeRootForRepoMock).not.toHaveBeenCalled()
+  })
+
+  it('initializes a local git repo at the selected path before exact-root validation', async () => {
+    vi.mocked(isGitRepo).mockReturnValue(false)
+    vi.mocked(getGitRepoRoot).mockReturnValue('/tmp/outer-repo/packages/new-project')
+
+    const result = await handlers.get('repos:add')!(null, {
+      path: '/tmp/outer-repo/packages/new-project',
+      kind: 'git',
+      initializeGit: true,
+      requireExactGitRoot: true
+    })
+
+    expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(1, ['init'], {
+      cwd: '/tmp/outer-repo/packages/new-project'
+    })
+    expect(gitExecFileAsyncMock).toHaveBeenNthCalledWith(
+      2,
+      ['commit', '--allow-empty', '-m', 'Initial commit'],
+      { cwd: '/tmp/outer-repo/packages/new-project' }
+    )
+    expect(mockStore.addRepo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/tmp/outer-repo/packages/new-project',
+        displayName: 'new-project',
+        kind: 'git'
+      })
+    )
+    expect(result).toHaveProperty('repo.path', '/tmp/outer-repo/packages/new-project')
   })
 
   it('returns existing badgeColor unchanged on repos:add dedupe', async () => {
