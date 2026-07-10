@@ -148,6 +148,7 @@ import { queueNewWorkspaceTerminalFocus } from '@/lib/new-workspace-terminal-foc
 import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
 import { getSuggestedCreatureName } from '@/components/sidebar/worktree-name-suggestions'
 import type { SmartWorkspaceNameSelection } from '@/components/new-workspace/SmartWorkspaceNameField'
+import type { FolderProjectGitWorktreePromptProps } from '@/components/new-workspace/FolderProjectGitWorktreePrompt'
 import type { SmartNameMode } from '@/components/new-workspace/smart-workspace-source-results'
 import { getForkPushWarning } from './fork-push-warning'
 import {
@@ -256,6 +257,7 @@ export type ComposerCardProps = {
   projectHostSetupOptions: ProjectHostSetupOption[]
   selectedProjectHostSetupId: string | null
   onProjectHostSetupChange: (setupId: string) => void
+  folderProjectGitWorktree?: FolderProjectGitWorktreePromptProps
   ephemeralVmRecipes: NonNullable<OrcaHooks['environmentRecipes']>
   selectedEphemeralVmRecipeId: string | null
   onEphemeralVmRecipeChange: (recipeId: string | null) => void
@@ -573,6 +575,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       setNewWorkspaceDraft: s.setNewWorkspaceDraft,
       clearNewWorkspaceDraft: s.clearNewWorkspaceDraft,
       createWorktree: s.createWorktree,
+      addRepoPath: s.addRepoPath,
       updateRepo: s.updateRepo,
       updateWorktreeMeta: s.updateWorktreeMeta,
       createFolderWorkspace: s.createFolderWorkspace,
@@ -589,6 +592,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     setNewWorkspaceDraft,
     clearNewWorkspaceDraft,
     createWorktree,
+    addRepoPath,
     updateRepo,
     updateWorktreeMeta,
     createFolderWorkspace,
@@ -707,6 +711,14 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     () => getFolderSourceRepos(repos, projectGroups, selectedProjectGroup),
     [projectGroups, repos, selectedProjectGroup]
   )
+  const [folderGitInitializeOnUse, setFolderGitInitializeOnUse] = useState(false)
+  const [folderGitPreparing, setFolderGitPreparing] = useState(false)
+  useEffect(() => {
+    if (!selectedProjectGroup) {
+      return
+    }
+    setFolderGitInitializeOnUse(folderSourceRepos.length === 0)
+  }, [folderSourceRepos.length, selectedProjectGroup])
   const parsedFolderTargetHost = parseExecutionHostId(selectedProjectGroup?.executionHostId)
   const folderTargetRuntimeEnvironmentId =
     parsedFolderTargetHost?.kind === 'runtime' ? parsedFolderTargetHost.environmentId : null
@@ -2819,6 +2831,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       workspaceHostScope
     ]
   )
+
   const showProjectRequiredError = useCallback((): void => {
     setProjectError('Choose or add a project before creating a workspace.')
     requestAnimationFrame(() => {
@@ -3324,6 +3337,64 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     !selectedProjectGroup?.parentPath ||
     folderPathStatusBlocksCreate ||
     folderTargetRequiresConnection
+
+  const handleUseFolderProjectGitWorktrees = useCallback(async (): Promise<void> => {
+    if (!selectedProjectGroup?.parentPath || folderCreateDisabled || folderGitPreparing) {
+      return
+    }
+
+    setCreateError(null)
+    setFolderGitPreparing(true)
+    try {
+      const repo = await addRepoPath(selectedProjectGroup.parentPath, 'git', {
+        initializeGit: folderGitInitializeOnUse,
+        requireExactGitRoot: true,
+        suppressNonGitFolderPrompt: true,
+        ...(folderTargetRuntimeEnvironmentId
+          ? { runtimeEnvironmentId: folderTargetRuntimeEnvironmentId }
+          : {}),
+        ...(folderTargetConnectionId ? { connectionId: folderTargetConnectionId } : {})
+      })
+
+      if (!repo || !isGitRepoKind(repo)) {
+        setCreateError({
+          title: translate(
+            'auto.hooks.useComposerState.folderGitWorktreesUnavailableTitle',
+            'Git setup required'
+          ),
+          message: folderGitInitializeOnUse
+            ? translate(
+                'auto.hooks.useComposerState.folderGitWorktreesInitializeFailed',
+                'Could not prepare this folder for Git worktrees.'
+              )
+            : translate(
+                'auto.hooks.useComposerState.folderGitWorktreesEnableInitialize',
+                'This folder is not a Git repository. Enable Initialize Git here, then try again.'
+              )
+        })
+        return
+      }
+
+      setSelectedProjectGroupId(null)
+      setProjectError(null)
+      handleRepoChange(repo.id, { forceResetStartFrom: true })
+    } catch (error) {
+      const formattedError = formatWorkspaceCreateError(error)
+      setCreateError(formattedError)
+      toast.error(getWorkspaceCreateErrorToastMessage(formattedError))
+    } finally {
+      setFolderGitPreparing(false)
+    }
+  }, [
+    addRepoPath,
+    folderCreateDisabled,
+    folderGitInitializeOnUse,
+    folderGitPreparing,
+    folderTargetConnectionId,
+    folderTargetRuntimeEnvironmentId,
+    handleRepoChange,
+    selectedProjectGroup
+  ])
 
   const submitFolderTarget = useCallback(
     async (requestedAgent: TuiAgent | null): Promise<void> => {
@@ -4321,6 +4392,15 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     projectHostSetupOptions: isProjectGroupTarget ? [] : projectHostSetupOptions,
     selectedProjectHostSetupId: isProjectGroupTarget ? null : selectedProjectHostSetupId,
     onProjectHostSetupChange: handleProjectHostSetupChange,
+    folderProjectGitWorktree: isProjectGroupTarget
+      ? {
+          initializeGit: folderGitInitializeOnUse,
+          onInitializeGitChange: setFolderGitInitializeOnUse,
+          onUseGitWorktrees: handleUseFolderProjectGitWorktrees,
+          preparing: folderGitPreparing,
+          disabled: folderCreateDisabled || folderGitPreparing
+        }
+      : undefined,
     ephemeralVmRecipes: isProjectGroupTarget || !ephemeralVmsEnabled ? [] : ephemeralVmRecipes,
     selectedEphemeralVmRecipeId:
       isProjectGroupTarget || !ephemeralVmsEnabled ? null : selectedEphemeralVmRecipeId,

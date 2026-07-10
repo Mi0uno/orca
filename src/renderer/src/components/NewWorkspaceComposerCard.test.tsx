@@ -420,6 +420,39 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
     ).toBe('false')
   })
 
+  it('shows a Git worktree entry for folder projects and emits initialization changes', () => {
+    const initializeChanges: boolean[] = []
+    const useGitWorktrees = vi.fn()
+    current = renderCard({
+      folderProjectGitWorktree: {
+        initializeGit: true,
+        onInitializeGitChange: (next) => initializeChanges.push(next),
+        onUseGitWorktrees: useGitWorktrees,
+        preparing: false,
+        disabled: false
+      }
+    })
+
+    expect(current.container.textContent).toContain('Git worktrees')
+    expect(current.container.textContent).toContain('Initialize Git here')
+
+    const initializeLabel = [...current.container.querySelectorAll('label')].find((label) =>
+      label.textContent?.includes('Initialize Git here')
+    )
+    const checkbox = initializeLabel?.querySelector<HTMLElement>('[role="checkbox"]')
+    expect(checkbox).toBeTruthy()
+    expect(checkbox?.getAttribute('aria-checked')).toBe('true')
+    act(() => checkbox?.click())
+    expect(initializeChanges).toEqual([false])
+
+    const gitButton = [...current.container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Use Git worktrees')
+    )
+    expect(gitButton).toBeTruthy()
+    act(() => gitButton?.click())
+    expect(useGitWorktrees).toHaveBeenCalledTimes(1)
+  })
+
   it('shows VM recipes inside the run target picker', () => {
     const hostChanges: string[] = []
     const recipeChanges: (string | null)[] = []

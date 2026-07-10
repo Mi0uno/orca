@@ -628,7 +628,10 @@
         "folderWorkspaceCreateFailedTitle": "No se pudo crear el espacio de trabajo de carpeta",
         "folderWorkspaceCreateFailedMessage": "No se pudo crear el espacio de trabajo de carpeta. Revisa los detalles del error de arriba e inténtalo de nuevo.",
         "setupAgentStartupPolicySaveFailed": "Error al guardar el comportamiento de inicio",
-        "5f3d2c8a1b": "Error al resolver la base del MR"
+        "5f3d2c8a1b": "Error al resolver la base del MR",
+        "folderGitWorktreesUnavailableTitle": "Se requiere configurar Git",
+        "folderGitWorktreesInitializeFailed": "No se pudo preparar esta carpeta para worktrees de Git.",
+        "folderGitWorktreesEnableInitialize": "Esta carpeta no es un repositorio Git. Activa Inicializar Git aquí y vuelve a intentarlo."
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "No se pudieron cargar los archivos soltados.",
@@ -10677,6 +10680,14 @@
           "ProjectCombobox": {
             "search": "Buscar proyectos...",
             "empty": "Ningún proyecto coincide con tu búsqueda."
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git worktrees",
+            "description": "Use branches from this folder instead of plain folder workspaces.",
+            "preparing": "Preparing",
+            "useGitWorktrees": "Use Git worktrees",
+            "initializeGit": "Initialize Git here",
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
           }
         }
       },
