@@ -12,6 +12,7 @@ import {
   ptyKill,
   remoteRepo,
   reposAdd,
+  reposAddRemote,
   reposClone,
   reposCloneRemote,
   reposList,
@@ -174,6 +175,44 @@ describe('repo slice runtime routing', () => {
     expect(reposAdd).not.toHaveBeenCalled()
     expect(reposPickFolder).not.toHaveBeenCalled()
     expect(orcaProfileFindProjectProfiles).not.toHaveBeenCalled()
+  })
+
+  it('adds explicit SSH paths through remote IPC when a connection id is provided', async () => {
+    reposAddRemote.mockResolvedValue({ repo: sshRepo })
+    const store = createTestStore()
+
+    await expect(
+      store.getState().addRepoPath('/home/orca/project', 'git', {
+        connectionId: 'ssh-1',
+        requireExactGitRoot: true
+      })
+    ).resolves.toEqual({
+      ...sshRepo,
+      executionHostId: 'ssh:ssh-1'
+    })
+
+    expect(reposAddRemote).toHaveBeenCalledWith({
+      connectionId: 'ssh-1',
+      remotePath: '/home/orca/project',
+      kind: 'git',
+      requireExactGitRoot: true
+    })
+    expect(reposAdd).not.toHaveBeenCalled()
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+  })
+
+  it('can suppress the non-git folder confirmation when probing for a git repo', async () => {
+    reposAdd.mockResolvedValue({ error: 'Not a valid git repository: /plain-folder' })
+    const store = createTestStore()
+
+    await expect(
+      store.getState().addRepoPath('/plain-folder', 'git', {
+        suppressNonGitFolderPrompt: true
+      })
+    ).resolves.toBeNull()
+
+    expect(store.getState().activeModal).not.toBe('confirm-non-git-folder')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('warns when a local project is already present in another profile', async () => {
