@@ -579,6 +579,7 @@ import {
   getDefaultRemote,
   getBranchConflictKind,
   isGitRepo,
+  getGitRepoRoot,
   getRepoName,
   searchBaseRefDetails,
   getRemoteCount,
@@ -592,6 +593,7 @@ import {
   getRemoteDrift,
   getRecentDriftSubjects
 } from '../git/repo'
+import type { AddRepoOptions } from '../../shared/add-repo-options'
 import { hasCommitObjectViaGitExec } from '../git/commit-object-ref'
 import { hasWorktreeBaseCommitRef } from '../git/worktree-base-ref-probe'
 import { resolveLocalGitUsername } from '../git/git-username'
@@ -10435,7 +10437,8 @@ export class OrcaRuntimeService {
   async addRepo(
     path: string,
     kind: 'git' | 'folder' = 'git',
-    executionHostId?: ExecutionHostId | null
+    executionHostId?: ExecutionHostId | null,
+    options: AddRepoOptions = {}
   ): Promise<Repo> {
     if (!this.store) {
       throw new Error('runtime_unavailable')
@@ -10445,10 +10448,6 @@ export class OrcaRuntimeService {
       // server-side repo paths to be explicit so `orca serve` cwd is irrelevant.
       throw new Error('Project path must be an absolute path')
     }
-    if (kind === 'git' && !isGitRepo(path)) {
-      throw new Error(`Not a valid git repository: ${path}`)
-    }
-
     const existing = this.store.getRepos().find((repo) => {
       if (!runtimePathsEqual(repo.path, path)) {
         return false
@@ -10475,11 +10474,59 @@ export class OrcaRuntimeService {
       return existing
     }
 
-    const detected = await detectRepoIconAndUpstream({ repoPath: path, kind })
+    const existingGitRoot = kind === 'git' && isGitRepo(path) ? getGitRepoRoot(path) : null
+    const selectedPathIsGitRoot =
+      existingGitRoot !== null &&
+      normalizeRuntimePathForComparison(existingGitRoot) === normalizeRuntimePathForComparison(path)
+    let initializedSelectedGitRepo = false
+    if (kind === 'git' && options.initializeGit && !selectedPathIsGitRoot) {
+      const initResult = await initializeRuntimeGitRepository(path)
+      if (initResult) {
+        throw new Error(initResult.error)
+      }
+      initializedSelectedGitRepo = true
+    }
+
+    if (kind === 'git' && !initializedSelectedGitRepo && !isGitRepo(path)) {
+      throw new Error(`Not a valid git repository: ${path}`)
+    }
+
+    const repoPath = kind === 'git' && !initializedSelectedGitRepo ? getGitRepoRoot(path) : path
+    if (
+      kind === 'git' &&
+      options.requireExactGitRoot &&
+      normalizeRuntimePathForComparison(repoPath) !== normalizeRuntimePathForComparison(path)
+    ) {
+      throw new Error(
+        'Selected folder is inside another Git repository. Initialize Git in the selected folder or open it as a folder.'
+      )
+    }
+    const existingResolved = this.store.getRepos().find((repo) => {
+      if (!runtimePathsEqual(repo.path, repoPath)) {
+        return false
+      }
+      return runtimeRepoMatchesExecutionHost(repo, executionHostId)
+    })
+    if (existingResolved) {
+      if (
+        existingResolved.executionHostId == null &&
+        parseExecutionHostId(executionHostId)?.kind === 'runtime'
+      ) {
+        const adopted =
+          this.store.updateRepo(existingResolved.id, { executionHostId }) ??
+          ({ ...existingResolved, executionHostId } as Repo)
+        this.invalidateResolvedWorktreeCache()
+        this.notifyReposChanged()
+        return adopted
+      }
+      return existingResolved
+    }
+
+    const detected = await detectRepoIconAndUpstream({ repoPath, kind })
     const repo: Repo = {
       id: randomUUID(),
-      path,
-      displayName: getRepoName(path),
+      path: repoPath,
+      displayName: getRepoName(repoPath),
       badgeColor: DEFAULT_REPO_BADGE_COLOR,
       ...(executionHostId != null ? { executionHostId } : {}),
       ...detected,
@@ -24702,6 +24749,30 @@ function branchSelectorMatches(branch: string, selector: string): boolean {
 
 function runtimePathsEqual(left: string, right: string): boolean {
   return normalizeRuntimePathForComparison(left) === normalizeRuntimePathForComparison(right)
+}
+
+async function initializeRuntimeGitRepository(path: string): Promise<{ error: string } | null> {
+  let step: 'init' | 'commit' = 'init'
+  try {
+    await gitExecFileAsync(['init'], { cwd: path })
+    step = 'commit'
+    await gitExecFileAsync(['commit', '--allow-empty', '-m', 'Initial commit'], { cwd: path })
+    return null
+  } catch (error) {
+    if (step === 'commit') {
+      await rm(join(path, '.git'), { recursive: true, force: true }).catch(() => undefined)
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    if (step === 'commit' && /Please tell me who you are|user\.name|user\.email/i.test(message)) {
+      return {
+        error:
+          'Git author identity is not configured. Run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`, then try again.'
+      }
+    }
+    const stepLabel =
+      step === 'init' ? 'Failed to initialize git repository' : 'Failed to create initial commit'
+    return { error: `${stepLabel}: ${message}` }
+  }
 }
 
 function inferWorktreeIdFromPtyId(ptyId: string): string | null {

@@ -16,6 +16,7 @@ import { useAddRepoHostChangeReset } from './use-add-repo-host-change-reset'
 import { AddRepoDialogChrome } from './AddRepoDialogChrome'
 import { AddRepoHostSelectorSlot } from './AddRepoHostSelectorSlot'
 import { useAddRepoRemoteNestedScan } from './use-add-repo-remote-nested-scan'
+import { useAddRepoProjectMode } from './use-add-repo-project-mode'
 
 const AddRepoDialog = React.memo(function AddRepoDialog() {
   const activeModal = useAppStore((s) => s.activeModal)
@@ -39,6 +40,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
   const [step, setStep] = useState<AddRepoDialogStep>('add')
   const [isAdding, setIsAdding] = useState(false)
   const [addProjectBusyLabel, setAddProjectBusyLabel] = useState<string | null>(null)
+  const projectMode = useAddRepoProjectMode()
   const {
     nestedScan,
     nestedSelectedPaths,
@@ -119,14 +121,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
     }
   )
 
-  const {
-    createDefaultParent,
-    createGitAvailability,
-    createRuntimeParentStatus,
-    createParentDefaultPending,
-    resetCreateDefaultState,
-    markCreateParentTouched
-  } = useCreateProjectDefaults({
+  const createDefaults = useCreateProjectDefaults({
     step,
     activeRuntimeEnvironmentId: selectedRuntimeEnvironmentId,
     sshTargetId: hostSelection.selectedSshTargetId,
@@ -164,6 +159,8 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
     isOpen,
     droppedLocalPath,
     activeRuntimeEnvironmentId: selectedRuntimeEnvironmentId,
+    addProjectKind: projectMode.projectKind,
+    initializeGitOnAdd: projectMode.initializeGitOnAdd,
     addRepoPath,
     closeModal,
     fetchWorktrees,
@@ -222,22 +219,24 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
     setStep('add')
     setIsAdding(false)
     setAddProjectBusyLabel(null)
+    projectMode.resetProjectMode()
     resetServerPathFlow()
     resetCloneFlow()
     resetNestedImportFlow()
     resetNestedRepoReviewState()
-    resetCreateDefaultState()
+    createDefaults.resetCreateDefaultState()
     resetCreateState()
     resetRemoteState()
   }, [
     resetCloneFlow,
     resetLocalFolderFlow,
     resetNestedRepoReviewState,
-    resetCreateDefaultState,
+    createDefaults,
     resetServerPathFlow,
     resetNestedImportFlow,
     resetRemoteState,
-    resetCreateState
+    resetCreateState,
+    projectMode
   ])
 
   const resetHostScopedState = useCallback(() => {
@@ -245,16 +244,10 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
     setAddProjectBusyLabel(null)
     resetServerPathFlow()
     resetCloneFlow()
-    resetCreateDefaultState()
+    createDefaults.resetCreateDefaultState()
     resetCreateState()
     resetRemoteState()
-  }, [
-    resetCloneFlow,
-    resetCreateDefaultState,
-    resetCreateState,
-    resetRemoteState,
-    resetServerPathFlow
-  ])
+  }, [resetCloneFlow, createDefaults, resetCreateState, resetRemoteState, resetServerPathFlow])
 
   useAddRepoHostChangeReset({
     isOpen,
@@ -327,15 +320,18 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
         createParent={createParent}
         createError={createError}
         isCreating={isCreating}
+        projectKind={projectMode.projectKind}
+        initializeGitOnAdd={projectMode.initializeGitOnAdd}
+        workspaceDir={settings?.workspaceDir ?? null}
         hostSelector={<AddRepoHostSelectorSlot hostSelection={hostSelection} />}
         showRemoteAction={false}
         browseHostKind={
           selectedHostKind === 'ssh' || selectedHostKind === 'runtime' ? selectedHostKind : 'local'
         }
-        createDefaultParent={createDefaultParent}
-        createGitAvailability={createGitAvailability}
-        createRuntimeParentStatus={createRuntimeParentStatus}
-        createParentDefaultPending={createParentDefaultPending}
+        createDefaultParent={createDefaults.createDefaultParent}
+        createGitAvailability={createDefaults.createGitAvailability}
+        createRuntimeParentStatus={createDefaults.createRuntimeParentStatus}
+        createParentDefaultPending={createDefaults.createParentDefaultPending}
         manualCreateParentEntry={isRuntimeEnvironmentActive || selectedHostKind === 'ssh'}
         onBrowse={
           selectedHostKind === 'ssh'
@@ -354,6 +350,8 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
         }}
         onOpenRemoteStep={handleOpenRemoteStep}
         onStopNestedScan={handleStopNestedScan}
+        onProjectKindChange={projectMode.setProjectKind}
+        onInitializeGitOnAddChange={projectMode.setInitializeGitOnAdd}
         onServerPathChange={setServerPath}
         onAddServerPath={(kind) => void handleAddServerPath(kind)}
         onSelectTarget={(id) => {
@@ -391,18 +389,18 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
           setCreateError(null)
         }}
         onCreateParentChange={(value) => {
-          markCreateParentTouched(value)
+          createDefaults.markCreateParentTouched(value)
           setCreateParent(value)
           setCreateError(null)
         }}
         onPickCreateParent={() => {
           void handlePickParent().then((dir) => {
             if (dir) {
-              markCreateParentTouched(dir)
+              createDefaults.markCreateParentTouched(dir)
             }
           })
         }}
-        onCreate={handleCreate}
+        onCreate={() => void handleCreate(projectMode.projectKind)}
       />
     </AddRepoDialogChrome>
   )

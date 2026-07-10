@@ -40,6 +40,7 @@ import {
   type FolderWorkspacePathStatus,
   type FolderWorkspacePathStatusRequest
 } from '../../../../shared/folder-workspace-path-status'
+import type { AddRepoOptions } from '../../../../shared/add-repo-options'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
 import { sanitizeRepoIcon } from '../../../../shared/repo-icon'
 import { normalizeRepoBadgeColor } from '../../../../shared/repo-badge-color'
@@ -1130,7 +1131,7 @@ function getRuntimeTargetCachePrefix(
 }
 
 type FolderWorkspacePathStatusRouteOptions = { runtimeEnvironmentId?: string | null }
-type AddRepoPathRouteOptions = { runtimeEnvironmentId?: string | null }
+type AddRepoPathRouteOptions = { runtimeEnvironmentId?: string | null } & AddRepoOptions
 
 function getFolderWorkspacePathStatusRouteSettings(
   options: FolderWorkspacePathStatusRouteOptions | undefined,
@@ -2196,7 +2197,16 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
       let repo: Repo
       try {
         if (target.kind === 'local') {
-          const result = await window.api.repos.add({ path, kind })
+          const result = await window.api.repos.add({
+            path,
+            kind,
+            ...(options?.initializeGit !== undefined
+              ? { initializeGit: options.initializeGit }
+              : {}),
+            ...(options?.requireExactGitRoot !== undefined
+              ? { requireExactGitRoot: options.requireExactGitRoot }
+              : {})
+          })
           if ('error' in result) {
             throw new Error(result.error)
           }
@@ -2206,7 +2216,16 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
             await callRuntimeRpc<{ repo: Repo }>(
               target,
               'repo.add',
-              { path, kind },
+              {
+                path,
+                kind,
+                ...(options?.initializeGit !== undefined
+                  ? { initializeGit: options.initializeGit }
+                  : {}),
+                ...(options?.requireExactGitRoot !== undefined
+                  ? { requireExactGitRoot: options.requireExactGitRoot }
+                  : {})
+              },
               { timeoutMs: 15_000 }
             )
           ).repo

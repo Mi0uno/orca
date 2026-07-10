@@ -4,34 +4,25 @@ import { track } from '@/lib/telemetry'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
 import {
   buildNestedRepoScanTelemetry,
-  createNestedRepoTelemetryAttemptId,
-  type NestedRepoTelemetryRuntimeKind
+  createNestedRepoTelemetryAttemptId
 } from '../../../../shared/nested-repo-telemetry'
 import type { AddRepoExistingWorkspaceSource } from '../../../../shared/telemetry-events'
 import type { NestedRepoScanResult, Repo } from '../../../../shared/types'
+import type { AddRepoOptions } from '../../../../shared/add-repo-options'
 import { createNestedRepoScanId } from './add-repo-dialog-types'
 import { translate } from '@/i18n/i18n'
-
-type ShowNestedRepoReview = (args: {
-  scan: NestedRepoScanResult
-  selectedPath: string
-  connectionId: string | null
-  attemptId: string
-  runtimeKind: NestedRepoTelemetryRuntimeKind
-  inProgress: boolean
-  scanId: string | null
-}) => void
-
-type LocalPathAddResult =
-  | { status: 'completed'; repo: Repo }
-  | { status: 'cancelled' | 'paused' | 'skipped' }
-
-type LocalPathAddMode = 'single' | 'batch'
+import type {
+  AddRepoLocalFolderShowNestedRepoReview,
+  LocalPathAddMode,
+  LocalPathAddResult
+} from './add-repo-local-folder-flow-types'
 
 export function useAddRepoLocalFolderFlow({
   isOpen,
   droppedLocalPath,
   activeRuntimeEnvironmentId,
+  addProjectKind = 'git',
+  initializeGitOnAdd = false,
   addRepoPath,
   closeModal,
   fetchWorktrees,
@@ -46,7 +37,13 @@ export function useAddRepoLocalFolderFlow({
   isOpen: boolean
   droppedLocalPath: string
   activeRuntimeEnvironmentId: string | null | undefined
-  addRepoPath: (path: string, kind?: 'git' | 'folder') => Promise<Repo | null>
+  addProjectKind?: 'git' | 'folder'
+  initializeGitOnAdd?: boolean
+  addRepoPath: (
+    path: string,
+    kind?: 'git' | 'folder',
+    options?: AddRepoOptions
+  ) => Promise<Repo | null>
   closeModal: () => void
   fetchWorktrees: (repoId: string, options?: { requireAuthoritative?: boolean }) => Promise<unknown>
   scanNestedRepos: (
@@ -56,7 +53,7 @@ export function useAddRepoLocalFolderFlow({
   ) => Promise<NestedRepoScanResult | null>
   setActiveNestedScanId: (scanId: string | null) => void
   setNestedScanInProgress: (inProgress: boolean) => void
-  showNestedRepoReview: ShowNestedRepoReview
+  showNestedRepoReview: AddRepoLocalFolderShowNestedRepoReview
   onGitRepoReady: (repoId: string, source: AddRepoExistingWorkspaceSource) => Promise<void>
   setIsAdding: (isAdding: boolean) => void
   setAddProjectBusyLabel: (label: string | null) => void
@@ -94,66 +91,80 @@ export function useAddRepoLocalFolderFlow({
         closeModal()
         return { status: 'paused' }
       }
-      setAddProjectBusyLabel('Scanning for repositories...')
+      const shouldScanNestedRepos = addProjectKind === 'git' && !initializeGitOnAdd
+      setAddProjectBusyLabel(
+        shouldScanNestedRepos
+          ? 'Scanning for repositories...'
+          : addProjectKind === 'git'
+            ? 'Opening project...'
+            : 'Opening folder...'
+      )
       try {
-        const attemptId = createNestedRepoTelemetryAttemptId()
-        const scanId = createNestedRepoScanId()
-        setActiveNestedScanId(scanId)
-        setNestedScanInProgress(true)
-        const scan = await scanNestedRepos(path, undefined, {
-          scanId,
-          onProgress: (progressScan) => {
-            if (
-              gen !== localAddGenRef.current ||
-              mode === 'batch' ||
-              progressScan.selectedPathKind !== 'non_git_folder' ||
-              progressScan.repos.length === 0
-            ) {
-              return
+        if (shouldScanNestedRepos) {
+          const attemptId = createNestedRepoTelemetryAttemptId()
+          const scanId = createNestedRepoScanId()
+          setActiveNestedScanId(scanId)
+          setNestedScanInProgress(true)
+          const scan = await scanNestedRepos(path, undefined, {
+            scanId,
+            onProgress: (progressScan) => {
+              if (
+                gen !== localAddGenRef.current ||
+                mode === 'batch' ||
+                progressScan.selectedPathKind !== 'non_git_folder' ||
+                progressScan.repos.length === 0
+              ) {
+                return
+              }
+              showNestedRepoReview({
+                scan: progressScan,
+                selectedPath: path,
+                connectionId: null,
+                attemptId,
+                runtimeKind: 'local',
+                inProgress: true,
+                scanId
+              })
             }
+          })
+          if (gen !== localAddGenRef.current) {
+            return { status: 'cancelled' }
+          }
+          clearNestedScanState()
+          track(
+            'add_repo_nested_scan_result',
+            buildNestedRepoScanTelemetry({
+              attemptId,
+              surface: 'sidebar',
+              runtimeKind: 'local',
+              scan
+            })
+          )
+          if (scan?.selectedPathKind === 'non_git_folder' && mode === 'batch') {
+            return { status: 'skipped' }
+          }
+          if (scan?.selectedPathKind === 'non_git_folder' && scan.repos.length > 0) {
+            // Why: the existing nested-repo review is a single-folder decision point.
+            // Pause batch imports here instead of queueing competing review states.
             showNestedRepoReview({
-              scan: progressScan,
+              scan,
               selectedPath: path,
               connectionId: null,
               attemptId,
               runtimeKind: 'local',
-              inProgress: true,
+              inProgress: false,
               scanId
             })
+            return { status: 'paused' }
           }
-        })
-        if (gen !== localAddGenRef.current) {
-          return { status: 'cancelled' }
         }
-        clearNestedScanState()
-        track(
-          'add_repo_nested_scan_result',
-          buildNestedRepoScanTelemetry({
-            attemptId,
-            surface: 'sidebar',
-            runtimeKind: 'local',
-            scan
-          })
+        setAddProjectBusyLabel(
+          addProjectKind === 'git' ? 'Opening project...' : 'Opening folder...'
         )
-        if (scan?.selectedPathKind === 'non_git_folder' && mode === 'batch') {
-          return { status: 'skipped' }
-        }
-        if (scan?.selectedPathKind === 'non_git_folder' && scan.repos.length > 0) {
-          // Why: the existing nested-repo review is a single-folder decision point.
-          // Pause batch imports here instead of queueing competing review states.
-          showNestedRepoReview({
-            scan,
-            selectedPath: path,
-            connectionId: null,
-            attemptId,
-            runtimeKind: 'local',
-            inProgress: false,
-            scanId
-          })
-          return { status: 'paused' }
-        }
-        setAddProjectBusyLabel('Opening project...')
-        const repo = await addRepoPath(path)
+        const repo = await addRepoPath(path, addProjectKind, {
+          initializeGit: addProjectKind === 'git' ? initializeGitOnAdd : false,
+          requireExactGitRoot: true
+        })
         if (gen !== localAddGenRef.current) {
           return { status: 'cancelled' }
         }
@@ -185,10 +196,12 @@ export function useAddRepoLocalFolderFlow({
     },
     [
       activeRuntimeEnvironmentId,
+      addProjectKind,
       addRepoPath,
       clearNestedScanState,
       closeModal,
       fetchWorktrees,
+      initializeGitOnAdd,
       onGitRepoReady,
       scanNestedRepos,
       setActiveNestedScanId,

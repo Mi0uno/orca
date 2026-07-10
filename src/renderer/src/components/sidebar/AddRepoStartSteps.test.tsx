@@ -25,11 +25,15 @@ function renderLocalStartStep(isSshLikely: boolean): string {
       addProjectBusyLabel={null}
       nestedScanInProgress={false}
       nestedScanId={null}
+      projectKind="git"
+      initializeGitOnAdd={false}
       onBrowse={vi.fn()}
       onOpenCloneStep={vi.fn()}
       onOpenRemoteStep={vi.fn()}
       onOpenCreateStep={vi.fn()}
       onStopNestedScan={vi.fn()}
+      onProjectKindChange={vi.fn()}
+      onInitializeGitOnAddChange={vi.fn()}
     />
   )
 }
@@ -79,11 +83,15 @@ async function renderLocalStartStepDom(
           addProjectBusyLabel={options.addProjectBusyLabel ?? null}
           nestedScanInProgress={options.nestedScanInProgress ?? false}
           nestedScanId={options.nestedScanId ?? null}
+          projectKind="git"
+          initializeGitOnAdd={false}
           onBrowse={vi.fn()}
           onOpenCloneStep={vi.fn()}
           onOpenRemoteStep={vi.fn()}
           onOpenCreateStep={vi.fn()}
           onStopNestedScan={vi.fn()}
+          onProjectKindChange={vi.fn()}
+          onInitializeGitOnAddChange={vi.fn()}
         />
       </TooltipProvider>
     )

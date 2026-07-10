@@ -9,6 +9,7 @@ import type {
   HostedReviewProvider
 } from '../shared/hosted-review'
 import type { NativeFileDropPayload } from '../shared/native-file-drop'
+import type { AddRepoOptions } from '../shared/add-repo-options'
 import type { ReadClipboardTextOptions } from '../shared/clipboard-text'
 import type { AppIdentity } from '../shared/app-identity'
 import type {
@@ -915,10 +916,12 @@ export type PreloadApi = {
   repos: {
     list: () => Promise<Repo[]>
     // Why: error union matches the IPC handler's return shape; renderer callers branch on `'error' in result`.
-    add: (args: {
-      path: string
-      kind?: 'git' | 'folder'
-    }) => Promise<{ repo: Repo } | { error: string }>
+    add: (
+      args: {
+        path: string
+        kind?: 'git' | 'folder'
+      } & AddRepoOptions
+    ) => Promise<{ repo: Repo } | { error: string }>
     remove: (args: { repoId: string }) => Promise<void>
     // Forget a project on one execution host only, leaving the same repo id on
     // other hosts (local or a re-added SSH target) intact.
@@ -964,12 +967,14 @@ export type PreloadApi = {
     }) => Promise<{ repo: Repo } | { error: string }>
     cloneAbort: () => Promise<void>
     // Why: error union matches the IPC handler's return shape; renderer callers branch on `'error' in result`.
-    addRemote: (args: {
-      connectionId: string
-      remotePath: string
-      displayName?: string
-      kind?: 'git' | 'folder'
-    }) => Promise<{ repo: Repo } | { error: string }>
+    addRemote: (
+      args: {
+        connectionId: string
+        remotePath: string
+        displayName?: string
+        kind?: 'git' | 'folder'
+      } & AddRepoOptions
+    ) => Promise<{ repo: Repo } | { error: string }>
     // Why: error union matches the IPC handler's return shape; renderer callers branch on `'error' in result`.
     create: (args: {
       parentPath: string
