@@ -6,7 +6,7 @@ import { splitWorktreeId } from '../../shared/worktree-id'
 import { getWslHome, parseWslPath } from '../wsl'
 
 type WorktreePathSettings = Pick<GlobalSettings, 'nestWorkspaces' | 'workspaceDir'>
-type WorktreeBasePathRepo = Pick<Repo, 'path' | 'worktreeBasePath'>
+type WorktreeBasePathRepo = Pick<Repo, 'path' | 'worktreeBasePath' | 'projectHostSetupMethod'>
 
 export { computeBranchName, getConfiguredBranchPrefix } from './worktree-branch-name'
 export { mergeWorktree } from './worktree-metadata-merge'
@@ -89,7 +89,7 @@ export function computeWorktreePath(
   const workspaceRoot = computeWorkspaceRoot(repoPath, settings)
   const pathOps = getRuntimePathOps(repoPath, workspaceRoot)
 
-  if (settings.nestWorkspaces) {
+  if (settings.nestWorkspaces && !areWorktreePathsEqual(workspaceRoot, repoPath)) {
     const repoName = pathOps.basename(repoPath).replace(/\.git$/, '')
     return pathOps.join(workspaceRoot, repoName, sanitizedName)
   }
@@ -229,12 +229,18 @@ function getEffectiveWorktreeBasePath(
   repo: WorktreeBasePathRepo,
   settings: WorktreePathSettings
 ): string {
-  return getRepoWorktreeBasePath(repo) ?? settings.workspaceDir
+  return getRepoWorktreeBasePath(repo) ?? getImplicitWorktreeBasePath(repo) ?? settings.workspaceDir
 }
 
 function getRepoWorktreeBasePath(repo: Pick<Repo, 'worktreeBasePath'>): string | undefined {
   const trimmed = repo.worktreeBasePath?.trim()
   return trimmed || undefined
+}
+
+function getImplicitWorktreeBasePath(
+  repo: Pick<Repo, 'projectHostSetupMethod'>
+): string | undefined {
+  return repo.projectHostSetupMethod ? '.' : undefined
 }
 
 function shouldMirrorWorkspaceDirInsideWsl(repoPath: string, workspaceDir: string): boolean {

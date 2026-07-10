@@ -29,9 +29,9 @@ describe('AddRepoDialog default-checkout handoff', () => {
     const source = readAddRepoFlowSource()
 
     expect(source.match(/requireAuthoritative: true/g)?.length ?? 0).toBeGreaterThanOrEqual(4)
-    expect(source).toContain("onGitRepoReady(repo.id, 'clone_url')")
-    expect(source).toContain("onGitRepoReady(repo.id, 'runtime_server_path')")
-    expect(source).toContain('onGitRepoReady(repo.id, source)')
+    expect(source).toContain("onGitRepoReady(repo.id, 'clone_url', repo.path)")
+    expect(source).toContain("onGitRepoReady(repo.id, 'runtime_server_path', repo.path)")
+    expect(source).toContain('onGitRepoReady(repo.id, source, repo.path)')
   })
 
   it('does not fail nested import completion on non-authoritative refresh', () => {
@@ -39,6 +39,6 @@ describe('AddRepoDialog default-checkout handoff', () => {
 
     expect(source).not.toContain('Could not refresh project worktrees. Try again.')
     expect(source).toContain('await fetchWorktrees(projectId, { requireAuthoritative: true })')
-    expect(source).toContain('await onGitRepoReady(repo.id, source)')
+    expect(source).toContain('await onGitRepoReady(repo.id, source, repo.path)')
   })
 })

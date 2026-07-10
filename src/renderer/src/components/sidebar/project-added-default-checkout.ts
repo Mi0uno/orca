@@ -16,10 +16,38 @@ export function getProjectDefaultCheckout(worktrees: readonly Worktree[]): Workt
   return worktrees.find((worktree) => worktree.isMainWorktree) ?? null
 }
 
+function getSelectedPathCheckout<T extends { path: string }>(
+  worktrees: readonly T[],
+  selectedPath: string | undefined
+): T | null {
+  if (!selectedPath) {
+    return null
+  }
+  let bestMatch: { worktree: T; relativePath: string } | null = null
+  for (const worktree of worktrees) {
+    const relativePath = relativePathInsideRoot(worktree.path, selectedPath)
+    if (relativePath === null) {
+      continue
+    }
+    if (!bestMatch || relativePath.length < bestMatch.relativePath.length) {
+      bestMatch = { worktree, relativePath }
+    }
+  }
+  return bestMatch?.worktree ?? null
+}
+
 function getDetectedProjectDefaultCheckout(
-  detected: DetectedWorktreeListResult | undefined
+  detected: DetectedWorktreeListResult | undefined,
+  selectedPath: string | undefined
 ): DetectedWorktreeListResult['worktrees'][number] | null {
   if (detected?.authoritative !== true) {
+    return null
+  }
+  const selectedPathCheckout = getSelectedPathCheckout(detected.worktrees, selectedPath)
+  if (selectedPathCheckout) {
+    return selectedPathCheckout
+  }
+  if (selectedPath) {
     return null
   }
   return detected.worktrees.find((worktree) => worktree.isMainWorktree) ?? null
@@ -60,13 +88,16 @@ async function revealDetectedHiddenLinkedExternalWorktrees(
   return refreshed ? null : 'linked_external_refresh_failed'
 }
 
-async function findDetectedDefaultCheckout(repoId: string): Promise<{
+async function findDetectedDefaultCheckout(
+  repoId: string,
+  selectedPath: string | undefined
+): Promise<{
   worktree: Worktree | null
   reason: DefaultCheckoutHandoffReason
 }> {
   const state = useAppStore.getState()
   const detected = state.detectedWorktreesByRepo[repoId]
-  const detectedDefaultCheckout = getDetectedProjectDefaultCheckout(detected)
+  const detectedDefaultCheckout = getDetectedProjectDefaultCheckout(detected, selectedPath)
   if (!detectedDefaultCheckout) {
     return {
       worktree: null,
@@ -88,7 +119,10 @@ async function findDetectedDefaultCheckout(repoId: string): Promise<{
   if (!refreshed) {
     return { worktree: null, reason: 'authoritative_refresh_failed' }
   }
-  const worktree = getProjectDefaultCheckout(useAppStore.getState().worktreesByRepo[repoId] ?? [])
+  const refreshedWorktrees = useAppStore.getState().worktreesByRepo[repoId] ?? []
+  const worktree =
+    getSelectedPathCheckout(refreshedWorktrees, selectedPath) ??
+    (selectedPath ? null : getProjectDefaultCheckout(refreshedWorktrees))
   return {
     worktree,
     reason: worktree ? 'detected_default_checkout' : 'refreshed_default_missing'
@@ -117,12 +151,19 @@ export async function openProjectDefaultCheckout({
   selectedPath?: string
   setHideDefaultBranchWorkspace: (value: boolean) => void
 }): Promise<void> {
-  let defaultCheckout = getProjectDefaultCheckout(
-    useAppStore.getState().worktreesByRepo[repoId] ?? []
-  )
+  const loadedWorktrees = useAppStore.getState().worktreesByRepo[repoId] ?? []
+  const selectedPathCheckout = getSelectedPathCheckout(loadedWorktrees, selectedPath)
+  let defaultCheckout = selectedPathCheckout ?? getProjectDefaultCheckout(loadedWorktrees)
   let reason: DefaultCheckoutHandoffReason = 'loaded_default_checkout'
+  if (selectedPath && !selectedPathCheckout && defaultCheckout) {
+    // Why: adding an existing linked worktree should land in the selected
+    // project directory, not an unrelated main checkout under Orca workspaces.
+    const detectedDefaultCheckout = await findDetectedDefaultCheckout(repoId, selectedPath)
+    defaultCheckout = detectedDefaultCheckout.worktree
+    reason = detectedDefaultCheckout.reason
+  }
   if (!defaultCheckout) {
-    const detectedDefaultCheckout = await findDetectedDefaultCheckout(repoId)
+    const detectedDefaultCheckout = await findDetectedDefaultCheckout(repoId, selectedPath)
     defaultCheckout = detectedDefaultCheckout.worktree
     reason = detectedDefaultCheckout.reason
   }

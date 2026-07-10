@@ -13,6 +13,7 @@ import { createNestedRepoScanId } from './add-repo-dialog-types'
 import { translate } from '@/i18n/i18n'
 import type {
   AddRepoLocalFolderShowNestedRepoReview,
+  GitRepoReadyHandler,
   LocalPathAddMode,
   LocalPathAddResult
 } from './add-repo-local-folder-flow-types'
@@ -54,7 +55,7 @@ export function useAddRepoLocalFolderFlow({
   setActiveNestedScanId: (scanId: string | null) => void
   setNestedScanInProgress: (inProgress: boolean) => void
   showNestedRepoReview: AddRepoLocalFolderShowNestedRepoReview
-  onGitRepoReady: (repoId: string, source: AddRepoExistingWorkspaceSource) => Promise<void>
+  onGitRepoReady: GitRepoReadyHandler
   setIsAdding: (isAdding: boolean) => void
   setAddProjectBusyLabel: (label: string | null) => void
 }): {
@@ -181,7 +182,7 @@ export function useAddRepoLocalFolderFlow({
           if (mode === 'batch') {
             return { status: 'completed', repo }
           }
-          await onGitRepoReady(repo.id, source)
+          await onGitRepoReady(repo.id, source, repo.path)
         } else {
           // Why: folder repos skip the Git default-checkout handoff and activate
           // their synthetic root workspace in the folder add flow.
@@ -234,7 +235,7 @@ export function useAddRepoLocalFolderFlow({
 
   const handleAddLocalPaths = useCallback(
     async (paths: string[], source: AddRepoExistingWorkspaceSource, gen: number): Promise<void> => {
-      const gitRepoIds: string[] = []
+      const gitRepos: { id: string; path: string }[] = []
       const shouldDeferGitRepoReady = paths.length > 1
       let skippedCount = 0
       for (const path of paths) {
@@ -252,7 +253,7 @@ export function useAddRepoLocalFolderFlow({
           return
         }
         if (isGitRepoKind(result.repo)) {
-          gitRepoIds.push(result.repo.id)
+          gitRepos.push({ id: result.repo.id, path: result.repo.path })
         }
       }
       if (gen !== localAddGenRef.current) {
@@ -272,8 +273,9 @@ export function useAddRepoLocalFolderFlow({
           }
         )
       }
-      if (shouldDeferGitRepoReady && gitRepoIds.length > 0) {
-        await onGitRepoReady(gitRepoIds[0], source)
+      const firstGitRepo = gitRepos[0]
+      if (shouldDeferGitRepoReady && firstGitRepo) {
+        await onGitRepoReady(firstGitRepo.id, source, firstGitRepo.path)
       }
     },
     [addLocalPathForGeneration, onGitRepoReady]

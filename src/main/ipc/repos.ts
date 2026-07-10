@@ -130,6 +130,25 @@ function emitRepoAdded(method: RepoMethod, alreadyExisted: boolean, isGitRepo?: 
   track('repo_added', props)
 }
 
+function getGitProjectDefaults(
+  setupMethod: NonNullable<Repo['projectHostSetupMethod']>
+): Pick<
+  Repo,
+  | 'externalWorktreeVisibility'
+  | 'externalWorktreeVisibilityLegacy'
+  | 'projectHostSetupMethod'
+  | 'worktreeBasePath'
+> {
+  return {
+    externalWorktreeVisibility: 'hide',
+    externalWorktreeVisibilityLegacy: false,
+    projectHostSetupMethod: setupMethod,
+    // Why: Git branch projects should create worktrees from the project root
+    // by default instead of jumping to the global Orca workspaces directory.
+    worktreeBasePath: '.'
+  }
+}
+
 function buildProjectHostSetupResult(store: Store, repo: Repo): ProjectHostSetupResult {
   const setup = getProjectHostSetupForRepo(store.getProjectHostSetups(), repo)
   const project = store.getProjects().find((entry) => entry.id === setup.projectId)
@@ -239,15 +258,7 @@ async function addLocalRepoFromPath(
     ...detected,
     addedAt: Date.now(),
     kind: repoKind,
-    ...(repoKind === 'git'
-      ? {
-          externalWorktreeVisibility: 'hide' as const,
-          externalWorktreeVisibilityLegacy: false,
-          // Why: new Add Project imports should become explicit ready host
-          // setups; `legacy-repo` is reserved for older records/projection.
-          projectHostSetupMethod: 'imported-existing-folder' as const
-        }
-      : {})
+    ...(repoKind === 'git' ? getGitProjectDefaults('imported-existing-folder') : {})
   }
 
   store.addRepo(repo)
@@ -390,11 +401,7 @@ async function addRemoteRepoFromPath(
     kind: repoKind,
     connectionId: args.connectionId,
     ...(repoKind === 'git'
-      ? {
-          externalWorktreeVisibility: 'hide' as const,
-          externalWorktreeVisibilityLegacy: false,
-          projectHostSetupMethod: args.setupMethod ?? ('imported-existing-folder' as const)
-        }
+      ? getGitProjectDefaults(args.setupMethod ?? 'imported-existing-folder')
       : {})
   }
 
@@ -540,7 +547,7 @@ async function cloneRemoteRepo(
   if (existing && isFolderRepo(existing)) {
     const updated = store.updateRepo(existing.id, {
       kind: 'git',
-      projectHostSetupMethod: 'cloned'
+      ...getGitProjectDefaults('cloned')
     })
     if (updated) {
       emitRepoAdded('clone_url', false)
@@ -1693,9 +1700,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
             addedAt: Date.now(),
             kind: 'git',
             ...(args.connectionId ? { connectionId: args.connectionId } : {}),
-            externalWorktreeVisibility: 'hide',
-            externalWorktreeVisibilityLegacy: false,
-            projectHostSetupMethod: 'imported-existing-folder',
+            ...getGitProjectDefaults('imported-existing-folder'),
             ...(group
               ? {
                   projectGroupId: group.id,
@@ -1991,13 +1996,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         ...detected,
         addedAt: Date.now(),
         kind: repoKind,
-        ...(repoKind === 'git'
-          ? {
-              externalWorktreeVisibility: 'hide' as const,
-              externalWorktreeVisibilityLegacy: false,
-              projectHostSetupMethod: 'imported-existing-folder' as const
-            }
-          : {})
+        ...(repoKind === 'git' ? getGitProjectDefaults('imported-existing-folder') : {})
       }
 
       store.addRepo(repo)
@@ -2458,7 +2457,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
             if (isFolderRepo(existing)) {
               const updated = store.updateRepo(existing.id, {
                 kind: 'git',
-                projectHostSetupMethod: 'cloned'
+                ...getGitProjectDefaults('cloned')
               })
               if (updated) {
                 await prepareLocalWorktreeRootForRepo(store, updated)
@@ -2482,9 +2481,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
             ...detected,
             addedAt: Date.now(),
             kind: 'git',
-            externalWorktreeVisibility: 'hide',
-            externalWorktreeVisibilityLegacy: false,
-            projectHostSetupMethod: 'cloned'
+            ...getGitProjectDefaults('cloned')
           }
 
           store.addRepo(repo)

@@ -46,7 +46,7 @@ export function effectiveExternalWorktreeVisibility(
 
 export function buildKnownOrcaWorkspaceLayouts(
   settings: Pick<GlobalSettings, 'workspaceDir' | 'nestWorkspaces' | 'workspaceDirHistory'>,
-  repo?: Pick<Repo, 'path' | 'connectionId' | 'worktreeBasePath'>
+  repo?: Pick<Repo, 'path' | 'connectionId' | 'worktreeBasePath' | 'projectHostSetupMethod'>
 ): OrcaWorkspaceLayout[] {
   const layouts: OrcaWorkspaceLayout[] = []
   const repoBasePath = getRepoWorktreeBasePath(repo)
@@ -100,10 +100,10 @@ function appendWorkspaceLayouts(
 }
 
 function getRepoWorktreeBasePath(
-  repo: Pick<Repo, 'worktreeBasePath'> | undefined
+  repo: Pick<Repo, 'worktreeBasePath' | 'projectHostSetupMethod'> | undefined
 ): string | undefined {
   const trimmed = repo?.worktreeBasePath?.trim()
-  return trimmed || undefined
+  return trimmed || (repo?.projectHostSetupMethod ? '.' : undefined)
 }
 
 function resolveWorkspaceLayoutPath(repoPath: string, layoutPath: string): string {

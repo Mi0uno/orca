@@ -3582,7 +3582,8 @@
           "875dda0995": "Enter a host parent path.",
           "ssh_parent_manual": "Enter an SSH parent path.",
           "45b7c26034": "Create project",
-          "85085d74d2": "Creating…"
+          "85085d74d2": "Creating…",
+          "folderKindLabel": "Folder"
         },
         "AddRepoHostSelector": {
           "host": "Host",
@@ -4622,6 +4623,15 @@
           "cancel": "Cancel",
           "forget": "Remove from Orca",
           "reconnectAndDelete": "Reconnect & Delete"
+        },
+        "AddRepoProjectModeControl": {
+          "gitDescription": "Branch worktrees are created in this project directory.",
+          "modeLabel": "Project mode",
+          "gitBranches": "Git branches",
+          "folder": "Folder",
+          "folderDescription": "Opens the selected path directly.",
+          "initializeGit": "Initialize Git here",
+          "initializeGitDescription": "Use the selected folder as its own repository."
         }
       },
       "shared": {

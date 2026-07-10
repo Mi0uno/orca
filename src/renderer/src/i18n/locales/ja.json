@@ -3563,7 +3563,8 @@
           "c234df77f7": "作成する前に、サーバーの親フォルダを選択または入力してください。",
           "3a13f6e88b": "場所が選択されていません",
           "6ed14c0281": "サーバーフォルダが選択されていません",
-          "ssh_parent_manual": "SSH の親パスを入力してください。"
+          "ssh_parent_manual": "SSH の親パスを入力してください。",
+          "folderKindLabel": "Folder"
         },
         "AddRepoNestedImportStep": {
           "496f68cf8c": "repos をスキャンしています。クリックして停止します。",
@@ -4622,6 +4623,15 @@
           "cancel": "Cancel",
           "forget": "Remove from Orca",
           "reconnectAndDelete": "Reconnect & Delete"
+        },
+        "AddRepoProjectModeControl": {
+          "gitDescription": "Branch worktrees are created in this project directory.",
+          "modeLabel": "Project mode",
+          "gitBranches": "Git branches",
+          "folder": "Folder",
+          "folderDescription": "Opens the selected path directly.",
+          "initializeGit": "Initialize Git here",
+          "initializeGitDescription": "Use the selected folder as its own repository."
         }
       },
       "shared": {

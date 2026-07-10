@@ -18,7 +18,7 @@ export function useRemoteRepo(
   ) => Promise<unknown>,
   setStep: (step: 'add' | 'clone' | 'remote' | 'create' | 'nested') => void,
   closeModal: () => void,
-  onGitRepoReady?: (repoId: string) => void | Promise<void>,
+  onGitRepoReady?: (repoId: string, selectedPath?: string) => void | Promise<void>,
   scanNestedRepos?: (
     path: string,
     connectionId?: string,
@@ -205,7 +205,7 @@ export function useRemoteRepo(
       if (!mountedRef.current || gen !== remoteGenRef.current) {
         return
       }
-      await onGitRepoReady?.(repo.id)
+      await onGitRepoReady?.(repo.id, repo.path)
     } catch (err) {
       const message = extractIpcErrorMessage(err, String(err))
       if (message.includes('Not a valid git repository')) {
