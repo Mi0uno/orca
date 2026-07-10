@@ -93,7 +93,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
     fetchWorktrees,
     setStep,
     closeModal,
-    (repoId) => completeGitRepoAdd(repoId, 'ssh_remote_path'),
+    (repoId, selectedPath) => completeGitRepoAdd(repoId, 'ssh_remote_path', selectedPath),
     scanNestedRepos,
     showRemoteNestedRepoReview,
     trackRemoteNestedScanResult
@@ -113,7 +113,7 @@ const AddRepoDialog = React.memo(function AddRepoDialog() {
   } = useCreateRepo(
     fetchWorktrees,
     closeModal,
-    (repoId) => completeGitRepoAdd(repoId, 'create_project'),
+    (repoId, selectedPath) => completeGitRepoAdd(repoId, 'create_project', selectedPath),
     {
       hostId: hostSelection.selectedHostId,
       runtimeEnvironmentId: selectedRuntimeEnvironmentId,

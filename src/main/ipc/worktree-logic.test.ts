@@ -216,6 +216,31 @@ describe('computeWorktreePath', () => {
     ).toBe(posix.resolve('/projects/app/worktrees/feature'))
   })
 
+  it('creates project-root worktrees when the repo base path resolves to the repo root', () => {
+    expect(
+      computeWorktreePath('feature', '/projects/app/repo', {
+        nestWorkspaces: true,
+        workspaceDir: '.'
+      })
+    ).toBe(posix.resolve('/projects/app/repo/feature'))
+  })
+
+  it('defaults project-host repos to project-root worktrees', () => {
+    const repo = {
+      path: '/projects/app/repo',
+      projectHostSetupMethod: 'imported-existing-folder' as const
+    }
+    const settings = { nestWorkspaces: true, workspaceDir: '/global/workspaces' }
+
+    expect(computeWorktreePath('feature', repo.path, getWorktreePathSettings(repo, settings))).toBe(
+      posix.resolve('/projects/app/repo/feature')
+    )
+    expect(getWorktreeCreationLayout(repo, settings)).toEqual({
+      path: '.',
+      nestWorkspaces: true
+    })
+  })
+
   it('scopes the same relative repo override to each repo root', () => {
     const settings = { nestWorkspaces: false, workspaceDir: '/global/workspaces' }
     const repoA = { path: '/projects/a/repo', worktreeBasePath: '../worktrees' }

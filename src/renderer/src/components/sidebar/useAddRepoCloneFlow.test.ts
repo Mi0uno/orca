@@ -144,7 +144,7 @@ describe('useAddRepoCloneFlow', () => {
     expect(mocks.storeState.projectHostSetups).toEqual(
       expect.arrayContaining([expect.objectContaining({ repoId: repo.id, path: repo.path })])
     )
-    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'clone_url')
+    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'clone_url', repo.path)
   })
 
   it('does not prefill SSH clone destinations from the local workspace directory', async () => {
@@ -215,6 +215,6 @@ describe('useAddRepoCloneFlow', () => {
     expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
       requireAuthoritative: true
     })
-    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'clone_url')
+    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'clone_url', repo.path)
   })
 })

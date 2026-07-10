@@ -46,7 +46,11 @@ export function useAddRepoNestedImportFlow({
     mode: 'group' | 'separate'
   }) => Promise<ProjectGroupImportResult | null>
   getNestedRepoRuntimeKind: (connectionId: string | null) => NestedRepoTelemetryRuntimeKind
-  onGitRepoReady: (repoId: string, source: AddRepoExistingWorkspaceSource) => Promise<void>
+  onGitRepoReady: (
+    repoId: string,
+    source: AddRepoExistingWorkspaceSource,
+    selectedPath?: string
+  ) => Promise<void>
   setIsAdding: (isAdding: boolean) => void
 }): {
   handleImportNestedRepos: (mode: 'group' | 'separate') => Promise<void>
@@ -194,7 +198,7 @@ export function useAddRepoNestedImportFlow({
             : activeRuntimeEnvironmentId?.trim()
               ? 'runtime_server_path'
               : 'local_folder_picker'
-          await onGitRepoReady(repo.id, source)
+          await onGitRepoReady(repo.id, source, repo.path)
         }
       } catch (err) {
         if (gen === nestedImportGenRef.current) {

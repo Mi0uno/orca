@@ -23,7 +23,11 @@ export function useAddRepoCloneFlow({
   sshTargetId?: string | null
   workspaceDir: string | null | undefined
   fetchWorktrees: (repoId: string, options?: { requireAuthoritative?: boolean }) => Promise<unknown>
-  onGitRepoReady: (repoId: string, source: AddRepoExistingWorkspaceSource) => Promise<void>
+  onGitRepoReady: (
+    repoId: string,
+    source: AddRepoExistingWorkspaceSource,
+    selectedPath?: string
+  ) => Promise<void>
 }): {
   cloneUrl: string
   cloneDestination: string
@@ -159,7 +163,7 @@ export function useAddRepoCloneFlow({
       if (gen !== cloneGenRef.current || requestHostToken !== hostTokenRef.current) {
         return
       }
-      await onGitRepoReady(repo.id, 'clone_url')
+      await onGitRepoReady(repo.id, 'clone_url', repo.path)
     } catch (err) {
       if (gen !== cloneGenRef.current || requestHostToken !== hostTokenRef.current) {
         return
