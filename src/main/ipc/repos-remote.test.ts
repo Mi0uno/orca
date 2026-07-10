@@ -1169,7 +1169,7 @@ describe('repos:addRemote', () => {
     expect(mockStore.addRepo).not.toHaveBeenCalled()
   })
 
-  it('adds a separate SSH git repo after cloning into an existing folder repo path', async () => {
+  it('upgrades an existing SSH folder repo after cloning into that path', async () => {
     const existing = {
       id: 'existing-folder',
       path: '/home/user/orca',
@@ -1179,7 +1179,9 @@ describe('repos:addRemote', () => {
       addedAt: 1000,
       kind: 'folder'
     }
+    const updated = { ...existing, kind: 'git' as const }
     mockStore.getRepos.mockReturnValue([existing])
+    mockStore.updateRepo.mockReturnValue(updated)
 
     const result = await handlers.get('repos:cloneRemote')!(null, {
       connectionId: 'conn-1',
@@ -1196,21 +1198,15 @@ describe('repos:addRemote', () => {
         onProgress: expect.any(Function)
       })
     )
-    expect(mockStore.updateRepo).not.toHaveBeenCalled()
-    expect(mockStore.addRepo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: existing.path,
-        connectionId: 'conn-1',
-        kind: 'git',
-        externalWorktreeVisibility: 'hide',
-        externalWorktreeVisibilityLegacy: false,
-        projectHostSetupMethod: 'cloned',
-        worktreeBasePath: '.'
-      })
-    )
-    expect(result).toHaveProperty('kind', 'git')
-    expect(result).toHaveProperty('path', existing.path)
-    expect(result).not.toHaveProperty('id', existing.id)
+    expect(mockStore.updateRepo).toHaveBeenCalledWith('existing-folder', {
+      kind: 'git',
+      externalWorktreeVisibility: 'hide',
+      externalWorktreeVisibilityLegacy: false,
+      projectHostSetupMethod: 'cloned',
+      worktreeBasePath: '.'
+    })
+    expect(mockStore.addRepo).not.toHaveBeenCalled()
+    expect(result).toBe(updated)
   })
 
   it('does not delete a fresh SSH clone target after git clone fails', async () => {
@@ -2160,7 +2156,7 @@ describe('repos:add + repos:clone', () => {
     expect(configReads).toHaveLength(2)
   })
 
-  it('adds a separate git repo when repos:clone targets an existing folder repo path', async () => {
+  it('preserves existing badgeColor when repos:clone upgrades folder->git after dedupe', async () => {
     const destination = await createTempRoot()
     const clonePath = join(destination, 'orca')
     const existing = {
@@ -2171,33 +2167,27 @@ describe('repos:add + repos:clone', () => {
       addedAt: 1,
       kind: 'folder'
     }
+    const upgraded = { ...existing, kind: 'git' as const }
     mockStore.getRepos.mockReturnValue([existing])
+    mockStore.updateRepo.mockReturnValue(upgraded)
 
     const result = await handlers.get('repos:clone')!(null, {
       url: 'https://example.com/orca.git',
       destination
     })
 
-    expect(mockStore.updateRepo).not.toHaveBeenCalled()
-    expect(mockStore.addRepo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: clonePath,
-        badgeColor: DEFAULT_REPO_BADGE_COLOR,
-        kind: 'git',
-        externalWorktreeVisibility: 'hide',
-        externalWorktreeVisibilityLegacy: false,
-        projectHostSetupMethod: 'cloned',
-        worktreeBasePath: '.'
-      })
-    )
-    expect(result).toHaveProperty('kind', 'git')
-    expect(result).toHaveProperty('path', clonePath)
-    expect(result).not.toHaveProperty('id', existing.id)
-    expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(
-      mockStore,
-      expect.objectContaining({ path: clonePath, kind: 'git' })
-    )
+    expect(mockStore.updateRepo).toHaveBeenCalledWith(existing.id, {
+      kind: 'git',
+      externalWorktreeVisibility: 'hide',
+      externalWorktreeVisibilityLegacy: false,
+      projectHostSetupMethod: 'cloned',
+      worktreeBasePath: '.'
+    })
+    expect(result).toEqual(upgraded)
+    expect(result).toHaveProperty('badgeColor', '#8b5cf6')
+    expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(mockStore, upgraded)
     expect(invalidateAuthorizedRootsCacheMock).toHaveBeenCalled()
+    expect(mockStore.addRepo).not.toHaveBeenCalled()
   })
 
   it('rejects a dot-segment URL before creating the destination or spawning git', async () => {

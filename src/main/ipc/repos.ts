@@ -564,6 +564,19 @@ async function cloneRemoteRepo(
     }
     remoteCloneInFlightByPath.delete(remoteCloneKey)
   }
+  if (existing && isFolderRepo(existing)) {
+    const updated = store.updateRepo(existing.id, {
+      kind: 'git',
+      ...getGitProjectDefaults('cloned')
+    })
+    if (updated) {
+      emitRepoAdded('clone_url', false)
+      getActiveMultiplexer(args.connectionId)?.notify('session.registerRoot', {
+        rootPath: clonePath
+      })
+      return updated
+    }
+  }
   const result = await addRemoteRepoFromPath(store, {
     connectionId: args.connectionId,
     remotePath: clonePath,
@@ -2481,13 +2494,26 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         })
 
         try {
-          // Why: check after clone (not before) because the path usually did not
-          // exist before cloning. Folder-mode entries at the same path are kept
-          // separate so users can retain both plain and worktree-backed modes.
+          // Why: check after clone because the path usually did not exist before
+          // cloning. A folder entry at that path should become the new Git project.
           const existing = store
             .getRepos()
             .find((r) => getClonePathComparisonKey(r.path) === clonePathKey)
-          if (existing && !isFolderRepo(existing)) {
+          if (existing) {
+            if (isFolderRepo(existing)) {
+              const updated = store.updateRepo(existing.id, {
+                kind: 'git',
+                ...getGitProjectDefaults('cloned')
+              })
+              if (updated) {
+                await prepareLocalWorktreeRootForRepo(store, updated)
+                invalidateAuthorizedRootsCache()
+                notifyReposChanged(mainWindow)
+                // Why: folder→git upgrade is a real new git repo provisioning event.
+                emitRepoAdded('clone_url', false, true)
+                return updated
+              }
+            }
             emitRepoAdded('clone_url', true, true)
             return existing
           }

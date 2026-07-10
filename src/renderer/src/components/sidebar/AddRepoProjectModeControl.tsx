@@ -23,22 +23,15 @@ export function AddRepoProjectModeControl({
   initializeGitOnAdd,
   disabled = false,
   showInitializeGit = true,
-  workspaceDir = null,
   onProjectKindChange,
   onInitializeGitOnAddChange
 }: AddRepoProjectModeControlProps): React.JSX.Element {
   const initializeCheckboxId = useId()
   const initializeDisabled = disabled || projectKind !== 'git'
-  const gitDescription = workspaceDir
-    ? translate(
-        'auto.components.sidebar.AddRepoProjectModeControl.gitDescriptionWithPath',
-        'Worktrees will be created in {{workspaceDir}}.',
-        { workspaceDir }
-      )
-    : translate(
-        'auto.components.sidebar.AddRepoProjectModeControl.gitDescription',
-        'Branch worktrees are created in this project directory.'
-      )
+  const gitDescription = translate(
+    'auto.components.sidebar.AddRepoProjectModeControl.gitDescription',
+    'Branch worktrees are created in this project directory.'
+  )
 
   return (
     <div className="space-y-2 rounded-md border border-border bg-background px-3 py-2.5">
@@ -80,9 +73,7 @@ export function AddRepoProjectModeControl({
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-[11px] leading-4 text-muted-foreground">
-        <p className="break-words" title={workspaceDir ?? undefined}>
-          {gitDescription}
-        </p>
+        <p className="break-words">{gitDescription}</p>
         <p>
           {translate(
             'auto.components.sidebar.AddRepoProjectModeControl.folderDescription',
