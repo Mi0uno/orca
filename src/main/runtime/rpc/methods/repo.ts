@@ -11,7 +11,9 @@ const RepoSelector = z.object({
 
 const RepoPath = z.object({
   path: requiredString('Missing repo path'),
-  kind: z.enum(['git', 'folder']).optional()
+  kind: z.enum(['git', 'folder']).optional(),
+  initializeGit: z.boolean().optional(),
+  requireExactGitRoot: z.boolean().optional()
 })
 
 const RepoCreate = z.object({
@@ -178,7 +180,10 @@ export const REPO_METHODS: RpcMethod[] = [
     name: 'repo.add',
     params: RepoPath,
     handler: async (params, { runtime }) => ({
-      repo: await runtime.addRepo(params.path, params.kind)
+      repo: await runtime.addRepo(params.path, params.kind, undefined, {
+        initializeGit: params.initializeGit,
+        requireExactGitRoot: params.requireExactGitRoot
+      })
     })
   }),
   defineMethod({

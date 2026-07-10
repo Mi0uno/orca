@@ -9,12 +9,14 @@ function renderCreateStep({
   createName = '',
   gitAvailability = 'available',
   createParent = '/Users/alice/orca/projects',
-  parentDefaultPending = false
+  parentDefaultPending = false,
+  projectKind = 'git'
 }: {
   createName?: string
   gitAvailability?: GitAvailability
   createParent?: string
   parentDefaultPending?: boolean
+  projectKind?: 'git' | 'folder'
 } = {}): string {
   return renderToStaticMarkup(
     <TooltipProvider>
@@ -24,6 +26,7 @@ function renderCreateStep({
           createParent={createParent}
           createError={null}
           isCreating={false}
+          projectKind={projectKind}
           defaultParent="/Users/alice/orca/projects"
           gitAvailability={gitAvailability}
           runtimeParentStatus="idle"
@@ -31,6 +34,7 @@ function renderCreateStep({
           onNameChange={vi.fn()}
           onParentChange={vi.fn()}
           onPickParent={vi.fn()}
+          onProjectKindChange={vi.fn()}
           onCreate={vi.fn()}
         />
       </Dialog>
@@ -44,6 +48,7 @@ describe('CreateStep', () => {
 
     expect(html).toContain('Create a new project')
     expect(html).toContain('Name')
+    expect(html).toContain('Project mode')
     expect(html).toContain('Git repository in ~/orca/projects')
     // The summary card itself is the collapsed disclosure for the uncommon settings.
     expect(html).toContain('aria-expanded="false"')
@@ -61,6 +66,17 @@ describe('CreateStep', () => {
     expect(html).toContain('Git repository in ~/orca/projects')
     expect(html).toContain('Git is required to create a project.')
     expect(html).toContain('disabled=""')
+  })
+
+  it('allows folder creation when Git is unavailable', () => {
+    const html = renderCreateStep({
+      createName: 'plain-project',
+      gitAvailability: 'unavailable',
+      projectKind: 'folder'
+    })
+
+    expect(html).toContain('Folder in ~/orca/projects')
+    expect(html).not.toContain('Git is required to create a project.')
   })
 
   it('disables create while an auto-filled parent belongs to a previous target', () => {

@@ -221,6 +221,30 @@ describe('useCreateRepo default-checkout handoff', () => {
     expect(mocks.onGitRepoReady).not.toHaveBeenCalled()
   })
 
+  it('creates a folder project when requested', async () => {
+    const repo = makeRepo({ kind: 'folder' })
+    const worktree = { id: `${repo.id}::/projects/created` }
+    const closeModal = vi.fn()
+    mocks.createRepo.mockResolvedValue({ repo })
+    mocks.fetchWorktrees.mockImplementation(async (repoId: string) => {
+      mocks.storeState.worktreesByRepo = { [repoId]: [worktree] }
+      return true
+    })
+    const { useCreateRepo } = await import('./useCreateRepo')
+
+    const result = useCreateRepo(mocks.fetchWorktrees, closeModal, mocks.onGitRepoReady)
+    await result.handleCreate('folder')
+
+    expect(mocks.createRepo).toHaveBeenCalledWith({
+      parentPath: '/projects',
+      name: 'created',
+      kind: 'folder'
+    })
+    expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id)
+    expect(closeModal).toHaveBeenCalled()
+    expect(mocks.onGitRepoReady).not.toHaveBeenCalled()
+  })
+
   it('creates projects through the SSH host when an SSH target is selected', async () => {
     const repo = makeRepo({ connectionId: 'ssh-1', path: '/srv/created' })
     mocks.createRemoteRepo.mockResolvedValue({ repo })

@@ -10,6 +10,7 @@ import {
 import type { AddRepoExistingWorkspaceSource } from '../../../../shared/telemetry-events'
 import type { NestedRepoScanResult, Repo } from '../../../../shared/types'
 import type { WorktreeFetchOptions } from '@/store/slices/worktree-helpers'
+import type { AddRepoOptions } from '../../../../shared/add-repo-options'
 import { createNestedRepoScanId } from './add-repo-dialog-types'
 import { worktreeRefreshOptions } from './add-repo-runtime-owner'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
@@ -41,7 +42,7 @@ export function useAddRepoServerPathFlow({
   addRepoPath: (
     path: string,
     kind?: 'git' | 'folder',
-    options?: { runtimeEnvironmentId?: string | null }
+    options?: AddRepoOptions & { runtimeEnvironmentId?: string | null }
   ) => Promise<Repo | null>
   activeRuntimeEnvironmentId: string | null
   closeModal: () => void
@@ -158,7 +159,8 @@ export function useAddRepoServerPathFlow({
         }
         setAddProjectBusyLabel(kind === 'git' ? 'Opening project...' : 'Opening folder...')
         const repo = await addRepoPath(path, kind, {
-          runtimeEnvironmentId: activeRuntimeEnvironmentId
+          runtimeEnvironmentId: activeRuntimeEnvironmentId,
+          requireExactGitRoot: true
         })
         if (gen !== serverAddGenRef.current) {
           return

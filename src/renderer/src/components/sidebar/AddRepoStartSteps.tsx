@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { getAddRepoLocalStartActions } from './add-repo-local-start-actions'
 import { translate } from '@/i18n/i18n'
+import { AddRepoProjectModeControl, type AddRepoProjectKind } from './AddRepoProjectModeControl'
 
 type AddRepoNestedScanProgressNoticeProps = {
   busyLabel: string
@@ -70,11 +71,16 @@ type AddRepoLocalStartStepProps = {
   showRemoteAction?: boolean
   canCreateProject?: boolean
   browseHostKind?: 'local' | 'ssh' | 'runtime'
+  projectKind: AddRepoProjectKind
+  initializeGitOnAdd: boolean
+  workspaceDir?: string | null
   onBrowse: () => void
   onOpenCloneStep: () => void
   onOpenRemoteStep: () => void
   onOpenCreateStep: () => void
   onStopNestedScan: () => void
+  onProjectKindChange: (kind: AddRepoProjectKind) => void
+  onInitializeGitOnAddChange: (enabled: boolean) => void
 }
 
 export function AddRepoLocalStartStep({
@@ -88,11 +94,16 @@ export function AddRepoLocalStartStep({
   showRemoteAction = true,
   canCreateProject = true,
   browseHostKind = 'local',
+  projectKind,
+  initializeGitOnAdd,
+  workspaceDir,
   onBrowse,
   onOpenCloneStep,
   onOpenRemoteStep,
   onOpenCreateStep,
-  onStopNestedScan
+  onStopNestedScan,
+  onProjectKindChange,
+  onInitializeGitOnAddChange
 }: AddRepoLocalStartStepProps): React.JSX.Element {
   const browseActionRef = useRef<HTMLButtonElement | null>(null)
   const actionsRef = useRef<HTMLDivElement | null>(null)
@@ -133,7 +144,13 @@ export function AddRepoLocalStartStep({
     if (buttons.length === 0) {
       return
     }
-    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement)
+    if (
+      !(document.activeElement instanceof HTMLButtonElement) ||
+      !document.activeElement.matches('button[data-add-repo-action]')
+    ) {
+      return
+    }
+    const currentIndex = buttons.indexOf(document.activeElement)
     const delta = event.key === 'ArrowDown' ? 1 : -1
     const nextIndex = (currentIndex + delta + buttons.length) % buttons.length
     event.preventDefault()
@@ -173,6 +190,14 @@ export function AddRepoLocalStartStep({
         onKeyDown={handleArrowNavigation}
       >
         {hostSelector}
+        <AddRepoProjectModeControl
+          projectKind={projectKind}
+          initializeGitOnAdd={initializeGitOnAdd}
+          workspaceDir={workspaceDir}
+          disabled={isAdding}
+          onProjectKindChange={onProjectKindChange}
+          onInitializeGitOnAddChange={onInitializeGitOnAddChange}
+        />
         <AddRepoPrimaryStartAction
           icon={primaryAction.icon}
           title={primaryAction.title}

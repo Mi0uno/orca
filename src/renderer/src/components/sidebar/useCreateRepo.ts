@@ -83,62 +83,60 @@ export function useCreateRepo(
     return null
   }, [mountedRef, options.runtimeEnvironmentId, options.sshTargetId])
 
-  const handleCreate = useCallback(async () => {
-    const name = createName.trim()
-    const parentPath = createParent.trim()
-    if (!name || !parentPath) {
-      return
-    }
-    const requestHostToken = hostTokenRef.current
-    const gen = ++createGenRef.current
-    setIsCreating(true)
-    setCreateError(null)
-    try {
-      const target = options.runtimeEnvironmentId?.trim()
-        ? { kind: 'environment' as const, environmentId: options.runtimeEnvironmentId.trim() }
-        : getActiveRuntimeTarget({
-            ...useAppStore.getState().settings,
-            activeRuntimeEnvironmentId: null
-          })
-      // Why: Create Project is intentionally Git-only; non-Git folders use the
-      // existing add-folder flows instead of this path.
-      const createKind = 'git' as const
-      const result = options.sshTargetId
-        ? await window.api.repos.createRemote({
-            connectionId: options.sshTargetId,
-            parentPath,
-            name,
-            kind: createKind
-          })
-        : target.kind === 'environment'
-          ? await callRuntimeRpc<{ repo: Repo } | { error: string }>(
-              target,
-              'repo.create',
-              {
-                parentPath,
-                name,
-                kind: createKind
-              },
-              { timeoutMs: 60_000 }
-            )
-          : await window.api.repos.create({
+  const handleCreate = useCallback(
+    async (createKind: 'git' | 'folder' = 'git') => {
+      const name = createName.trim()
+      const parentPath = createParent.trim()
+      if (!name || !parentPath) {
+        return
+      }
+      const requestHostToken = hostTokenRef.current
+      const gen = ++createGenRef.current
+      setIsCreating(true)
+      setCreateError(null)
+      try {
+        const target = options.runtimeEnvironmentId?.trim()
+          ? { kind: 'environment' as const, environmentId: options.runtimeEnvironmentId.trim() }
+          : getActiveRuntimeTarget({
+              ...useAppStore.getState().settings,
+              activeRuntimeEnvironmentId: null
+            })
+        const result = options.sshTargetId
+          ? await window.api.repos.createRemote({
+              connectionId: options.sshTargetId,
               parentPath,
               name,
               kind: createKind
             })
-      // Why: if the user closed the dialog or clicked Back mid-create,
-      // createGenRef was bumped by resetCreateState. Ignore stale results.
-      if (
-        gen !== createGenRef.current ||
-        requestHostToken !== hostTokenRef.current ||
-        !mountedRef.current
-      ) {
-        return
-      }
-      if ('error' in result) {
-        setCreateError(result.error)
-        return
-      }
+          : target.kind === 'environment'
+            ? await callRuntimeRpc<{ repo: Repo } | { error: string }>(
+                target,
+                'repo.create',
+                {
+                  parentPath,
+                  name,
+                  kind: createKind
+                },
+                { timeoutMs: 60_000 }
+              )
+            : await window.api.repos.create({
+                parentPath,
+                name,
+                kind: createKind
+              })
+        // Why: if the user closed the dialog or clicked Back mid-create,
+        // createGenRef was bumped by resetCreateState. Ignore stale results.
+        if (
+          gen !== createGenRef.current ||
+          requestHostToken !== hostTokenRef.current ||
+          !mountedRef.current
+        ) {
+          return
+        }
+        if ('error' in result) {
+          setCreateError(result.error)
+          return
+        }
       const { alreadyPresent: wasDeduped, repo } = upsertAddedRepoWithProjectHostSetup(
         result.repo,
         {
@@ -197,16 +195,17 @@ export function useCreateRepo(
         await (ownerOptions.executionHostId
           ? fetchWorktrees(repo.id, { executionHostId: ownerOptions.executionHostId })
           : fetchWorktrees(repo.id))
-        if (
-          gen !== createGenRef.current ||
-          requestHostToken !== hostTokenRef.current ||
-          !mountedRef.current
-        ) {
+        // Why: the IPC handler dedupes by path (see repos:create) and returns
+        // the existing repo unchanged. If its ID is already in our store, the
+        // handler took the dedup path — no new project was created, so don't
+        // claim one was.
+        if (gen !== createGenRef.current || !mountedRef.current) {
           return
         }
         const folderWorktree = useAppStore
           .getState()
-          .worktreesByRepo[repo.id]?.find(
+          .worktreesByRepo[repo.id]
+          ?.find(
             (worktree) =>
               ownerOptions.executionHostId === undefined ||
               worktree.hostId === ownerOptions.executionHostId
@@ -222,36 +221,38 @@ export function useCreateRepo(
         await markOnboardingProjectAdded('addedFolder')
         closeModal()
       }
-    } catch (err) {
-      if (
-        gen !== createGenRef.current ||
-        requestHostToken !== hostTokenRef.current ||
-        !mountedRef.current
-      ) {
-        return
+      } catch (err) {
+        if (
+          gen !== createGenRef.current ||
+          requestHostToken !== hostTokenRef.current ||
+          !mountedRef.current
+        ) {
+          return
+        }
+        setCreateError(extractIpcErrorMessage(err, String(err)))
+      } finally {
+        // Why: only clear the loading state if this invocation is still current;
+        // a superseded create must not flip the flag back off for a new flow.
+        if (
+          gen === createGenRef.current &&
+          requestHostToken === hostTokenRef.current &&
+          mountedRef.current
+        ) {
+          setIsCreating(false)
+        }
       }
-      setCreateError(extractIpcErrorMessage(err, String(err)))
-    } finally {
-      // Why: only clear the loading state if this invocation is still current;
-      // a superseded create must not flip the flag back off for a new flow.
-      if (
-        gen === createGenRef.current &&
-        requestHostToken === hostTokenRef.current &&
-        mountedRef.current
-      ) {
-        setIsCreating(false)
-      }
-    }
-  }, [
-    createName,
-    createParent,
-    fetchWorktrees,
-    mountedRef,
-    closeModal,
-    onGitRepoReady,
-    options.runtimeEnvironmentId,
-    options.sshTargetId
-  ])
+    },
+    [
+      createName,
+      createParent,
+      fetchWorktrees,
+      mountedRef,
+      closeModal,
+      onGitRepoReady,
+      options.runtimeEnvironmentId,
+      options.sshTargetId
+    ]
+  )
 
   return {
     createName,

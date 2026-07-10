@@ -1,6 +1,6 @@
 // Step for AddRepoDialog (orca#763), split out so create-project state stays scoped.
 import React, { useMemo, useState } from 'react'
-import { ChevronDown, GitBranch, Loader2 } from 'lucide-react'
+import { ChevronDown, Folder, GitBranch, Loader2 } from 'lucide-react'
 import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,7 @@ import {
   joinCreateProjectPath,
   type GitAvailability
 } from './create-project-defaults'
+import { AddRepoProjectModeControl, type AddRepoProjectKind } from './AddRepoProjectModeControl'
 
 // ── UI helpers ───────────────────────────────────────────────────────
 
@@ -25,6 +26,8 @@ type CreateStepProps = {
   createParent: string
   createError: string | null
   isCreating: boolean
+  projectKind: AddRepoProjectKind
+  workspaceDir?: string | null
   defaultParent?: string
   gitAvailability?: GitAvailability
   runtimeParentStatus?: 'idle' | 'checking' | 'failed'
@@ -35,6 +38,7 @@ type CreateStepProps = {
   onNameChange: (value: string) => void
   onParentChange: (value: string) => void
   onPickParent: () => void
+  onProjectKindChange: (kind: AddRepoProjectKind) => void
   onCreate: () => void
 }
 
@@ -43,6 +47,8 @@ export function CreateStep({
   createParent,
   createError,
   isCreating,
+  projectKind,
+  workspaceDir,
   defaultParent = '',
   gitAvailability = 'unknown',
   runtimeParentStatus = 'idle',
@@ -53,6 +59,7 @@ export function CreateStep({
   onNameChange,
   onParentChange,
   onPickParent,
+  onProjectKindChange,
   onCreate
 }: CreateStepProps): React.JSX.Element {
   const [browsingParent, setBrowsingParent] = useState(false)
@@ -65,8 +72,8 @@ export function CreateStep({
   const canSubmit =
     createName.trim().length > 0 &&
     createParent.trim().length > 0 &&
-    gitAvailability !== 'checking' &&
-    gitAvailability !== 'unavailable' &&
+    (projectKind !== 'git' ||
+      (gitAvailability !== 'checking' && gitAvailability !== 'unavailable')) &&
     !parentDefaultPending &&
     !isCreating
   const missingLocationLabel = translate(
@@ -102,12 +109,12 @@ export function CreateStep({
     const name = createName.trim() || CREATE_PROJECT_NAME_PLACEHOLDER
     return createParent.trim() ? joinCreateProjectPath(createParent, name) : ''
   }, [createName, createParent])
-  const kindLabel = translate(
-    'auto.components.sidebar.AddRepoCreateStep.11fd2a7db8',
-    'Git repository'
-  )
-  const showGitFallback = gitAvailability === 'unavailable'
-  const showGitChecking = gitAvailability === 'checking'
+  const kindLabel =
+    projectKind === 'git'
+      ? translate('auto.components.sidebar.AddRepoCreateStep.11fd2a7db8', 'Git repository')
+      : translate('auto.components.sidebar.AddRepoCreateStep.folderKindLabel', 'Folder')
+  const showGitFallback = projectKind === 'git' && gitAvailability === 'unavailable'
+  const showGitChecking = projectKind === 'git' && gitAvailability === 'checking'
   const showRuntimeMissingParent =
     runtimeEnvironmentId && !createParent.trim() && runtimeParentStatus !== 'checking'
 
@@ -169,6 +176,16 @@ export function CreateStep({
           />
         </div>
 
+        <AddRepoProjectModeControl
+          projectKind={projectKind}
+          initializeGitOnAdd={projectKind === 'git'}
+          workspaceDir={workspaceDir}
+          disabled={isCreating}
+          showInitializeGit={false}
+          onProjectKindChange={onProjectKindChange}
+          onInitializeGitOnAddChange={() => undefined}
+        />
+
         {/* Summary card doubles as the disclosure for the uncommon settings, so the
           defaults and the controls to change them live in one place. */}
         <div className="min-w-0 rounded-md border border-border bg-muted/30">
@@ -179,7 +196,11 @@ export function CreateStep({
             className="flex w-full min-w-0 items-start gap-2.5 rounded-md px-3 py-2.5 text-left transition-colors cursor-pointer hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
             <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-border bg-background/60 text-muted-foreground">
-              <GitBranch className="size-3.5" />
+              {projectKind === 'git' ? (
+                <GitBranch className="size-3.5" />
+              ) : (
+                <Folder className="size-3.5" />
+              )}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">

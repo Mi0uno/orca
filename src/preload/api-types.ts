@@ -20,6 +20,7 @@ import type {
   TerminalPreviewConnectResult,
   TerminalPreviewDataPayload
 } from '../shared/terminal-preview'
+import type { AddRepoOptions } from '../shared/add-repo-options'
 import type {
   TerminalTabCloseRequest,
   TerminalTabCloseResponse
@@ -1223,10 +1224,12 @@ export type PreloadApi = {
     list: () => Promise<Repo[]>
     listForExecutionHost?: (args: ListReposForExecutionHostArgs) => Promise<HostRepoCatalogSnapshot>
     // Why: error union matches the IPC handler's return shape; renderer callers branch on `'error' in result`.
-    add: (args: {
-      path: string
-      kind?: 'git' | 'folder'
-    }) => Promise<{ repo: Repo } | { error: string }>
+    add: (
+      args: {
+        path: string
+        kind?: 'git' | 'folder'
+      } & AddRepoOptions
+    ) => Promise<{ repo: Repo } | { error: string }>
     remove: (args: { repoId: string }) => Promise<void>
     // Forget a project on one execution host only, leaving the same repo id on other hosts intact.
     removeForHost: (args: { repoId: string; hostId: string }) => Promise<void>
@@ -1276,12 +1279,14 @@ export type PreloadApi = {
     }) => Promise<{ repo: Repo } | { error: string }>
     cloneAbort: () => Promise<void>
     // Why: error union matches the IPC handler's return shape; renderer callers branch on `'error' in result`.
-    addRemote: (args: {
-      connectionId: string
-      remotePath: string
-      displayName?: string
-      kind?: 'git' | 'folder'
-    }) => Promise<{ repo: Repo } | { error: string }>
+    addRemote: (
+      args: {
+        connectionId: string
+        remotePath: string
+        displayName?: string
+        kind?: 'git' | 'folder'
+      } & AddRepoOptions
+    ) => Promise<{ repo: Repo } | { error: string }>
     // Why: error union matches the IPC handler's return shape; renderer callers branch on `'error' in result`.
     create: (args: {
       parentPath: string

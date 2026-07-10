@@ -1570,11 +1570,16 @@ function createReposApi(): NonNullable<Partial<PreloadApi>['repos']> {
       const owned = await callRuntimeResultWithOwner<{ repos: Repo[] }>('repo.list')
       return owned.result.repos.map((repo) => withRuntimeRepoOwner(repo, owned.hostId))
     },
-    add: async ({ path, kind }) => {
+    add: async ({ path, kind, initializeGit, requireExactGitRoot }) => {
       invalidateRuntimeWorktreeCaches()
       const owned = await callRuntimeResultWithOwner<{ repo: Repo } | { error: string }>(
         'repo.add',
-        { path, kind }
+        {
+          path,
+          kind,
+          ...(initializeGit !== undefined ? { initializeGit } : {}),
+          ...(requireExactGitRoot !== undefined ? { requireExactGitRoot } : {})
+        }
       )
       return withRuntimeRepoMutationOwner(owned.result, owned.hostId)
     },
@@ -1619,11 +1624,13 @@ function createReposApi(): NonNullable<Partial<PreloadApi>['repos']> {
       throw new Error('Creating projects on SSH hosts is unavailable in paired web clients.')
     },
     cloneAbort: () => Promise.resolve(),
-    addRemote: async ({ remotePath, displayName, kind }) => {
+    addRemote: async ({ remotePath, displayName, kind, initializeGit, requireExactGitRoot }) => {
       invalidateRuntimeWorktreeCaches()
       const owned = await callRuntimeResultWithOwner<{ repo: Repo }>('repo.add', {
         path: remotePath,
-        kind
+        kind,
+        ...(initializeGit !== undefined ? { initializeGit } : {}),
+        ...(requireExactGitRoot !== undefined ? { requireExactGitRoot } : {})
       })
       const result = {
         repo: withRuntimeRepoOwner(owned.result.repo, owned.hostId)

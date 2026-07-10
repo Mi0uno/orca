@@ -9,6 +9,7 @@ import type { AddRepoDialogStep } from './add-repo-dialog-types'
 import type { NestedRepoScanResult } from '../../../../shared/types'
 import type { SshConnectionState, SshTarget } from '../../../../shared/ssh-types'
 import type { GitAvailability } from './create-project-defaults'
+import type { AddRepoProjectKind } from './AddRepoProjectModeControl'
 
 type AddRepoDialogStepContentProps = {
   step: AddRepoDialogStep
@@ -43,6 +44,9 @@ type AddRepoDialogStepContentProps = {
   createParent: string
   createError: string | null
   isCreating: boolean
+  projectKind: AddRepoProjectKind
+  initializeGitOnAdd: boolean
+  workspaceDir?: string | null
   hostSelector?: ReactNode
   showRemoteAction?: boolean
   canCreateProject?: boolean
@@ -57,6 +61,8 @@ type AddRepoDialogStepContentProps = {
   onOpenCreateStep: () => void
   onOpenRemoteStep: (targetId?: string | null) => void
   onStopNestedScan: () => void
+  onProjectKindChange: (kind: AddRepoProjectKind) => void
+  onInitializeGitOnAddChange: (enabled: boolean) => void
   onServerPathChange: (path: string) => void
   onAddServerPath: (kind: 'git' | 'folder') => void
   onSelectTarget: (id: string) => void
@@ -112,6 +118,9 @@ export function AddRepoDialogStepContent({
   createParent,
   createError,
   isCreating,
+  projectKind,
+  initializeGitOnAdd,
+  workspaceDir,
   hostSelector,
   showRemoteAction = true,
   canCreateProject = true,
@@ -126,6 +135,8 @@ export function AddRepoDialogStepContent({
   onOpenCreateStep,
   onOpenRemoteStep,
   onStopNestedScan,
+  onProjectKindChange,
+  onInitializeGitOnAddChange,
   onServerPathChange,
   onAddServerPath,
   onSelectTarget,
@@ -160,11 +171,16 @@ export function AddRepoDialogStepContent({
         showRemoteAction={showRemoteAction}
         canCreateProject={canCreateProject}
         browseHostKind={browseHostKind}
+        projectKind={projectKind}
+        initializeGitOnAdd={initializeGitOnAdd}
+        workspaceDir={workspaceDir}
         onBrowse={onBrowse}
         onOpenCloneStep={onOpenCloneStep}
         onOpenRemoteStep={onOpenRemoteStep}
         onOpenCreateStep={onOpenCreateStep}
         onStopNestedScan={onStopNestedScan}
+        onProjectKindChange={onProjectKindChange}
+        onInitializeGitOnAddChange={onInitializeGitOnAddChange}
       />
     )
   }
@@ -252,6 +268,8 @@ export function AddRepoDialogStepContent({
         createParent={createParent}
         createError={createError}
         isCreating={isCreating}
+        projectKind={projectKind}
+        workspaceDir={workspaceDir}
         defaultParent={createDefaultParent}
         gitAvailability={createGitAvailability}
         runtimeParentStatus={createRuntimeParentStatus}
@@ -262,6 +280,7 @@ export function AddRepoDialogStepContent({
         onNameChange={onCreateNameChange}
         onParentChange={onCreateParentChange}
         onPickParent={onPickCreateParent}
+        onProjectKindChange={onProjectKindChange}
         onCreate={onCreate}
       />
     )
