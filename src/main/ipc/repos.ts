@@ -28,6 +28,7 @@ import type {
   SparsePreset
 } from '../../shared/types'
 import type { FolderWorkspacePathStatusRequest } from '../../shared/folder-workspace-path-status'
+import type { AddRepoOptions } from '../../shared/add-repo-options'
 import { isFolderRepo } from '../../shared/repo-kind'
 import { DEFAULT_REPO_BADGE_COLOR } from '../../shared/constants'
 import { normalizeRepoBadgeColor } from '../../shared/repo-badge-color'
@@ -185,14 +186,10 @@ function alignRepoWithRequestedProject(
 async function addLocalRepoFromPath(
   store: Store,
   path: string,
-  kind: 'git' | 'folder' = 'git'
+  kind: 'git' | 'folder' = 'git',
+  options: AddRepoOptions = {}
 ): Promise<{ repo: Repo; alreadyExisted: boolean } | { error: string }> {
   const repoKind = kind === 'folder' ? 'folder' : 'git'
-  if (repoKind === 'git' && !isGitRepo(path)) {
-    return { error: `Not a valid git repository: ${path}` }
-  }
-
-  const resolvedPath = repoKind === 'git' ? getGitRepoRoot(path) : path
   const pathKey = normalizeRuntimePathForComparison(path)
   const existing = store
     .getRepos()
@@ -201,7 +198,33 @@ async function addLocalRepoFromPath(
     return { repo: existing, alreadyExisted: true }
   }
 
+  const existingGitRoot = repoKind === 'git' && isGitRepo(path) ? getGitRepoRoot(path) : null
+  const selectedPathIsGitRoot =
+    existingGitRoot !== null &&
+    normalizeRuntimePathForComparison(existingGitRoot) === normalizeRuntimePathForComparison(path)
+  let initializedSelectedGitRepo = false
+  if (repoKind === 'git' && options.initializeGit && !selectedPathIsGitRoot) {
+    const initResult = await initializeLocalGitRepository(path)
+    if (initResult) {
+      return initResult
+    }
+    initializedSelectedGitRepo = true
+  }
+
+  if (repoKind === 'git' && !initializedSelectedGitRepo && !isGitRepo(path)) {
+    return { error: `Not a valid git repository: ${path}` }
+  }
+
+  const resolvedPath =
+    repoKind === 'git' && !initializedSelectedGitRepo ? getGitRepoRoot(path) : path
   const resolvedPathKey = normalizeRuntimePathForComparison(resolvedPath)
+  if (repoKind === 'git' && options.requireExactGitRoot && resolvedPathKey !== pathKey) {
+    return {
+      error:
+        'Selected folder is inside another Git repository. Initialize Git in the selected folder or open it as a folder.'
+    }
+  }
+
   if (resolvedPathKey !== pathKey) {
     const existingAfterRootResolve = store
       .getRepos()
@@ -239,6 +262,30 @@ async function addLocalRepoFromPath(
   return { repo, alreadyExisted: false }
 }
 
+async function initializeLocalGitRepository(path: string): Promise<{ error: string } | null> {
+  let step: 'init' | 'commit' = 'init'
+  try {
+    await gitExecFileAsync(['init'], { cwd: path })
+    step = 'commit'
+    await gitExecFileAsync(['commit', '--allow-empty', '-m', 'Initial commit'], { cwd: path })
+    return null
+  } catch (err) {
+    if (step === 'commit') {
+      await rm(join(path, '.git'), { recursive: true, force: true }).catch(() => undefined)
+    }
+    const message = err instanceof Error ? err.message : String(err)
+    if (step === 'commit' && /Please tell me who you are|user\.name|user\.email/i.test(message)) {
+      return {
+        error:
+          'Git author identity is not configured. Run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`, then try again.'
+      }
+    }
+    const stepLabel =
+      step === 'init' ? 'Failed to initialize git repository' : 'Failed to create initial commit'
+    return { error: `${stepLabel}: ${message}` }
+  }
+}
+
 async function addRemoteRepoFromPath(
   store: Store,
   args: {
@@ -247,6 +294,8 @@ async function addRemoteRepoFromPath(
     displayName?: string
     kind?: 'git' | 'folder'
     setupMethod?: Repo['projectHostSetupMethod']
+    initializeGit?: boolean
+    requireExactGitRoot?: boolean
   }
 ): Promise<{ repo: Repo; alreadyExisted: boolean } | { error: string }> {
   const gitProvider = getSshGitProvider(args.connectionId)
@@ -274,9 +323,33 @@ async function addRemoteRepoFromPath(
       const check = await gitProvider.isGitRepoAsync(resolvedPath)
       if (check.isRepo) {
         repoKind = 'git'
-        if (check.rootPath) {
+        if (
+          check.rootPath &&
+          normalizeRuntimePathForComparison(check.rootPath) !==
+            normalizeRuntimePathForComparison(resolvedPath)
+        ) {
+          if (args.initializeGit) {
+            const initResult = await initializeRemoteGitRepository(args.connectionId, resolvedPath)
+            if (initResult) {
+              return initResult
+            }
+          } else if (args.requireExactGitRoot) {
+            return {
+              error:
+                'Selected folder is inside another Git repository. Initialize Git in the selected folder or open it as a folder.'
+            }
+          } else {
+            resolvedPath = check.rootPath
+          }
+        } else if (check.rootPath) {
           resolvedPath = check.rootPath
         }
+      } else if (args.initializeGit) {
+        const initResult = await initializeRemoteGitRepository(args.connectionId, resolvedPath)
+        if (initResult) {
+          return initResult
+        }
+        repoKind = 'git'
       } else {
         return { error: `Not a valid git repository: ${args.remotePath}` }
       }
@@ -339,6 +412,39 @@ async function addRemoteRepoFromPath(
   }
 
   return { repo, alreadyExisted: false }
+}
+
+async function initializeRemoteGitRepository(
+  connectionId: string,
+  path: string
+): Promise<{ error: string } | null> {
+  const gitProvider = getSshGitProvider(connectionId)
+  if (!gitProvider) {
+    return { error: `SSH connection "${connectionId}" not found or not connected` }
+  }
+  const fsProvider = getSshFilesystemProvider(connectionId)
+  const host = gitProvider.getHostPlatform?.()
+  let step: 'init' | 'commit' = 'init'
+  try {
+    await gitProvider.exec(['init'], path)
+    step = 'commit'
+    await gitProvider.exec(['commit', '--allow-empty', '-m', 'Initial commit'], path)
+    return null
+  } catch (err) {
+    if (step === 'commit' && fsProvider && host) {
+      await fsProvider.deletePath(joinRemotePath(host, path, '.git'), true).catch(() => undefined)
+    }
+    const message = err instanceof Error ? err.message : String(err)
+    if (step === 'commit' && /Please tell me who you are|user\.name|user\.email/i.test(message)) {
+      return {
+        error:
+          'Git author identity is not configured on the SSH host. Run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"` on that host, then try again.'
+      }
+    }
+    const stepLabel =
+      step === 'init' ? 'Failed to initialize git repository' : 'Failed to create initial commit'
+    return { error: `${stepLabel}: ${message}` }
+  }
 }
 
 function getRemoteRepoFolderName(remotePath: string): string {
@@ -1651,9 +1757,9 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
     'repos:add',
     async (
       _event,
-      args: { path: string; kind?: 'git' | 'folder' }
+      args: { path: string; kind?: 'git' | 'folder' } & AddRepoOptions
     ): Promise<{ repo: Repo } | { error: string }> => {
-      const result = await addLocalRepoFromPath(store, args.path, args.kind)
+      const result = await addLocalRepoFromPath(store, args.path, args.kind, args)
       if ('error' in result) {
         return result
       }
@@ -1676,7 +1782,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         remotePath: string
         displayName?: string
         kind?: 'git' | 'folder'
-      }
+      } & AddRepoOptions
     ): Promise<{ repo: Repo } | { error: string }> => {
       const result = await addRemoteRepoFromPath(store, args)
       if ('error' in result) {

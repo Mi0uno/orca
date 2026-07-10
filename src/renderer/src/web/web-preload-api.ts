@@ -1357,9 +1357,14 @@ function webAiVaultUnavailableResult(executionHostId: ExecutionHostId): AiVaultL
 function createReposApi(): NonNullable<Partial<PreloadApi>['repos']> {
   return {
     list: async () => (await callRuntimeResult<{ repos: Repo[] }>('repo.list')).repos,
-    add: async ({ path, kind }) => {
+    add: async ({ path, kind, initializeGit, requireExactGitRoot }) => {
       invalidateRuntimeWorktreeCaches()
-      return callRuntimeResult('repo.add', { path, kind })
+      return callRuntimeResult('repo.add', {
+        path,
+        kind,
+        ...(initializeGit !== undefined ? { initializeGit } : {}),
+        ...(requireExactGitRoot !== undefined ? { requireExactGitRoot } : {})
+      })
     },
     remove: async ({ repoId }) => {
       await callRuntimeResult('repo.rm', { repo: repoId })
@@ -1399,11 +1404,13 @@ function createReposApi(): NonNullable<Partial<PreloadApi>['repos']> {
       throw new Error('Creating projects on SSH hosts is unavailable in paired web clients.')
     },
     cloneAbort: () => Promise.resolve(),
-    addRemote: async ({ remotePath, displayName, kind }) => {
+    addRemote: async ({ remotePath, displayName, kind, initializeGit, requireExactGitRoot }) => {
       invalidateRuntimeWorktreeCaches()
       const result = await callRuntimeResult<{ repo: Repo }>('repo.add', {
         path: remotePath,
-        kind
+        kind,
+        ...(initializeGit !== undefined ? { initializeGit } : {}),
+        ...(requireExactGitRoot !== undefined ? { requireExactGitRoot } : {})
       })
       return displayName
         ? {
