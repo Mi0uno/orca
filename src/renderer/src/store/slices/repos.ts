@@ -41,7 +41,7 @@ import {
   type FolderWorkspacePathStatusRequest
 } from '../../../../shared/folder-workspace-path-status'
 import type { AddRepoOptions } from '../../../../shared/add-repo-options'
-import { isGitRepoKind } from '../../../../shared/repo-kind'
+import { isFolderRepo, isGitRepoKind } from '../../../../shared/repo-kind'
 import { sanitizeRepoIcon } from '../../../../shared/repo-icon'
 import { normalizeRepoBadgeColor } from '../../../../shared/repo-badge-color'
 import { getProjectGroupSubtreeIds } from '../../../../shared/project-groups'
@@ -2296,15 +2296,22 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
       }
       repo = repoWithFetchedOwner(repo, ownerTarget)
       const repoIdentity = getRepoHostIdentity(repo)
-      const alreadyAdded = get().repos.some((r) => getRepoHostIdentity(r) === repoIdentity)
+      const existingRepo = get().repos.find((r) => getRepoHostIdentity(r) === repoIdentity)
+      const alreadyAdded = Boolean(existingRepo)
+      const shouldPromoteFolderRepo =
+        existingRepo !== undefined && isFolderRepo(existingRepo) && isGitRepoKind(repo)
       if (alreadyAdded) {
         get().clearOrcaHookTrustForRepo(repo.id)
       }
       set((s) => {
-        if (s.repos.some((r) => getRepoHostIdentity(r) === repoIdentity)) {
+        const existingIndex = s.repos.findIndex((r) => getRepoHostIdentity(r) === repoIdentity)
+        if (existingIndex !== -1 && !shouldPromoteFolderRepo) {
           return s
         }
-        const nextRepos = [...s.repos, repo]
+        const nextRepos =
+          existingIndex === -1
+            ? [...s.repos, repo]
+            : s.repos.map((entry, index) => (index === existingIndex ? repo : entry))
         const hostId = getRepoExecutionHostId(repo)
         return {
           repos: nextRepos,
@@ -2316,7 +2323,7 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
           folderWorkspacePathStatuses: {}
         }
       })
-      if (alreadyAdded) {
+      if (alreadyAdded && !shouldPromoteFolderRepo) {
         toast.info(translate('auto.store.slices.repos.a8e4b3af5b', 'Project already added'), {
           description: repo.displayName
         })
@@ -2331,7 +2338,9 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
         )
         // Why: the design requires the cross-profile advisory for SSH-added
         // projects too — the presence lookup already keys on connection/host.
-        await warnIfProjectKnownInAnotherProfile(repo, get().activeOrcaProfileId)
+        if (!alreadyAdded) {
+          await warnIfProjectKnownInAnotherProfile(repo, get().activeOrcaProfileId)
+        }
       }
       return repo
     } catch (err) {

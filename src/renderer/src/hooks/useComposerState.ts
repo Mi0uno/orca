@@ -27,7 +27,7 @@ import {
   resolveTuiAgentLaunchEnv
 } from '../../../shared/tui-agent-launch-defaults'
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
-import { isGitRepoKind } from '../../../shared/repo-kind'
+import { isFolderRepo, isGitRepoKind } from '../../../shared/repo-kind'
 import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
 import { resolveWorktreeCreateBaseBranch } from '@/runtime/worktree-create-base'
 import {
@@ -762,6 +762,14 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
   )
   const selectedRepo = eligibleRepos.find((repo) => repo.id === repoId)
   const selectedRepoIsGit = selectedRepo ? isGitRepoKind(selectedRepo) : false
+  const selectedRepoIsFolder = selectedRepo ? isFolderRepo(selectedRepo) : false
+  const [selectedFolderGitInitializeOnUse, setSelectedFolderGitInitializeOnUse] = useState(false)
+  useEffect(() => {
+    if (!selectedRepoIsFolder) {
+      return
+    }
+    setSelectedFolderGitInitializeOnUse(false)
+  }, [selectedRepo?.id, selectedRepoIsFolder])
   const [ephemeralVmRecipes, setEphemeralVmRecipes] = useState<
     NonNullable<OrcaHooks['environmentRecipes']>
   >([])
@@ -3382,6 +3390,68 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     selectedProjectGroup
   ])
 
+  const handleUseSelectedFolderGitWorktrees = useCallback(async (): Promise<void> => {
+    if (
+      !selectedRepo?.path ||
+      !selectedRepoIsFolder ||
+      selectedRepoRequiresConnection ||
+      folderGitPreparing
+    ) {
+      return
+    }
+
+    setCreateError(null)
+    setFolderGitPreparing(true)
+    try {
+      const repo = await addRepoPath(selectedRepo.path, 'git', {
+        initializeGit: selectedFolderGitInitializeOnUse,
+        requireExactGitRoot: true,
+        suppressNonGitFolderPrompt: true,
+        ...(runtimeEnvironmentId ? { runtimeEnvironmentId } : {}),
+        ...(selectedRepoConnectionId ? { connectionId: selectedRepoConnectionId } : {})
+      })
+
+      if (!repo || !isGitRepoKind(repo)) {
+        setCreateError({
+          title: translate(
+            'auto.hooks.useComposerState.folderGitWorktreesUnavailableTitle',
+            'Git setup required'
+          ),
+          message: selectedFolderGitInitializeOnUse
+            ? translate(
+                'auto.hooks.useComposerState.folderGitWorktreesInitializeFailed',
+                'Could not prepare this folder for Git worktrees.'
+              )
+            : translate(
+                'auto.hooks.useComposerState.folderGitWorktreesEnableInitialize',
+                'This folder is not a Git repository. Enable Initialize Git here, then try again.'
+              )
+        })
+        return
+      }
+
+      setSelectedProjectGroupId(null)
+      setProjectError(null)
+      handleRepoChange(repo.id, { forceResetStartFrom: true })
+    } catch (error) {
+      const formattedError = formatWorkspaceCreateError(error)
+      setCreateError(formattedError)
+      toast.error(getWorkspaceCreateErrorToastMessage(formattedError))
+    } finally {
+      setFolderGitPreparing(false)
+    }
+  }, [
+    addRepoPath,
+    folderGitPreparing,
+    handleRepoChange,
+    runtimeEnvironmentId,
+    selectedFolderGitInitializeOnUse,
+    selectedRepo,
+    selectedRepoConnectionId,
+    selectedRepoIsFolder,
+    selectedRepoRequiresConnection
+  ])
+
   const submitFolderTarget = useCallback(
     async (requestedAgent: TuiAgent | null): Promise<void> => {
       if (!selectedProjectGroup?.parentPath || folderCreateDisabled) {
@@ -4351,7 +4421,16 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
           preparing: folderGitPreparing,
           disabled: folderCreateDisabled || folderGitPreparing
         }
-      : undefined,
+      : selectedRepoIsFolder
+        ? {
+            initializeGit: selectedFolderGitInitializeOnUse,
+            onInitializeGitChange: setSelectedFolderGitInitializeOnUse,
+            onUseGitWorktrees: handleUseSelectedFolderGitWorktrees,
+            preparing: folderGitPreparing,
+            disabled:
+              folderGitPreparing || selectedRepoRequiresConnection || !selectedRepo?.path?.trim()
+          }
+        : undefined,
     ephemeralVmRecipes: isProjectGroupTarget || !ephemeralVmsEnabled ? [] : ephemeralVmRecipes,
     selectedEphemeralVmRecipeId:
       isProjectGroupTarget || !ephemeralVmsEnabled ? null : selectedEphemeralVmRecipeId,

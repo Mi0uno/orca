@@ -425,6 +425,11 @@ describe('useComposerState host-context boundaries', () => {
     expect(handler).toContain('connectionId: folderTargetConnectionId')
     expect(handler).toContain('setSelectedProjectGroupId(null)')
     expect(handler).toContain('handleRepoChange(repo.id, { forceResetStartFrom: true })')
+    expect(handler).toContain('const handleUseSelectedFolderGitWorktrees = useCallback')
+    expect(handler).toContain("addRepoPath(selectedRepo.path, 'git'")
+    expect(handler).toContain('initializeGit: selectedFolderGitInitializeOnUse')
+    expect(handler).toContain('runtimeEnvironmentId ? { runtimeEnvironmentId } : {}')
+    expect(handler).toContain('connectionId: selectedRepoConnectionId')
 
     const cardProps = sourceBetween(
       HOOK_SOURCE,
@@ -434,6 +439,9 @@ describe('useComposerState host-context boundaries', () => {
     expect(cardProps).toContain('folderProjectGitWorktree: isProjectGroupTarget')
     expect(cardProps).toContain('initializeGit: folderGitInitializeOnUse')
     expect(cardProps).toContain('onUseGitWorktrees: handleUseFolderProjectGitWorktrees')
+    expect(cardProps).toContain(': selectedRepoIsFolder')
+    expect(cardProps).toContain('initializeGit: selectedFolderGitInitializeOnUse')
+    expect(cardProps).toContain('onUseGitWorktrees: handleUseSelectedFolderGitWorktrees')
   })
 
   it('selects a project by its own host instead of pinning the current host', () => {
