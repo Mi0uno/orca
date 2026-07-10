@@ -3739,7 +3739,8 @@
           "c234df77f7": "Elige o introduce una carpeta padre del host antes de crear.",
           "3a13f6e88b": "ubicación no seleccionada",
           "6ed14c0281": "carpeta del host no seleccionada",
-          "ssh_parent_manual": "Introduce una ruta padre SSH."
+          "ssh_parent_manual": "Introduce una ruta padre SSH.",
+          "folderKindLabel": "Folder"
         },
         "AddRepoNestedImportStep": {
           "496f68cf8c": "Escaneando repositorios. Haz clic para detener.",
@@ -4781,6 +4782,15 @@
           "cancel": "Cancelar",
           "forget": "Eliminar de Orca",
           "reconnectAndDelete": "Reconectar y eliminar"
+        },
+        "AddRepoProjectModeControl": {
+          "gitDescription": "Los worktrees de ramas se crean en este directorio del proyecto.",
+          "modeLabel": "Modo de proyecto",
+          "gitBranches": "Ramas de Git",
+          "folder": "Carpeta",
+          "folderDescription": "Abre directamente la ruta seleccionada.",
+          "initializeGit": "Inicializar Git aquí",
+          "initializeGitDescription": "Usa la carpeta seleccionada como su propio repositorio."
         }
       },
       "shared": {

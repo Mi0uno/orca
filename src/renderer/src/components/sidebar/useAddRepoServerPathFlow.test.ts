@@ -88,7 +88,9 @@ describe('useAddRepoServerPathFlow', () => {
     })
     await result.handleAddServerPath('folder')
 
-    expect(mocks.addRepoPath).toHaveBeenCalledWith('/server/docs', 'folder')
+    expect(mocks.addRepoPath).toHaveBeenCalledWith('/server/docs', 'folder', {
+      requireExactGitRoot: true
+    })
     expect(mocks.scanNestedRepos).not.toHaveBeenCalled()
     expect(mocks.fetchWorktrees).not.toHaveBeenCalled()
     expect(mocks.onGitRepoReady).not.toHaveBeenCalled()

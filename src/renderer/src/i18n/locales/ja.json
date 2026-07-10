@@ -3720,7 +3720,8 @@
           "c234df77f7": "作成する前に、サーバーの親フォルダを選択または入力してください。",
           "3a13f6e88b": "場所が選択されていません",
           "6ed14c0281": "サーバーフォルダが選択されていません",
-          "ssh_parent_manual": "SSH の親パスを入力してください。"
+          "ssh_parent_manual": "SSH の親パスを入力してください。",
+          "folderKindLabel": "Folder"
         },
         "AddRepoNestedImportStep": {
           "496f68cf8c": "repos をスキャンしています。クリックして停止します。",
@@ -4781,6 +4782,15 @@
           "cancel": "キャンセル",
           "forget": "Orcaから削除",
           "reconnectAndDelete": "再接続して削除"
+        },
+        "AddRepoProjectModeControl": {
+          "gitDescription": "ブランチのワークツリーはこのプロジェクトディレクトリ内に作成されます。",
+          "modeLabel": "プロジェクトモード",
+          "gitBranches": "Git ブランチ",
+          "folder": "フォルダー",
+          "folderDescription": "選択したパスを直接開きます。",
+          "initializeGit": "ここで Git を初期化",
+          "initializeGitDescription": "選択したフォルダーを独自のリポジトリとして使用します。"
         }
       },
       "shared": {

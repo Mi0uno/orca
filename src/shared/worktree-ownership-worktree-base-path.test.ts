@@ -59,6 +59,24 @@ describe('repo-specific worktree ownership layouts', () => {
     ).toBe('external')
   })
 
+  it('defaults project-host git repos to the project root layout', () => {
+    const settings = makeSettings()
+    const repo = makeRepo({ projectHostSetupMethod: 'imported-existing-folder' })
+
+    expect(buildKnownOrcaWorkspaceLayouts(settings, repo)[0]).toEqual({
+      path: '/projects/a/repo',
+      nestWorkspaces: true
+    })
+    expect(
+      classifyWorktreeOwnership({
+        repo,
+        settings,
+        worktree: makeWorktree('/projects/a/repo/feature'),
+        knownOrcaLayouts: buildKnownOrcaWorkspaceLayouts(settings, repo)
+      })
+    ).toBe('external')
+  })
+
   it('uses repo-specific nested layouts for Windows-style paths', () => {
     const repo = makeRepo({
       path: 'C:\\projects\\App\\repo',

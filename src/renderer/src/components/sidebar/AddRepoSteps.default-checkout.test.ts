@@ -132,7 +132,8 @@ describe('useRemoteRepo default-checkout handoff', () => {
 
     expect(mocks.addRemote).toHaveBeenCalledWith({
       connectionId: 'ssh-1',
-      remotePath: '/srv/repo'
+      remotePath: '/srv/repo',
+      requireExactGitRoot: true
     })
     expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
       requireAuthoritative: true
@@ -143,7 +144,7 @@ describe('useRemoteRepo default-checkout handoff', () => {
     expect(mocks.storeState.projectHostSetups).toEqual(
       expect.arrayContaining([expect.objectContaining({ repoId: repo.id, path: repo.path })])
     )
-    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id)
+    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, repo.path)
   })
 
   it('continues to completion when refresh is not authoritative after remote add', async () => {
@@ -164,7 +165,7 @@ describe('useRemoteRepo default-checkout handoff', () => {
     expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
       requireAuthoritative: true
     })
-    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id)
+    expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, repo.path)
     expect(mocks.stateSetters[3]).not.toHaveBeenCalledWith(
       'Could not refresh project worktrees. Try again.'
     )
