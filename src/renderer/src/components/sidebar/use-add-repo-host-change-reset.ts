@@ -12,11 +12,16 @@ export function useAddRepoHostChangeReset({
   onResetHostScopedState: () => void
 }) {
   const previousSelectedHostIdRef = useRef(selectedHostId)
+  const previousOpenRef = useRef(isOpen)
 
   useEffect(() => {
+    const wasOpen = previousOpenRef.current
+    previousOpenRef.current = isOpen
     if (!isOpen) {
       previousSelectedHostIdRef.current = selectedHostId
-      onResetClosed()
+      if (wasOpen) {
+        onResetClosed()
+      }
     }
   }, [isOpen, onResetClosed, selectedHostId])
 
