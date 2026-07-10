@@ -19,3 +19,9 @@ export type LocalPathAddResult =
 export type LocalPathAddMode = 'single' | 'batch'
 
 export type AddRepoLocalFolderSource = AddRepoExistingWorkspaceSource
+
+export type GitRepoReadyHandler = (
+  repoId: string,
+  source: AddRepoExistingWorkspaceSource,
+  selectedPath?: string
+) => Promise<void>

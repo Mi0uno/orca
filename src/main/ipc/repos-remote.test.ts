@@ -1111,7 +1111,8 @@ describe('repos:addRemote', () => {
         displayName: 'orca',
         badgeColor: DEFAULT_REPO_BADGE_COLOR,
         externalWorktreeVisibility: 'hide',
-        externalWorktreeVisibilityLegacy: false
+        externalWorktreeVisibilityLegacy: false,
+        worktreeBasePath: '.'
       })
     )
     expect(mockMultiplexer.notify).toHaveBeenCalledWith('session.registerRoot', {
@@ -1199,7 +1200,10 @@ describe('repos:addRemote', () => {
     )
     expect(mockStore.updateRepo).toHaveBeenCalledWith('existing-folder', {
       kind: 'git',
-      projectHostSetupMethod: 'cloned'
+      externalWorktreeVisibility: 'hide',
+      externalWorktreeVisibilityLegacy: false,
+      projectHostSetupMethod: 'cloned',
+      worktreeBasePath: '.'
     })
     expect(mockStore.addRepo).not.toHaveBeenCalled()
     expect(result).toBe(updated)
@@ -1338,7 +1342,8 @@ describe('repos:addRemote', () => {
         connectionId: 'conn-1',
         kind: 'git',
         displayName: 'created',
-        externalWorktreeVisibility: 'hide'
+        externalWorktreeVisibility: 'hide',
+        worktreeBasePath: '.'
       })
     )
     expect(result).toHaveProperty('repo.path', '/home/user/created')
@@ -1761,10 +1766,12 @@ describe('repos:add + repos:clone', () => {
         kind: 'git',
         externalWorktreeVisibility: 'hide',
         externalWorktreeVisibilityLegacy: false,
-        projectHostSetupMethod: 'imported-existing-folder'
+        projectHostSetupMethod: 'imported-existing-folder',
+        worktreeBasePath: '.'
       })
     )
     expect(result).toHaveProperty('repo.externalWorktreeVisibility', 'hide')
+    expect(result).toHaveProperty('repo.worktreeBasePath', '.')
   })
 
   it('prepares the worktree root when adding a local git repo', async () => {
@@ -1774,6 +1781,25 @@ describe('repos:add + repos:clone', () => {
       mockStore,
       expect.objectContaining({ path: '/tmp/from-add', kind: 'git' })
     )
+  })
+
+  it('creates local git projects with project-root worktree location', async () => {
+    const parentPath = await createTempRoot()
+
+    const result = await handlers.get('repos:create')!(null, {
+      parentPath,
+      name: 'created',
+      kind: 'git'
+    })
+
+    expect(mockStore.addRepo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: join(parentPath, 'created'),
+        kind: 'git',
+        worktreeBasePath: '.'
+      })
+    )
+    expect(result).toHaveProperty('repo.worktreeBasePath', '.')
   })
 
   it('canonicalizes local git repos:add to the detected root path', async () => {
@@ -1852,7 +1878,8 @@ describe('repos:add + repos:clone', () => {
       expect.objectContaining({
         path: '/tmp/outer-repo/packages/new-project',
         displayName: 'new-project',
-        kind: 'git'
+        kind: 'git',
+        worktreeBasePath: '.'
       })
     )
     expect(result).toHaveProperty('repo.path', '/tmp/outer-repo/packages/new-project')
@@ -2020,7 +2047,8 @@ describe('repos:add + repos:clone', () => {
         badgeColor: DEFAULT_REPO_BADGE_COLOR,
         kind: 'git',
         externalWorktreeVisibility: 'hide',
-        externalWorktreeVisibilityLegacy: false
+        externalWorktreeVisibilityLegacy: false,
+        worktreeBasePath: '.'
       })
     )
     expect(result).toHaveProperty('badgeColor', DEFAULT_REPO_BADGE_COLOR)
@@ -2084,7 +2112,10 @@ describe('repos:add + repos:clone', () => {
 
     expect(mockStore.updateRepo).toHaveBeenCalledWith(existing.id, {
       kind: 'git',
-      projectHostSetupMethod: 'cloned'
+      externalWorktreeVisibility: 'hide',
+      externalWorktreeVisibilityLegacy: false,
+      projectHostSetupMethod: 'cloned',
+      worktreeBasePath: '.'
     })
     expect(result).toEqual(upgraded)
     expect(result).toHaveProperty('badgeColor', '#8b5cf6')

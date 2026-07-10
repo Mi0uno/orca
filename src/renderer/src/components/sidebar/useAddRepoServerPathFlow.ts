@@ -50,7 +50,11 @@ export function useAddRepoServerPathFlow({
   setActiveNestedScanId: (scanId: string | null) => void
   setNestedScanInProgress: (inProgress: boolean) => void
   showNestedRepoReview: ShowNestedRepoReview
-  onGitRepoReady: (repoId: string, source: AddRepoExistingWorkspaceSource) => Promise<void>
+  onGitRepoReady: (
+    repoId: string,
+    source: AddRepoExistingWorkspaceSource,
+    selectedPath?: string
+  ) => Promise<void>
   setAddProjectBusyLabel: (label: string | null) => void
 }): {
   serverPath: string
@@ -154,7 +158,7 @@ export function useAddRepoServerPathFlow({
           if (gen !== serverAddGenRef.current) {
             return
           }
-          await onGitRepoReady(repo.id, 'runtime_server_path')
+          await onGitRepoReady(repo.id, 'runtime_server_path', repo.path)
         } else if (repo) {
           // Why: folder repos skip the Git default-checkout handoff; their synthetic
           // root workspace is opened by the folder add flow.

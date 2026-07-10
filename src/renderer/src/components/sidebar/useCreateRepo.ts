@@ -19,7 +19,7 @@ export function useCreateRepo(
     options?: { requireAuthoritative?: boolean }
   ) => Promise<boolean>,
   closeModal: () => void,
-  onGitRepoReady?: (repoId: string) => void | Promise<void>,
+  onGitRepoReady?: (repoId: string, selectedPath?: string) => void | Promise<void>,
   options: {
     hostId?: string | null
     runtimeEnvironmentId?: string | null
@@ -174,7 +174,7 @@ export function useCreateRepo(
           ) {
             return
           }
-          await onGitRepoReady?.(repo.id)
+          await onGitRepoReady?.(repo.id, repo.path)
         } else {
           // Why: folder repos skip the Git default-checkout handoff, so activate the synthetic
           // root workspace before closing. Matches addNonGitFolder's behavior.

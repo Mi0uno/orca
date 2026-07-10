@@ -18,12 +18,17 @@ export function useCompleteGitRepoAdd({
   setHideDefaultBranchWorkspace
 }: CompleteGitRepoAddOptions): (
   repoId: string,
-  source: AddRepoExistingWorkspaceSource
+  source: AddRepoExistingWorkspaceSource,
+  selectedPath?: string
 ) => Promise<void> {
   const detectedTelemetryTrackedRef = useRef<Set<string>>(new Set())
 
   return useCallback(
-    async (repoId: string, source: AddRepoExistingWorkspaceSource): Promise<void> => {
+    async (
+      repoId: string,
+      source: AddRepoExistingWorkspaceSource,
+      selectedPath?: string
+    ): Promise<void> => {
       const worktrees = useAppStore.getState().worktreesByRepo[repoId] ?? []
       const sortedWorktrees = [...worktrees].sort((a, b) => {
         if (a.lastActivityAt !== b.lastActivityAt) {
@@ -46,6 +51,7 @@ export function useCompleteGitRepoAdd({
       await finishProjectAddWithDefaultCheckout({
         repoId,
         source,
+        selectedPath,
         closeModal,
         setHideDefaultBranchWorkspace
       })

@@ -121,7 +121,7 @@ describe('useAddRepoLocalFolderFlow', () => {
     expect(fetchWorktrees).toHaveBeenCalledWith('alpha', { requireAuthoritative: true })
     expect(fetchWorktrees).toHaveBeenCalledWith('beta', { requireAuthoritative: true })
     expect(onGitRepoReady).toHaveBeenCalledTimes(1)
-    expect(onGitRepoReady).toHaveBeenCalledWith('alpha', 'local_folder_picker')
+    expect(onGitRepoReady).toHaveBeenCalledWith('alpha', 'local_folder_picker', '/projects/alpha')
   })
 
   it('skips nested-review folders in a multi-folder add and continues with git folders', async () => {
@@ -162,7 +162,7 @@ describe('useAddRepoLocalFolderFlow', () => {
       expect.objectContaining({ requireExactGitRoot: true })
     )
     expect(scanNestedRepos).toHaveBeenCalledTimes(2)
-    expect(onGitRepoReady).toHaveBeenCalledWith('later', 'local_folder_picker')
+    expect(onGitRepoReady).toHaveBeenCalledWith('later', 'local_folder_picker', '/projects/later')
   })
 
   it('still completes handoff when a later selected folder is skipped', async () => {
@@ -200,7 +200,7 @@ describe('useAddRepoLocalFolderFlow', () => {
       'git',
       expect.objectContaining({ requireExactGitRoot: true })
     )
-    expect(onGitRepoReady).toHaveBeenCalledWith('git', 'local_folder_picker')
+    expect(onGitRepoReady).toHaveBeenCalledWith('git', 'local_folder_picker', '/projects/git')
   })
 
   it('opens selected folders directly in folder mode without scanning nested repos', async () => {
