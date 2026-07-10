@@ -215,6 +215,28 @@ describe('repo slice runtime routing', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('promotes an existing folder project when the same path is added as git', async () => {
+    const folderRepo = { ...localRepo, kind: 'folder' as const, executionHostId: 'local' as const }
+    const gitRepo = { ...localRepo, kind: 'git' as const, worktreeBasePath: '.' }
+    reposAdd.mockResolvedValue({ repo: gitRepo })
+    const store = createTestStore()
+    store.setState({ repos: [folderRepo] })
+
+    await expect(
+      store.getState().addRepoPath('/local', 'git', {
+        requireExactGitRoot: true,
+        suppressNonGitFolderPrompt: true
+      })
+    ).resolves.toEqual({ ...gitRepo, executionHostId: 'local' })
+
+    expect(store.getState().repos).toEqual([{ ...gitRepo, executionHostId: 'local' }])
+    expect(toast.success).toHaveBeenCalledWith(
+      'Project added',
+      expect.objectContaining({ description: gitRepo.displayName })
+    )
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
   it('warns when a local project is already present in another profile', async () => {
     reposAdd.mockResolvedValue({ repo: localRepo })
     orcaProfileFindProjectProfiles.mockResolvedValue({
