@@ -53,6 +53,10 @@ import SmartWorkspaceNameField, {
 } from '@/components/new-workspace/SmartWorkspaceNameField'
 import type { SmartNameMode } from '@/components/new-workspace/smart-workspace-source-results'
 import ProjectCombobox from '@/components/new-workspace/ProjectCombobox'
+import {
+  FolderProjectGitWorktreePrompt,
+  type FolderProjectGitWorktreePromptProps
+} from '@/components/new-workspace/FolderProjectGitWorktreePrompt'
 import type { SetupConfig } from '@/lib/new-workspace'
 import type { NewWorkspaceProjectOption } from '@/lib/new-workspace-project-options'
 import type {
@@ -88,6 +92,7 @@ type NewWorkspaceComposerCardProps = {
   projectHostSetupOptions?: ProjectHostSetupOption[]
   selectedProjectHostSetupId?: string | null
   onProjectHostSetupChange?: (setupId: string) => void
+  folderProjectGitWorktree?: FolderProjectGitWorktreePromptProps
   ephemeralVmRecipes?: EphemeralVmRecipeOption[]
   selectedEphemeralVmRecipeId?: string | null
   onEphemeralVmRecipeChange?: (recipeId: string | null) => void
@@ -553,6 +558,7 @@ export default function NewWorkspaceComposerCard({
   projectHostSetupOptions = EMPTY_PROJECT_HOST_SETUP_OPTIONS,
   selectedProjectHostSetupId = null,
   onProjectHostSetupChange,
+  folderProjectGitWorktree,
   ephemeralVmRecipes = EMPTY_EPHEMERAL_VM_RECIPES,
   selectedEphemeralVmRecipeId = null,
   onEphemeralVmRecipeChange,
@@ -860,6 +866,9 @@ export default function NewWorkspaceComposerCard({
                   'Add a project before creating a workspace.'
                 )}
             </p>
+          ) : null}
+          {folderProjectGitWorktree ? (
+            <FolderProjectGitWorktreePrompt {...folderProjectGitWorktree} />
           ) : null}
           {readyProjectHostSetupOptions.length > 1 || ephemeralVmRecipes.length > 0 ? (
             <div className="space-y-1">

@@ -441,6 +441,31 @@ describe('useComposerState host-context boundaries', () => {
     expect(section).toContain("branchAutoNameRef.current = ''")
   })
 
+  it('lets folder targets switch to exact-root Git worktree creation with optional init', () => {
+    const handler = sourceBetween(
+      HOOK_SOURCE,
+      'const handleUseFolderProjectGitWorktrees = useCallback',
+      'const submitFolderTarget = useCallback'
+    )
+    expect(handler).toContain("addRepoPath(selectedProjectGroup.parentPath, 'git'")
+    expect(handler).toContain('initializeGit: folderGitInitializeOnUse')
+    expect(handler).toContain('requireExactGitRoot: true')
+    expect(handler).toContain('suppressNonGitFolderPrompt: true')
+    expect(handler).toContain('runtimeEnvironmentId: folderTargetRuntimeEnvironmentId')
+    expect(handler).toContain('connectionId: folderTargetConnectionId')
+    expect(handler).toContain('setSelectedProjectGroupId(null)')
+    expect(handler).toContain('handleRepoChange(repo.id, { forceResetStartFrom: true })')
+
+    const cardProps = sourceBetween(
+      HOOK_SOURCE,
+      'const cardProps: ComposerCardProps = {',
+      'return {'
+    )
+    expect(cardProps).toContain('folderProjectGitWorktree: isProjectGroupTarget')
+    expect(cardProps).toContain('initializeGit: folderGitInitializeOnUse')
+    expect(cardProps).toContain('onUseGitWorktrees: handleUseFolderProjectGitWorktrees')
+  })
+
   it('selects a project by its own host instead of pinning the current host', () => {
     // Regression: passing the current host as a hard `hostId` made picking a
     // project set up only on a different host a silent no-op. The current host
