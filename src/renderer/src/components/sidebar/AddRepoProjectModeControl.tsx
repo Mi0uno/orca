@@ -37,7 +37,7 @@ export function AddRepoProjectModeControl({
       )
     : translate(
         'auto.components.sidebar.AddRepoProjectModeControl.gitDescription',
-        'Branches use worktrees in the Orca workspace folder.'
+        'Branch worktrees are created in this project directory.'
       )
 
   return (
