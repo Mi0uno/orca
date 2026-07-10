@@ -592,7 +592,10 @@
         "folderWorkspaceCreateFailedTitle": "文件夹工作区创建失败",
         "folderWorkspaceCreateFailedMessage": "无法创建文件夹工作区。请查看上方错误详情，然后重试。",
         "setupAgentStartupPolicySaveFailed": "保存设置启动行为失败",
-        "5f3d2c8a1b": "解析 MR 基础分支失败"
+        "5f3d2c8a1b": "解析 MR 基础分支失败",
+        "folderGitWorktreesUnavailableTitle": "需要 Git 设置",
+        "folderGitWorktreesInitializeFailed": "无法将此文件夹准备为 Git 工作树项目。",
+        "folderGitWorktreesEnableInitialize": "此文件夹不是 Git 仓库。启用“在此初始化 Git”，然后重试。"
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "无法上传删除的文件。",
@@ -10345,6 +10348,14 @@
           "ProjectCombobox": {
             "search": "搜索项目...",
             "empty": "没有匹配搜索的项目。"
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git 工作树",
+            "description": "使用此文件夹的分支创建工作树，而不是普通文件夹工作区。",
+            "preparing": "正在准备",
+            "useGitWorktrees": "使用 Git 工作树",
+            "initializeGit": "在此初始化 Git",
+            "initializeGitDescription": "如果此文件夹还不是仓库，则创建初始提交。"
           }
         }
       },

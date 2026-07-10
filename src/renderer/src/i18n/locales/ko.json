@@ -592,7 +592,10 @@
         "folderWorkspaceCreateFailedTitle": "폴더 워크스페이스를 만들지 못했습니다",
         "folderWorkspaceCreateFailedMessage": "폴더 워크스페이스를 만들 수 없습니다. 위의 오류 세부 정보를 확인한 뒤 다시 시도하세요.",
         "setupAgentStartupPolicySaveFailed": "Failed to save setup startup behavior.",
-        "5f3d2c8a1b": "Failed to resolve MR base."
+        "5f3d2c8a1b": "Failed to resolve MR base.",
+        "folderGitWorktreesUnavailableTitle": "Git setup required",
+        "folderGitWorktreesInitializeFailed": "Could not prepare this folder for Git worktrees.",
+        "folderGitWorktreesEnableInitialize": "This folder is not a Git repository. Enable Initialize Git here, then try again."
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "드롭한 파일을 업로드하지 못했습니다.",
@@ -10345,6 +10348,14 @@
           "ProjectCombobox": {
             "search": "프로젝트 검색...",
             "empty": "검색과 일치하는 프로젝트가 없습니다."
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git worktrees",
+            "description": "Use branches from this folder instead of plain folder workspaces.",
+            "preparing": "Preparing",
+            "useGitWorktrees": "Use Git worktrees",
+            "initializeGit": "Initialize Git here",
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
           }
         }
       },

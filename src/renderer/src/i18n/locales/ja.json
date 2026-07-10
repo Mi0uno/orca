@@ -592,7 +592,10 @@
         "folderWorkspaceCreateFailedTitle": "フォルダーワークスペースを作成できませんでした",
         "folderWorkspaceCreateFailedMessage": "フォルダーワークスペースを作成できませんでした。上のエラー詳細を確認して、もう一度お試しください。",
         "setupAgentStartupPolicySaveFailed": "Failed to save setup startup behavior.",
-        "5f3d2c8a1b": "Failed to resolve MR base."
+        "5f3d2c8a1b": "Failed to resolve MR base.",
+        "folderGitWorktreesUnavailableTitle": "Git setup required",
+        "folderGitWorktreesInitializeFailed": "Could not prepare this folder for Git worktrees.",
+        "folderGitWorktreesEnableInitialize": "This folder is not a Git repository. Enable Initialize Git here, then try again."
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "ドロップされたファイルのアップロードに失敗しました。",
@@ -10345,6 +10348,14 @@
           "ProjectCombobox": {
             "search": "Search projects...",
             "empty": "No projects match your search."
+          },
+          "FolderProjectGitWorktreePrompt": {
+            "gitWorktrees": "Git worktrees",
+            "description": "Use branches from this folder instead of plain folder workspaces.",
+            "preparing": "Preparing",
+            "useGitWorktrees": "Use Git worktrees",
+            "initializeGit": "Initialize Git here",
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
           }
         }
       },
