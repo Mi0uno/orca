@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Pencil, X } from 'lucide-react'
 import { AgentStateDot, agentStateLabel } from '@/components/AgentStateDot'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import { AgentIcon } from '@/lib/agent-catalog'
@@ -9,6 +9,7 @@ import { getAgentDotState } from './worktree-card-agent-summary'
 import { translate } from '@/i18n/i18n'
 import { getAgentRowPrimaryText } from '@/lib/agent-row-primary-text'
 import CacheTimer, { usePromptCacheCountdownForPane } from './CacheTimer'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 function formatShortTimeAgo(ts: number, now: number): string {
   const delta = now - ts
@@ -40,6 +41,10 @@ function lastEnteredDoneAt(agent: DashboardAgentRowData): number | null {
 }
 
 function getCompactAgentPrimary(agent: DashboardAgentRowData): string {
+  const customTitle = agent.customTitle?.trim() || agent.tab.customTitle?.trim() || ''
+  if (customTitle) {
+    return customTitle
+  }
   const prompt = getAgentRowPrimaryText(agent.entry)
   return prompt || agentStateLabel(getAgentDotState(agent))
 }
@@ -82,6 +87,8 @@ type CompactAgentRowProps = {
   agent: DashboardAgentRowData
   now: number
   onActivate: (tabId: string, paneKey: string) => void
+  onCloseAgent?: (agent: DashboardAgentRowData) => void
+  onRename?: (agent: DashboardAgentRowData) => void
   // Why: send-popover target mode temporarily turns compact sidebar rows into
   // the picker surface, matching the full DashboardAgentRow behavior.
   sendTargetStatus?: 'eligible' | 'disabled' | 'sending'
@@ -100,6 +107,8 @@ export const CompactAgentRow = React.memo(function CompactAgentRow({
   agent,
   now,
   onActivate,
+  onCloseAgent,
+  onRename,
   sendTargetStatus,
   sendTargetDisabledReason,
   onSendTargetClick,
@@ -156,6 +165,22 @@ export const CompactAgentRow = React.memo(function CompactAgentRow({
       onToggleChildAgents?.()
     },
     [onToggleChildAgents]
+  )
+  const handleCloseAgent = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      onCloseAgent?.(agent)
+    },
+    [agent, onCloseAgent]
+  )
+  const handleRenameAgent = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      onRename?.(agent)
+    },
+    [agent, onRename]
   )
 
   const rowBody = (
@@ -218,17 +243,76 @@ export const CompactAgentRow = React.memo(function CompactAgentRow({
         </span>
       )}
       {cacheTimer && <CacheTimer startedAt={cacheTimer.startedAt} ttlMs={cacheTimer.ttlMs} />}
-      {shortTime && (
-        <span
-          className={cn(
-            'shrink-0 text-[10px] tabular-nums',
-            // Why: the muted timestamp drops out against the selected-row fill.
-            isFocusedPane ? 'text-foreground/70' : 'text-muted-foreground/60'
-          )}
-        >
-          {shortTime}
+      {!sendTargetStatus && (shortTime || onCloseAgent || onRename) ? (
+        <span className="relative ml-auto flex h-4 w-10 shrink-0 items-center justify-end">
+          {shortTime ? (
+            <span
+              className={cn(
+                'pointer-events-none text-[10px] tabular-nums transition-opacity duration-150',
+                'group-hover/compact-agent-row:opacity-0 [@media(hover:none)]:opacity-0',
+                // Why: the muted timestamp drops out against the selected-row fill.
+                isFocusedPane ? 'text-foreground/70' : 'text-muted-foreground/60'
+              )}
+            >
+              {shortTime}
+            </span>
+          ) : null}
+          <span
+            className={cn(
+              'absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-0.5',
+              'can-hover:opacity-0 transition-opacity duration-150',
+              'group-hover/compact-agent-row:opacity-100 focus-within:opacity-100',
+              '[@media(hover:none)]:opacity-100'
+            )}
+          >
+            {onRename ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground/70 hover:bg-worktree-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-worktree-sidebar-ring"
+                    aria-label={translate(
+                      'auto.components.sidebar.worktree.card.compact.agents.renameAgent',
+                      'Rename agent'
+                    )}
+                    onClick={handleRenameAgent}
+                    onKeyDown={stopActivationKeyPropagation}
+                  >
+                    <Pencil className="size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={4}>
+                  {translate(
+                    'auto.components.sidebar.worktree.card.compact.agents.rename',
+                    'Rename'
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            {onCloseAgent ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground/70 hover:bg-worktree-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-worktree-sidebar-ring"
+                    aria-label={translate(
+                      'auto.components.sidebar.worktree.card.compact.agents.closeAgent',
+                      'Close agent'
+                    )}
+                    onClick={handleCloseAgent}
+                    onKeyDown={stopActivationKeyPropagation}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={4}>
+                  {translate('auto.components.sidebar.worktree.card.compact.agents.close', 'Close')}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+          </span>
         </span>
-      )}
+      ) : null}
     </>
   )
 
@@ -242,6 +326,7 @@ export const CompactAgentRow = React.memo(function CompactAgentRow({
         isLineageChild && 'worktree-agent-lineage-child-row',
         'flex h-6 items-center gap-1',
         isFocusedPane && 'bg-worktree-sidebar-accent',
+        agent.rowSource === 'sleeping' && !isFocusedPane && 'opacity-70',
         sendTargetStatus === 'sending' && 'cursor-progress opacity-75',
         sendTargetStatus === 'disabled' && 'cursor-default opacity-60'
       )}

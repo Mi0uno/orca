@@ -8,6 +8,7 @@ import {
   buildSearchBaseRefsArgv,
   getDefaultBaseRef,
   getBranchConflictKind,
+  getRepoName,
   getRemoteCount,
   parseAndFilterSearchRefDetails,
   resolveDefaultBaseRefViaExec,
@@ -47,6 +48,20 @@ function createRemoteRef(mainDir: string, shortName: string, sha: string): void 
 function getHeadSha(dir: string): string {
   return git(dir, ['rev-parse', 'HEAD']).trim()
 }
+
+describe('getRepoName', () => {
+  it('uses the leaf directory for Windows paths with forward slashes', () => {
+    expect(getRepoName('D:/nextcloud/Personal_Doc/Workf')).toBe('Workf')
+  })
+
+  it('uses the leaf directory for Windows paths with backslashes', () => {
+    expect(getRepoName('D:\\nextcloud\\Personal_Doc\\Workf')).toBe('Workf')
+  })
+
+  it('strips bare repository suffixes from the leaf directory only', () => {
+    expect(getRepoName('D:/nextcloud/Personal_Doc/Workf.git')).toBe('Workf')
+  })
+})
 
 describe('buildSearchBaseRefsArgv', () => {
   it('caps broad local ref searches before parsing results', () => {

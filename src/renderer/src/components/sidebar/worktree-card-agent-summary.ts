@@ -30,6 +30,9 @@ function asDotState(state: AgentStatusState | 'idle'): AgentDotState {
 }
 
 export function getAgentDotState(agent: DashboardAgentRowData): AgentDotState {
+  if (agent.rowSource === 'sleeping') {
+    return 'idle'
+  }
   return agent.entry.interrupted === true ? 'interrupted' : asDotState(agent.state)
 }
 

@@ -202,10 +202,17 @@ async function addLocalRepoFromPath(
   options: AddRepoOptions = {}
 ): Promise<{ repo: Repo; alreadyExisted: boolean } | { error: string }> {
   const repoKind = kind === 'folder' ? 'folder' : 'git'
+  const matchesRepoKind = (repo: Repo): boolean =>
+    repoKind === 'folder' ? isFolderRepo(repo) : !isFolderRepo(repo)
   const pathKey = normalizeRuntimePathForComparison(path)
   const existing = store
     .getRepos()
-    .find((repo) => !repo.connectionId && normalizeRuntimePathForComparison(repo.path) === pathKey)
+    .find(
+      (repo) =>
+        !repo.connectionId &&
+        normalizeRuntimePathForComparison(repo.path) === pathKey &&
+        matchesRepoKind(repo)
+    )
   if (existing) {
     return { repo: existing, alreadyExisted: true }
   }
@@ -242,7 +249,9 @@ async function addLocalRepoFromPath(
       .getRepos()
       .find(
         (repo) =>
-          !repo.connectionId && normalizeRuntimePathForComparison(repo.path) === resolvedPathKey
+          !repo.connectionId &&
+          normalizeRuntimePathForComparison(repo.path) === resolvedPathKey &&
+          matchesRepoKind(repo)
       )
     if (existingAfterRootResolve) {
       return { repo: existingAfterRootResolve, alreadyExisted: true }
@@ -309,6 +318,8 @@ async function addRemoteRepoFromPath(
 
   let repoKind: 'git' | 'folder' = args.kind ?? 'git'
   let resolvedPath = await resolveRemoteHomePath(args.connectionId, args.remotePath)
+  const matchesRepoKind = (repo: Repo): boolean =>
+    repoKind === 'folder' ? isFolderRepo(repo) : !isFolderRepo(repo)
 
   const existing = store
     .getRepos()
@@ -316,7 +327,8 @@ async function addRemoteRepoFromPath(
       (repo) =>
         repo.connectionId === args.connectionId &&
         normalizeRuntimePathForComparison(repo.path) ===
-          normalizeRuntimePathForComparison(resolvedPath)
+          normalizeRuntimePathForComparison(resolvedPath) &&
+        matchesRepoKind(repo)
     )
   if (existing) {
     return { repo: existing, alreadyExisted: true }
@@ -371,7 +383,8 @@ async function addRemoteRepoFromPath(
       (repo) =>
         repo.connectionId === args.connectionId &&
         normalizeRuntimePathForComparison(repo.path) ===
-          normalizeRuntimePathForComparison(resolvedPath)
+          normalizeRuntimePathForComparison(resolvedPath) &&
+        matchesRepoKind(repo)
     )
   if (existingAfterRootResolve) {
     return { repo: existingAfterRootResolve, alreadyExisted: true }
@@ -543,19 +556,6 @@ async function cloneRemoteRepo(
       activeRemoteClone = null
     }
     remoteCloneInFlightByPath.delete(remoteCloneKey)
-  }
-  if (existing && isFolderRepo(existing)) {
-    const updated = store.updateRepo(existing.id, {
-      kind: 'git',
-      ...getGitProjectDefaults('cloned')
-    })
-    if (updated) {
-      emitRepoAdded('clone_url', false)
-      getActiveMultiplexer(args.connectionId)?.notify('session.registerRoot', {
-        rootPath: clonePath
-      })
-      return updated
-    }
   }
   const result = await addRemoteRepoFromPath(store, {
     connectionId: args.connectionId,
@@ -2446,28 +2446,13 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
         })
 
         try {
-          // Why: check after clone (not before) because the path didn't exist
-          // before cloning. But if the user somehow had a folder repo at this path
-          // that git clone succeeded into (empty dir), reuse that entry and upgrade
-          // its kind to 'git' instead of creating a duplicate.
+          // Why: check after clone (not before) because the path usually did not
+          // exist before cloning. Folder-mode entries at the same path are kept
+          // separate so users can retain both plain and worktree-backed modes.
           const existing = store
             .getRepos()
             .find((r) => getClonePathComparisonKey(r.path) === clonePathKey)
-          if (existing) {
-            if (isFolderRepo(existing)) {
-              const updated = store.updateRepo(existing.id, {
-                kind: 'git',
-                ...getGitProjectDefaults('cloned')
-              })
-              if (updated) {
-                await prepareLocalWorktreeRootForRepo(store, updated)
-                invalidateAuthorizedRootsCache()
-                notifyReposChanged(mainWindow)
-                // Why: folder→git upgrade is a real new git repo provisioning event.
-                emitRepoAdded('clone_url', false, true)
-                return updated
-              }
-            }
+          if (existing && !isFolderRepo(existing)) {
             emitRepoAdded('clone_url', true, true)
             return existing
           }

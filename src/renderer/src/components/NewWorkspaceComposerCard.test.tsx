@@ -38,16 +38,19 @@ vi.mock('@/components/sparse/SparseCheckoutPresetSelect', () => ({
 vi.mock('@/components/new-workspace/SmartWorkspaceNameField', () => ({
   default: ({
     branchesEnabled,
+    textOnly,
     repoBackedSourcesDisabled,
     repoBackedSearchRepos = []
   }: {
     branchesEnabled?: boolean
+    textOnly?: boolean
     repoBackedSourcesDisabled?: boolean
     repoBackedSearchRepos?: { displayName: string }[]
   }) => (
     <input
       aria-label="workspace name"
       data-branches-enabled={branchesEnabled ? 'true' : 'false'}
+      data-text-only={textOnly ? 'true' : 'false'}
       data-repo-backed-search-count={repoBackedSearchRepos.length}
       data-repo-backed-search-names={repoBackedSearchRepos
         .map((repo) => repo.displayName)
@@ -420,16 +423,50 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
     ).toBe('false')
   })
 
-  it('shows a Git worktree entry for folder projects and emits initialization changes', () => {
+  it('shows a switch-to-worktree entry for folder projects before initialization is needed', () => {
+    const useGitWorktrees = vi.fn()
+    current = renderCard({
+      selectedRepoIsGit: false,
+      projectModeSwitch: {
+        targetMode: 'git-worktrees',
+        initializeGit: false,
+        onInitializeGitChange: vi.fn(),
+        onSwitchMode: useGitWorktrees,
+        preparing: false,
+        disabled: false
+      }
+    })
+
+    expect(current.container.textContent).toContain('Git worktrees')
+    expect(current.container.textContent).toContain('Switch to worktree mode')
+    expect(current.container.textContent).not.toContain('Initialize Git here')
+    expect(
+      current.container
+        .querySelector('[aria-label="workspace name"]')
+        ?.getAttribute('data-text-only')
+    ).toBe('true')
+
+    const gitButton = [...current.container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Switch to worktree mode')
+    )
+    expect(gitButton).toBeTruthy()
+    act(() => gitButton?.click())
+    expect(useGitWorktrees).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the initialization checkbox when worktree mode finds a non-git folder', () => {
     const initializeChanges: boolean[] = []
     const useGitWorktrees = vi.fn()
     current = renderCard({
-      folderProjectGitWorktree: {
+      selectedRepoIsGit: false,
+      projectModeSwitch: {
+        targetMode: 'git-worktrees',
         initializeGit: true,
         onInitializeGitChange: (next) => initializeChanges.push(next),
-        onUseGitWorktrees: useGitWorktrees,
+        onSwitchMode: useGitWorktrees,
         preparing: false,
-        disabled: false
+        disabled: false,
+        showInitializeGitOption: true
       }
     })
 
@@ -446,11 +483,51 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
     expect(initializeChanges).toEqual([false])
 
     const gitButton = [...current.container.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Use Git worktrees')
+      button.textContent?.includes('Switch to worktree mode')
     )
     expect(gitButton).toBeTruthy()
     act(() => gitButton?.click())
     expect(useGitWorktrees).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a switch-to-folder entry for Git worktree projects', () => {
+    const useFolderMode = vi.fn()
+    current = renderCard({
+      selectedRepoIsGit: true,
+      branchesEnabled: true,
+      projectModeSwitch: {
+        targetMode: 'folder-workspace',
+        initializeGit: false,
+        onInitializeGitChange: vi.fn(),
+        onSwitchMode: useFolderMode,
+        preparing: false,
+        disabled: false
+      }
+    })
+
+    expect(current.container.textContent).toContain('Plain folder workspaces')
+    expect(current.container.textContent).toContain('Switch to plain mode')
+    expect(current.container.textContent).not.toContain('Initialize Git here')
+
+    const folderButton = [...current.container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Switch to plain mode')
+    )
+    expect(folderButton).toBeTruthy()
+    act(() => folderButton?.click())
+    expect(useFolderMode).toHaveBeenCalledTimes(1)
+  })
+
+  it('enables branch source selection once the project is in Git worktree mode', () => {
+    current = renderCard({
+      selectedRepoIsGit: true,
+      branchesEnabled: true,
+      projectModeSwitch: undefined
+    })
+
+    const sourceInput = current.container.querySelector('[aria-label="workspace name"]')
+    expect(sourceInput?.getAttribute('data-text-only')).toBe('false')
+    expect(sourceInput?.getAttribute('data-branches-enabled')).toBe('true')
+    expect(current.container.textContent).toContain("Name or 'Create From'")
   })
 
   it('shows VM recipes inside the run target picker', () => {

@@ -1226,15 +1226,13 @@ export function useTerminalPaneLifecycle({
         }
         const leafId = closedPane?.leafId
         if (leafId && !isDetachedToTab) {
-          // Why: closing a pane is user-initiated teardown of this row — drop
-          // (not remove) so any retained `done` snapshot for this pane is also
-          // cleared and a same-frame live→gone transition cannot re-snapshot
-          // it via the retention sync. This is pane-keyed state, so it must
-          // clear even if the PTY transport was already removed.
+          // Why: a closed pane can still carry a provider session that the
+          // sidebar can resume later. Non-resumable rows keep drop-style
+          // suppression inside retainClosedAgentSession.
           const paneKey = makePaneKey(tabId, leafId)
           useAppStore.getState().setCacheTimerStartedAt(paneKey, null)
           clearTerminalPaneUnread(paneKey)
-          useAppStore.getState().dropAgentStatus(paneKey)
+          useAppStore.getState().retainClosedAgentSession(paneKey)
           useAppStore.getState().clearPaneForegroundAgent(paneKey)
         }
         if (transport) {

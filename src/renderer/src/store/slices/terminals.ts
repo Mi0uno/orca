@@ -423,6 +423,12 @@ export type AutomaticAgentResumeClaim = {
   worktreeId: string
   launchAgent: TuiAgent
   providerSession: AgentProviderSessionMetadata
+  prompt?: string
+  terminalTitle?: string
+  customTitle?: string
+  capturedAt?: number
+  updatedAt?: number
+  interrupted?: boolean
 }
 
 export type TerminalSlice = {
@@ -576,7 +582,10 @@ export type TerminalSlice = {
     }
   ) => TerminalTab
   openNewTerminalTabInActiveWorkspace: (groupId: string) => Promise<void>
-  closeTab: (tabId: string, opts?: { recordInteraction?: boolean }) => void
+  closeTab: (
+    tabId: string,
+    opts?: { recordInteraction?: boolean; retainAgentHistory?: boolean }
+  ) => void
   reorderTabs: (worktreeId: string, tabIds: string[]) => void
   setTabBarOrder: (worktreeId: string, order: string[]) => void
   setActiveTab: (tabId: string) => void
@@ -1175,6 +1184,12 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
   },
 
   closeTab: (tabId, opts) => {
+    // Why: once the tab is removed from tabsByWorktree, older agent status
+    // entries without a stamped worktreeId can no longer be attributed. Capture
+    // resumable history first, then tear down the terminal tab.
+    if (opts?.retainAgentHistory !== false) {
+      get().retainClosedAgentSessionsByTabPrefix(tabId)
+    }
     set((s) => {
       const next = { ...s.tabsByWorktree }
       let closingPtyId: string | null = null
@@ -1326,13 +1341,6 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
         pendingColdRestoreByPtyId: nextColdRestores
       }
     })
-    // Why: sweep live AND retained agent-status entries for this tab — closing
-    // the tab is the user telling us "I'm done with this session", so any
-    // completion snapshots it left behind (in the inline agents list) must go
-    // too. Use dropAgentStatusByTabPrefix (not removeAgentStatusByTabPrefix)
-    // so retention suppressors are planted: a live→gone transition inside the
-    // same frame as the tab close cannot re-snapshot a row we just dropped.
-    get().dropAgentStatusByTabPrefix(tabId)
     // Why: retired pane keys never recur, so stranded foreground entries would
     // accumulate for the renderer's whole lifetime.
     get().clearPaneForegroundAgentByTabPrefix(tabId)

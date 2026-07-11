@@ -144,7 +144,7 @@ import { queueNewWorkspaceTerminalFocus } from '@/lib/new-workspace-terminal-foc
 import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
 import { getSuggestedCreatureName } from '@/components/sidebar/worktree-name-suggestions'
 import type { SmartWorkspaceNameSelection } from '@/components/new-workspace/SmartWorkspaceNameField'
-import type { FolderProjectGitWorktreePromptProps } from '@/components/new-workspace/FolderProjectGitWorktreePrompt'
+import type { ProjectModeSwitchPromptProps } from '@/components/new-workspace/ProjectModeSwitchPrompt'
 import type { SmartNameMode } from '@/components/new-workspace/smart-workspace-source-results'
 import { getForkPushWarning } from './fork-push-warning'
 import { CONTEXTUAL_TOUR_ENABLE_AUTO_WORKSPACE_NAME_EVENT } from '@/components/contextual-tours/contextual-tour-composer-events'
@@ -251,7 +251,7 @@ export type ComposerCardProps = {
   projectHostSetupOptions: ProjectHostSetupOption[]
   selectedProjectHostSetupId: string | null
   onProjectHostSetupChange: (setupId: string) => void
-  folderProjectGitWorktree?: FolderProjectGitWorktreePromptProps
+  projectModeSwitch?: ProjectModeSwitchPromptProps
   ephemeralVmRecipes: NonNullable<OrcaHooks['environmentRecipes']>
   selectedEphemeralVmRecipeId: string | null
   onEphemeralVmRecipeChange: (recipeId: string | null) => void
@@ -706,12 +706,14 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     [projectGroups, repos, selectedProjectGroup]
   )
   const [folderGitInitializeOnUse, setFolderGitInitializeOnUse] = useState(false)
+  const [folderGitNeedsInitialization, setFolderGitNeedsInitialization] = useState(false)
   const [folderGitPreparing, setFolderGitPreparing] = useState(false)
   useEffect(() => {
     if (!selectedProjectGroup) {
       return
     }
-    setFolderGitInitializeOnUse(folderSourceRepos.length === 0)
+    setFolderGitInitializeOnUse(false)
+    setFolderGitNeedsInitialization(false)
   }, [folderSourceRepos.length, selectedProjectGroup])
   const parsedFolderTargetHost = parseExecutionHostId(selectedProjectGroup?.executionHostId)
   const folderTargetRuntimeEnvironmentId =
@@ -764,11 +766,14 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
   const selectedRepoIsGit = selectedRepo ? isGitRepoKind(selectedRepo) : false
   const selectedRepoIsFolder = selectedRepo ? isFolderRepo(selectedRepo) : false
   const [selectedFolderGitInitializeOnUse, setSelectedFolderGitInitializeOnUse] = useState(false)
+  const [selectedFolderGitNeedsInitialization, setSelectedFolderGitNeedsInitialization] =
+    useState(false)
   useEffect(() => {
     if (!selectedRepoIsFolder) {
       return
     }
     setSelectedFolderGitInitializeOnUse(false)
+    setSelectedFolderGitNeedsInitialization(false)
   }, [selectedRepo?.id, selectedRepoIsFolder])
   const [ephemeralVmRecipes, setEphemeralVmRecipes] = useState<
     NonNullable<OrcaHooks['environmentRecipes']>
@@ -3338,6 +3343,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     }
 
     setCreateError(null)
+    setFolderGitNeedsInitialization(false)
     setFolderGitPreparing(true)
     try {
       const repo = await addRepoPath(selectedProjectGroup.parentPath, 'git', {
@@ -3351,6 +3357,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       })
 
       if (!repo || !isGitRepoKind(repo)) {
+        setFolderGitNeedsInitialization(true)
         setCreateError({
           title: translate(
             'auto.hooks.useComposerState.folderGitWorktreesUnavailableTitle',
@@ -3370,6 +3377,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       }
 
       setSelectedProjectGroupId(null)
+      setFolderGitNeedsInitialization(false)
       setProjectError(null)
       handleRepoChange(repo.id, { forceResetStartFrom: true })
     } catch (error) {
@@ -3401,6 +3409,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     }
 
     setCreateError(null)
+    setSelectedFolderGitNeedsInitialization(false)
     setFolderGitPreparing(true)
     try {
       const repo = await addRepoPath(selectedRepo.path, 'git', {
@@ -3412,6 +3421,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       })
 
       if (!repo || !isGitRepoKind(repo)) {
+        setSelectedFolderGitNeedsInitialization(true)
         setCreateError({
           title: translate(
             'auto.hooks.useComposerState.folderGitWorktreesUnavailableTitle',
@@ -3431,6 +3441,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       }
 
       setSelectedProjectGroupId(null)
+      setSelectedFolderGitNeedsInitialization(false)
       setProjectError(null)
       handleRepoChange(repo.id, { forceResetStartFrom: true })
     } catch (error) {
@@ -3449,6 +3460,59 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     selectedRepo,
     selectedRepoConnectionId,
     selectedRepoIsFolder,
+    selectedRepoRequiresConnection
+  ])
+
+  const handleUseSelectedGitFolderWorkspaces = useCallback(async (): Promise<void> => {
+    if (
+      !selectedRepo?.path ||
+      !selectedRepoIsGit ||
+      selectedRepoRequiresConnection ||
+      folderGitPreparing
+    ) {
+      return
+    }
+
+    setCreateError(null)
+    setFolderGitPreparing(true)
+    try {
+      const repo = await addRepoPath(selectedRepo.path, 'folder', {
+        ...(runtimeEnvironmentId ? { runtimeEnvironmentId } : {}),
+        ...(selectedRepoConnectionId ? { connectionId: selectedRepoConnectionId } : {})
+      })
+
+      if (!repo || !isFolderRepo(repo)) {
+        setCreateError({
+          title: translate(
+            'auto.hooks.useComposerState.folderWorkspaceModeUnavailableTitle',
+            'Folder mode unavailable'
+          ),
+          message: translate(
+            'auto.hooks.useComposerState.folderWorkspaceModeUnavailableMessage',
+            'Could not prepare this project as a plain folder workspace.'
+          )
+        })
+        return
+      }
+
+      setSelectedProjectGroupId(null)
+      setProjectError(null)
+      handleRepoChange(repo.id, { forceResetStartFrom: true })
+    } catch (error) {
+      const formattedError = formatWorkspaceCreateError(error)
+      setCreateError(formattedError)
+      toast.error(getWorkspaceCreateErrorToastMessage(formattedError))
+    } finally {
+      setFolderGitPreparing(false)
+    }
+  }, [
+    addRepoPath,
+    folderGitPreparing,
+    handleRepoChange,
+    runtimeEnvironmentId,
+    selectedRepo,
+    selectedRepoConnectionId,
+    selectedRepoIsGit,
     selectedRepoRequiresConnection
   ])
 
@@ -4413,24 +4477,50 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     projectHostSetupOptions: isProjectGroupTarget ? [] : projectHostSetupOptions,
     selectedProjectHostSetupId: isProjectGroupTarget ? null : selectedProjectHostSetupId,
     onProjectHostSetupChange: handleProjectHostSetupChange,
-    folderProjectGitWorktree: isProjectGroupTarget
+    projectModeSwitch: isProjectGroupTarget
       ? {
+          targetMode: 'git-worktrees',
           initializeGit: folderGitInitializeOnUse,
-          onInitializeGitChange: setFolderGitInitializeOnUse,
-          onUseGitWorktrees: handleUseFolderProjectGitWorktrees,
+          onInitializeGitChange: (next) => {
+            setFolderGitInitializeOnUse(next)
+            if (next) {
+              setCreateError(null)
+            }
+          },
+          onSwitchMode: handleUseFolderProjectGitWorktrees,
+          showInitializeGitOption: folderGitNeedsInitialization,
+          initializeGitRequired: folderGitNeedsInitialization,
           preparing: folderGitPreparing,
           disabled: folderCreateDisabled || folderGitPreparing
         }
       : selectedRepoIsFolder
         ? {
+            targetMode: 'git-worktrees',
             initializeGit: selectedFolderGitInitializeOnUse,
-            onInitializeGitChange: setSelectedFolderGitInitializeOnUse,
-            onUseGitWorktrees: handleUseSelectedFolderGitWorktrees,
+            onInitializeGitChange: (next) => {
+              setSelectedFolderGitInitializeOnUse(next)
+              if (next) {
+                setCreateError(null)
+              }
+            },
+            onSwitchMode: handleUseSelectedFolderGitWorktrees,
+            showInitializeGitOption: selectedFolderGitNeedsInitialization,
+            initializeGitRequired: selectedFolderGitNeedsInitialization,
             preparing: folderGitPreparing,
             disabled:
               folderGitPreparing || selectedRepoRequiresConnection || !selectedRepo?.path?.trim()
           }
-        : undefined,
+        : selectedRepoIsGit
+          ? {
+              targetMode: 'folder-workspace',
+              initializeGit: false,
+              onInitializeGitChange: () => {},
+              onSwitchMode: handleUseSelectedGitFolderWorkspaces,
+              preparing: folderGitPreparing,
+              disabled:
+                folderGitPreparing || selectedRepoRequiresConnection || !selectedRepo?.path?.trim()
+            }
+          : undefined,
     ephemeralVmRecipes: isProjectGroupTarget || !ephemeralVmsEnabled ? [] : ephemeralVmRecipes,
     selectedEphemeralVmRecipeId:
       isProjectGroupTarget || !ephemeralVmsEnabled ? null : selectedEphemeralVmRecipeId,

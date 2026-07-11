@@ -423,6 +423,7 @@ describe('useComposerState host-context boundaries', () => {
     expect(handler).toContain('suppressNonGitFolderPrompt: true')
     expect(handler).toContain('runtimeEnvironmentId: folderTargetRuntimeEnvironmentId')
     expect(handler).toContain('connectionId: folderTargetConnectionId')
+    expect(handler).toContain('setFolderGitNeedsInitialization(true)')
     expect(handler).toContain('setSelectedProjectGroupId(null)')
     expect(handler).toContain('handleRepoChange(repo.id, { forceResetStartFrom: true })')
     expect(handler).toContain('const handleUseSelectedFolderGitWorktrees = useCallback')
@@ -430,18 +431,28 @@ describe('useComposerState host-context boundaries', () => {
     expect(handler).toContain('initializeGit: selectedFolderGitInitializeOnUse')
     expect(handler).toContain('runtimeEnvironmentId ? { runtimeEnvironmentId } : {}')
     expect(handler).toContain('connectionId: selectedRepoConnectionId')
+    expect(handler).toContain('setSelectedFolderGitNeedsInitialization(true)')
+    expect(handler).toContain('const handleUseSelectedGitFolderWorkspaces = useCallback')
+    expect(handler).toContain("addRepoPath(selectedRepo.path, 'folder'")
+    expect(handler).toContain('handleRepoChange(repo.id, { forceResetStartFrom: true })')
 
     const cardProps = sourceBetween(
       HOOK_SOURCE,
       'const cardProps: ComposerCardProps = {',
       'return {'
     )
-    expect(cardProps).toContain('folderProjectGitWorktree: isProjectGroupTarget')
+    expect(cardProps).toContain('projectModeSwitch: isProjectGroupTarget')
+    expect(cardProps).toContain("targetMode: 'git-worktrees'")
     expect(cardProps).toContain('initializeGit: folderGitInitializeOnUse')
-    expect(cardProps).toContain('onUseGitWorktrees: handleUseFolderProjectGitWorktrees')
+    expect(cardProps).toContain('onSwitchMode: handleUseFolderProjectGitWorktrees')
+    expect(cardProps).toContain('showInitializeGitOption: folderGitNeedsInitialization')
     expect(cardProps).toContain(': selectedRepoIsFolder')
     expect(cardProps).toContain('initializeGit: selectedFolderGitInitializeOnUse')
-    expect(cardProps).toContain('onUseGitWorktrees: handleUseSelectedFolderGitWorktrees')
+    expect(cardProps).toContain('onSwitchMode: handleUseSelectedFolderGitWorktrees')
+    expect(cardProps).toContain('showInitializeGitOption: selectedFolderGitNeedsInitialization')
+    expect(cardProps).toContain(': selectedRepoIsGit')
+    expect(cardProps).toContain("targetMode: 'folder-workspace'")
+    expect(cardProps).toContain('onSwitchMode: handleUseSelectedGitFolderWorkspaces')
   })
 
   it('selects a project by its own host instead of pinning the current host', () => {

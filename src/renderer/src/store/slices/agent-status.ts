@@ -23,7 +23,7 @@ import {
   shouldSuppressInheritedTerminalStatus
 } from '../../../../shared/agent-status-identity'
 import type { TerminalTab } from '../../../../shared/types'
-import { isExplicitAgentStatusFresh } from '@/lib/agent-status'
+import { formatAgentTypeLabel, isExplicitAgentStatusFresh } from '@/lib/agent-status'
 import { createFreshnessScheduler } from './agent-status-freshness-scheduler'
 
 /** Snapshot of a finished (or vanished) agent status entry, kept around so
@@ -106,6 +106,10 @@ export type AgentStatusSlice = {
    *  live status rows; they power the one-click CLI resume action on wake. */
   sleepingAgentSessionsByPaneKey: Record<string, SleepingAgentSessionRecord>
 
+  /** User-facing agent labels keyed by pane. Kept separate from hook payloads so
+   *  live status pings cannot overwrite a manual rename. */
+  agentCustomTitlesByPaneKey: Record<string, string>
+
   /** Ephemeral launch snapshots keyed by concrete pane. Hook payloads do not
    *  carry Orca launch settings, so the renderer supplies them from startup. */
   agentLaunchConfigByPaneKey: Record<string, AgentLaunchConfigRegistryEntry>
@@ -170,6 +174,15 @@ export type AgentStatusSlice = {
    *  remaining agent rows (live or retained) must not reappear. */
   dropAgentStatusByTabPrefix: (tabIdPrefix: string) => void
 
+  /** Close a terminal pane while keeping a resumable provider session as
+   *  muted sidebar history. Non-resumable rows keep the old explicit-teardown
+   *  behavior and are suppressed from retained resurrection. */
+  retainClosedAgentSession: (paneKey: string) => void
+
+  /** Close every agent pane under a terminal tab, converting resumable
+   *  provider sessions to explicit sidebar history before the tab disappears. */
+  retainClosedAgentSessionsByTabPrefix: (tabIdPrefix: string) => void
+
   /** Remove one automatically hibernated completed-agent pane while preserving
    *  sibling live/retained rows in the same worktree. */
   dropHibernatedAgentStatusPane: (
@@ -194,6 +207,9 @@ export type AgentStatusSlice = {
   clearSleepingAgentSession: (paneKey: string) => void
   clearSleepingAgentSessionsByWorktree: (worktreeId: string) => void
   pruneSleepingAgentSessions: (validWorktreeIds: Set<string>) => void
+
+  renameAgentTitle: (paneKey: string, title: string) => void
+  clearAgentTitle: (paneKey: string) => void
 
   /** Retain agent snapshots (called by the top-level retention sync effect).
    *  Accepts an array so multiple agents disappearing in the same frame
@@ -294,6 +310,28 @@ function findAgentPaneWorktreeId(state: AppState, paneKey: string): string | nul
   return null
 }
 
+function findTabWorktreeId(state: AppState, tabId: string): string | null {
+  for (const [worktreeId, tabs] of Object.entries(state.tabsByWorktree)) {
+    if (tabs.some((tab) => tab.id === tabId)) {
+      return worktreeId
+    }
+  }
+  return null
+}
+
+function findTabWithWorktree(
+  state: AppState,
+  tabId: string
+): { worktreeId: string; tab: TerminalTab } | null {
+  for (const [worktreeId, tabs] of Object.entries(state.tabsByWorktree)) {
+    const tab = tabs.find((candidate) => candidate.id === tabId)
+    if (tab) {
+      return { worktreeId, tab }
+    }
+  }
+  return null
+}
+
 function findTabForAgentEntry(
   state: AppState,
   worktreeId: string,
@@ -334,6 +372,42 @@ function retainedAgentEntryFromLive(
     tab,
     agentType,
     startedAt: entry.stateHistory[0]?.startedAt ?? entry.stateStartedAt
+  }
+}
+
+function launchingPaneKeyForTab(tabId: string): string {
+  return `launching:${tabId}`
+}
+
+function retainedAgentEntryFromLaunchedTab(args: {
+  tab: TerminalTab
+  worktreeId: string
+  capturedAt: number
+}): RetainedAgentEntry | null {
+  const launchAgent = args.tab.launchAgent
+  if (!launchAgent) {
+    return null
+  }
+  const agentLabel = formatAgentTypeLabel(launchAgent)
+  const entry: AgentStatusEntry = {
+    paneKey: launchingPaneKeyForTab(args.tab.id),
+    state: 'done',
+    prompt: agentLabel,
+    updatedAt: args.capturedAt,
+    stateStartedAt: args.tab.createdAt,
+    stateHistory: [],
+    agentType: launchAgent,
+    worktreeId: args.worktreeId,
+    tabId: args.tab.id,
+    terminalTitle: args.tab.title,
+    lastAssistantMessage: 'Closed'
+  }
+  return {
+    entry,
+    worktreeId: args.worktreeId,
+    tab: args.tab,
+    agentType: launchAgent,
+    startedAt: args.tab.createdAt
   }
 }
 
@@ -394,6 +468,9 @@ function sleepingRecordFromEntry(args: {
     ...((args.entry.terminalTitle ?? tab?.title)
       ? { terminalTitle: (args.entry.terminalTitle ?? tab?.title)! }
       : {}),
+    ...(args.state.agentCustomTitlesByPaneKey[args.entry.paneKey]
+      ? { customTitle: args.state.agentCustomTitlesByPaneKey[args.entry.paneKey] }
+      : {}),
     ...(args.entry.lastAssistantMessage
       ? { lastAssistantMessage: args.entry.lastAssistantMessage }
       : {}),
@@ -401,6 +478,72 @@ function sleepingRecordFromEntry(args: {
     ...(args.entry.interrupted ? { interrupted: true } : {}),
     ...(args.origin ? { origin: args.origin } : {})
   }
+}
+
+function terminalCloseRecordFromSleepingRecord(
+  record: SleepingAgentSessionRecord,
+  capturedAt: number
+): SleepingAgentSessionRecord | null {
+  if (!getAgentResumeArgv(record.agent, record.providerSession)) {
+    return null
+  }
+  return {
+    ...record,
+    capturedAt,
+    origin: 'terminal-close',
+    ...(record.launchConfig ? { launchConfig: copyLaunchConfig(record.launchConfig) } : {})
+  }
+}
+
+function omitCustomTitleFromSleepingRecord(
+  record: SleepingAgentSessionRecord
+): SleepingAgentSessionRecord {
+  const { customTitle: _unused, ...rest } = record
+  void _unused
+  return rest
+}
+
+function terminalCloseRecordForPane(args: {
+  state: AppState
+  paneKey: string
+  capturedAt: number
+  fallbackWorktreeId?: string | null
+}): SleepingAgentSessionRecord | null {
+  const { state, paneKey, capturedAt, fallbackWorktreeId } = args
+  const liveEntry = state.agentStatusByPaneKey[paneKey]
+  const retained = state.retainedAgentsByPaneKey[paneKey]
+  const sleeping = state.sleepingAgentSessionsByPaneKey[paneKey]
+  const worktreeId =
+    liveEntry?.worktreeId ??
+    retained?.worktreeId ??
+    sleeping?.worktreeId ??
+    fallbackWorktreeId ??
+    findAgentPaneWorktreeId(state, paneKey)
+
+  if (liveEntry && worktreeId) {
+    return sleepingRecordFromEntry({
+      state,
+      entry: liveEntry,
+      worktreeId,
+      capturedAt,
+      launchConfig: getLaunchConfigForEntry(state, liveEntry),
+      origin: 'terminal-close'
+    })
+  }
+
+  if (retained) {
+    return sleepingRecordFromEntry({
+      state,
+      entry: retained.entry,
+      worktreeId: retained.worktreeId,
+      tab: retained.tab,
+      capturedAt,
+      launchConfig: getLaunchConfigForEntry(state, retained.entry),
+      origin: 'terminal-close'
+    })
+  }
+
+  return sleeping ? terminalCloseRecordFromSleepingRecord(sleeping, capturedAt) : null
 }
 
 type CollectSleepingAgentSessionRecordsOptions = {
@@ -873,6 +1016,7 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
     agentStatusEpoch: 0,
     retainedAgentsByPaneKey: {},
     sleepingAgentSessionsByPaneKey: {},
+    agentCustomTitlesByPaneKey: {},
     agentLaunchConfigByPaneKey: {},
     retentionSuppressedPaneKeys: {},
     recentlyClosedAgentStatusTabIds: {},
@@ -1750,6 +1894,255 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
       }
     },
 
+    retainClosedAgentSession: (paneKey) => {
+      let hadLive = false
+      let changed = false
+      set((s) => {
+        const hasLive = paneKey in s.agentStatusByPaneKey
+        const hasRetained = paneKey in s.retainedAgentsByPaneKey
+        const hasSleeping = paneKey in s.sleepingAgentSessionsByPaneKey
+        const hasLaunchConfig = paneKey in s.agentLaunchConfigByPaneKey
+        const migrationUnsupported = pruneMigrationUnsupportedEntries(
+          s.migrationUnsupportedByPtyId,
+          (entry) => entry.paneKey === paneKey
+        )
+        let nextAck = s.acknowledgedAgentsByPaneKey
+        if (paneKey in nextAck) {
+          nextAck = { ...nextAck }
+          delete nextAck[paneKey]
+        }
+
+        if (
+          !hasLive &&
+          !hasRetained &&
+          !hasSleeping &&
+          !hasLaunchConfig &&
+          !migrationUnsupported.changed
+        ) {
+          if (nextAck !== s.acknowledgedAgentsByPaneKey) {
+            changed = true
+            return { acknowledgedAgentsByPaneKey: nextAck }
+          }
+          return s
+        }
+
+        hadLive = hasLive
+        changed = true
+        const capturedAt = Date.now()
+        const terminalCloseRecord = terminalCloseRecordForPane({
+          state: s,
+          paneKey,
+          capturedAt
+        })
+
+        const nextLive = hasLive ? { ...s.agentStatusByPaneKey } : s.agentStatusByPaneKey
+        if (hasLive) {
+          delete nextLive[paneKey]
+        }
+        const nextLaunchConfigs = hasLaunchConfig
+          ? { ...s.agentLaunchConfigByPaneKey }
+          : s.agentLaunchConfigByPaneKey
+        if (hasLaunchConfig) {
+          delete nextLaunchConfigs[paneKey]
+        }
+        const nextRetained = hasRetained
+          ? { ...s.retainedAgentsByPaneKey }
+          : s.retainedAgentsByPaneKey
+        if (hasRetained) {
+          delete nextRetained[paneKey]
+        }
+
+        let nextSleeping = s.sleepingAgentSessionsByPaneKey
+        if (terminalCloseRecord) {
+          nextSleeping = {
+            ...s.sleepingAgentSessionsByPaneKey,
+            [paneKey]: terminalCloseRecord
+          }
+        } else if (hasSleeping) {
+          nextSleeping = { ...s.sleepingAgentSessionsByPaneKey }
+          delete nextSleeping[paneKey]
+        }
+
+        // Why: terminal close should keep resumable sessions as explicit
+        // history, but non-resumable completed rows keep the old teardown
+        // contract and must not be re-retained by the next render frame.
+        const needsSuppressorWrite =
+          hasLive && !terminalCloseRecord && !(paneKey in s.retentionSuppressedPaneKeys)
+
+        return {
+          agentStatusByPaneKey: nextLive,
+          agentLaunchConfigByPaneKey: nextLaunchConfigs,
+          retainedAgentsByPaneKey: nextRetained,
+          sleepingAgentSessionsByPaneKey: nextSleeping,
+          migrationUnsupportedByPtyId: migrationUnsupported.next,
+          ...(nextAck !== s.acknowledgedAgentsByPaneKey
+            ? { acknowledgedAgentsByPaneKey: nextAck }
+            : {}),
+          ...(needsSuppressorWrite
+            ? {
+                retentionSuppressedPaneKeys: {
+                  ...s.retentionSuppressedPaneKeys,
+                  [paneKey]: true
+                }
+              }
+            : {}),
+          agentStatusEpoch:
+            hasLive || migrationUnsupported.changed ? s.agentStatusEpoch + 1 : s.agentStatusEpoch,
+          sortEpoch: hasLive || migrationUnsupported.changed ? s.sortEpoch + 1 : s.sortEpoch
+        }
+      })
+      if (hadLive) {
+        queueMicrotask(() => freshness.schedule())
+      }
+      if (changed && typeof window !== 'undefined') {
+        window.api?.agentStatus?.drop?.(paneKey)
+      }
+    },
+
+    retainClosedAgentSessionsByTabPrefix: (tabIdPrefix) => {
+      const prefix = `${tabIdPrefix}:`
+      let hadLive = false
+      set((s) => {
+        const liveKeys = Object.keys(s.agentStatusByPaneKey).filter((k) => k.startsWith(prefix))
+        const retainedKeys = Object.keys(s.retainedAgentsByPaneKey).filter((k) =>
+          k.startsWith(prefix)
+        )
+        const sleepingKeys = Object.keys(s.sleepingAgentSessionsByPaneKey).filter((k) =>
+          k.startsWith(prefix)
+        )
+        const launchConfigKeys = Object.keys(s.agentLaunchConfigByPaneKey).filter((k) =>
+          k.startsWith(prefix)
+        )
+        const migrationUnsupported = pruneMigrationUnsupportedEntries(
+          s.migrationUnsupportedByPtyId,
+          (entry) => entry.paneKey?.startsWith(prefix) ?? false
+        )
+        let nextAck = s.acknowledgedAgentsByPaneKey
+        const ackKeys = Object.keys(nextAck).filter((k) => k.startsWith(prefix))
+        if (ackKeys.length > 0) {
+          nextAck = { ...nextAck }
+          for (const key of ackKeys) {
+            delete nextAck[key]
+          }
+        }
+        const nextClosedTabs = boundRecentlyClosedAgentStatusTabIds(
+          s.recentlyClosedAgentStatusTabIds,
+          tabIdPrefix
+        )
+        const launchedTabMatch = findTabWithWorktree(s, tabIdPrefix)
+        const capturedAt = Date.now()
+        const launchedRetained = launchedTabMatch
+          ? retainedAgentEntryFromLaunchedTab({
+              tab: launchedTabMatch.tab,
+              worktreeId: launchedTabMatch.worktreeId,
+              capturedAt
+            })
+          : null
+
+        if (
+          liveKeys.length === 0 &&
+          retainedKeys.length === 0 &&
+          sleepingKeys.length === 0 &&
+          launchConfigKeys.length === 0 &&
+          !launchedRetained &&
+          !migrationUnsupported.changed
+        ) {
+          if (nextAck !== s.acknowledgedAgentsByPaneKey) {
+            return {
+              acknowledgedAgentsByPaneKey: nextAck,
+              recentlyClosedAgentStatusTabIds: nextClosedTabs
+            }
+          }
+          return { recentlyClosedAgentStatusTabIds: nextClosedTabs }
+        }
+
+        hadLive = liveKeys.length > 0
+        const fallbackWorktreeId = findTabWorktreeId(s, tabIdPrefix)
+        const candidateKeys = new Set([...liveKeys, ...retainedKeys, ...sleepingKeys])
+        const terminalCloseRecords = new Map<string, SleepingAgentSessionRecord>()
+        for (const paneKey of candidateKeys) {
+          const record = terminalCloseRecordForPane({
+            state: s,
+            paneKey,
+            capturedAt,
+            fallbackWorktreeId
+          })
+          if (record) {
+            terminalCloseRecords.set(paneKey, record)
+          }
+        }
+
+        const nextLive =
+          liveKeys.length > 0 ? { ...s.agentStatusByPaneKey } : s.agentStatusByPaneKey
+        for (const key of liveKeys) {
+          delete nextLive[key]
+        }
+        const nextLaunchConfigs =
+          launchConfigKeys.length > 0
+            ? { ...s.agentLaunchConfigByPaneKey }
+            : s.agentLaunchConfigByPaneKey
+        for (const key of launchConfigKeys) {
+          delete nextLaunchConfigs[key]
+        }
+        const nextRetained =
+          retainedKeys.length > 0 || launchedRetained
+            ? { ...s.retainedAgentsByPaneKey }
+            : s.retainedAgentsByPaneKey
+        for (const key of retainedKeys) {
+          delete nextRetained[key]
+        }
+        if (launchedRetained && !terminalCloseRecords.has(launchedRetained.entry.paneKey)) {
+          nextRetained[launchedRetained.entry.paneKey] = launchedRetained
+        }
+
+        const nextSleeping =
+          candidateKeys.size > 0
+            ? { ...s.sleepingAgentSessionsByPaneKey }
+            : s.sleepingAgentSessionsByPaneKey
+        for (const key of candidateKeys) {
+          const record = terminalCloseRecords.get(key)
+          if (record) {
+            nextSleeping[key] = record
+          } else {
+            delete nextSleeping[key]
+          }
+        }
+
+        const suppressorAdds = liveKeys.filter(
+          (key) => !terminalCloseRecords.has(key) && !(key in s.retentionSuppressedPaneKeys)
+        )
+        let nextRetentionSuppressedPaneKeys = s.retentionSuppressedPaneKeys
+        if (suppressorAdds.length > 0) {
+          nextRetentionSuppressedPaneKeys = { ...s.retentionSuppressedPaneKeys }
+          for (const key of suppressorAdds) {
+            nextRetentionSuppressedPaneKeys[key] = true
+          }
+        }
+
+        return {
+          agentStatusByPaneKey: nextLive,
+          agentLaunchConfigByPaneKey: nextLaunchConfigs,
+          retainedAgentsByPaneKey: nextRetained,
+          sleepingAgentSessionsByPaneKey: nextSleeping,
+          migrationUnsupportedByPtyId: migrationUnsupported.next,
+          retentionSuppressedPaneKeys: nextRetentionSuppressedPaneKeys,
+          recentlyClosedAgentStatusTabIds: nextClosedTabs,
+          ...(nextAck !== s.acknowledgedAgentsByPaneKey
+            ? { acknowledgedAgentsByPaneKey: nextAck }
+            : {}),
+          agentStatusEpoch:
+            hadLive || migrationUnsupported.changed ? s.agentStatusEpoch + 1 : s.agentStatusEpoch,
+          sortEpoch: hadLive || migrationUnsupported.changed ? s.sortEpoch + 1 : s.sortEpoch
+        }
+      })
+      if (hadLive) {
+        queueMicrotask(() => freshness.schedule())
+      }
+      if (typeof window !== 'undefined') {
+        window.api?.agentStatus?.dropByTabPrefix?.(tabIdPrefix)
+      }
+    },
+
     dropHibernatedAgentStatusPane: (worktreeId, paneKey, opts) => {
       let hadLive = false
       set((s) => {
@@ -2155,6 +2548,49 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
             }
           : s
       })
+    },
+
+    renameAgentTitle: (paneKey, title) => {
+      const trimmedTitle = title.trim()
+      set((s) => {
+        const currentTitle = s.agentCustomTitlesByPaneKey[paneKey] ?? ''
+        const hasSleepingRecord = paneKey in s.sleepingAgentSessionsByPaneKey
+        const currentSleepingTitle = s.sleepingAgentSessionsByPaneKey[paneKey]?.customTitle ?? ''
+        if (
+          currentTitle === trimmedTitle &&
+          (!hasSleepingRecord || currentSleepingTitle === trimmedTitle)
+        ) {
+          return s
+        }
+
+        const nextTitles = { ...s.agentCustomTitlesByPaneKey }
+        if (trimmedTitle) {
+          nextTitles[paneKey] = trimmedTitle
+        } else {
+          delete nextTitles[paneKey]
+        }
+
+        const nextSleeping = hasSleepingRecord
+          ? { ...s.sleepingAgentSessionsByPaneKey }
+          : s.sleepingAgentSessionsByPaneKey
+        if (hasSleepingRecord) {
+          const record = s.sleepingAgentSessionsByPaneKey[paneKey]!
+          nextSleeping[paneKey] = trimmedTitle
+            ? { ...record, customTitle: trimmedTitle }
+            : omitCustomTitleFromSleepingRecord(record)
+        }
+
+        return {
+          agentCustomTitlesByPaneKey: nextTitles,
+          ...(nextSleeping !== s.sleepingAgentSessionsByPaneKey
+            ? { sleepingAgentSessionsByPaneKey: nextSleeping }
+            : {})
+        }
+      })
+    },
+
+    clearAgentTitle: (paneKey) => {
+      get().renameAgentTitle(paneKey, '')
     },
 
     retainAgents: (entries) => {

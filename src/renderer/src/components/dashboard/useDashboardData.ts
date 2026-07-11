@@ -19,8 +19,9 @@ export type DashboardAgentRow = {
   entry: AgentStatusEntry
   tab: TerminalTab
   agentType: AgentType
-  rowSource?: 'live' | 'retained'
+  rowSource?: 'live' | 'retained' | 'sleeping' | 'resuming' | 'launching'
   state: AgentStatusState | 'idle'
+  customTitle?: string
   /** When this agent first began reporting status. Derived from the oldest
    *  stateHistory entry, falling back to updatedAt when no history exists yet.
    *  Used to sort agents by when they started. */

@@ -1,6 +1,29 @@
+import {
+  getRuntimePathBasename,
+  isWindowsAbsolutePathLike,
+  normalizeRuntimePathForComparison
+} from '../../../shared/cross-platform-path'
+
 type RepoDisplayLabelItem = {
   path: string
   displayName: string
+}
+
+function isAbsolutePathLike(value: string): boolean {
+  return value.startsWith('/') || isWindowsAbsolutePathLike(value)
+}
+
+function normalizeDisplayName(item: RepoDisplayLabelItem): string {
+  const displayName = item.displayName.trim()
+  if (!displayName) {
+    return getRuntimePathBasename(item.path) || item.path
+  }
+  const displayNameMatchesPath =
+    normalizeRuntimePathForComparison(displayName) === normalizeRuntimePathForComparison(item.path)
+  if (displayNameMatchesPath || isAbsolutePathLike(displayName)) {
+    return getRuntimePathBasename(displayName) || displayName
+  }
+  return displayName
 }
 
 function normalizePathSegments(path: string): string[] {
@@ -28,7 +51,7 @@ export function getRepoDisplayLabelsByPath(
   const itemsByName = new Map<string, RepoDisplayLabelItem[]>()
 
   for (const item of items) {
-    const displayName = item.displayName || item.path
+    const displayName = normalizeDisplayName(item)
     labels.set(item.path, displayName)
     const colliding = itemsByName.get(displayName) ?? []
     colliding.push({ ...item, displayName })
@@ -37,6 +60,12 @@ export function getRepoDisplayLabelsByPath(
 
   for (const collidingItems of itemsByName.values()) {
     if (collidingItems.length < 2) {
+      continue
+    }
+    const uniquePaths = new Set(
+      collidingItems.map((item) => normalizeRuntimePathForComparison(item.path))
+    )
+    if (uniquePaths.size < 2) {
       continue
     }
     const maxDepth = Math.max(

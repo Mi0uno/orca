@@ -14,15 +14,22 @@ import {
   selectMigrationUnsupportedEntriesForWorktree,
   selectRuntimeAgentOrchestrationForWorktree,
   selectRetainedAgentEntriesForWorktree,
+  selectSleepingAgentSessionRecordsForWorktree,
   selectTerminalLayoutsForWorktree
 } from './worktree-agent-row-selectors'
+import type { AutomaticAgentResumeClaim, TerminalSlice } from '@/store/slices/terminals'
+
+const EMPTY_AGENT_RESUME_CLAIMS: Record<string, AutomaticAgentResumeClaim> = {}
+const EMPTY_PENDING_STARTUP_BY_TAB_ID: TerminalSlice['pendingStartupByTabId'] = {}
+const EMPTY_AGENT_CUSTOM_TITLES: Record<string, string> = {}
 
 export { buildWorktreeAgentRows } from './worktree-agent-rows'
 export {
   selectLiveAgentStatusEntriesForWorktree,
   selectMigrationUnsupportedEntriesForWorktree,
   selectRuntimeAgentOrchestrationForWorktree,
-  selectRetainedAgentEntriesForWorktree
+  selectRetainedAgentEntriesForWorktree,
+  selectSleepingAgentSessionRecordsForWorktree
 } from './worktree-agent-row-selectors'
 
 /**
@@ -54,6 +61,9 @@ export function useWorktreeAgentRows(worktreeId: string, active = true): Dashboa
   const retained = useAppStore(
     useShallow((s) => (active ? selectRetainedAgentEntriesForWorktree(s, worktreeId) : []))
   )
+  const sleeping = useAppStore(
+    useShallow((s) => (active ? selectSleepingAgentSessionRecordsForWorktree(s, worktreeId) : []))
+  )
   const runtimePaneTitlesByTabId = useAppStore(
     useShallow((s) => (active ? selectRuntimePaneTitlesForWorktree(s, worktreeId) : {}))
   )
@@ -65,6 +75,15 @@ export function useWorktreeAgentRows(worktreeId: string, active = true): Dashboa
   )
   const runtimeAgentOrchestrationByPaneKey = useAppStore(
     useShallow((s) => (active ? selectRuntimeAgentOrchestrationForWorktree(s, worktreeId) : {}))
+  )
+  const automaticAgentResumeClaimsByTabId = useAppStore((s) =>
+    active ? s.automaticAgentResumeClaimsByTabId : EMPTY_AGENT_RESUME_CLAIMS
+  )
+  const pendingStartupByTabId = useAppStore((s) =>
+    active ? s.pendingStartupByTabId : EMPTY_PENDING_STARTUP_BY_TAB_ID
+  )
+  const agentCustomTitlesByPaneKey = useAppStore((s) =>
+    active ? s.agentCustomTitlesByPaneKey : EMPTY_AGENT_CUSTOM_TITLES
   )
   // Why: agentStatusEpoch is included in the dependency array (but not in the
   // computation itself) so the memo recomputes when freshness boundaries
@@ -95,6 +114,10 @@ export function useWorktreeAgentRows(worktreeId: string, active = true): Dashboa
         tabs: tabs ?? [],
         entries,
         retained,
+        sleeping,
+        automaticAgentResumeClaimsByTabId,
+        pendingStartupByTabId,
+        agentCustomTitlesByPaneKey,
         runtimePaneTitlesByTabId,
         ptyIdsByTabId,
         terminalLayoutsByTabId,
@@ -109,6 +132,10 @@ export function useWorktreeAgentRows(worktreeId: string, active = true): Dashboa
     liveEntries,
     migrationUnsupported,
     retained,
+    sleeping,
+    automaticAgentResumeClaimsByTabId,
+    pendingStartupByTabId,
+    agentCustomTitlesByPaneKey,
     runtimePaneTitlesByTabId,
     ptyIdsByTabId,
     terminalLayoutsByTabId,

@@ -10443,6 +10443,8 @@ export class OrcaRuntimeService {
     if (!this.store) {
       throw new Error('runtime_unavailable')
     }
+    const matchesRepoKind = (repo: Repo): boolean =>
+      kind === 'folder' ? isFolderRepo(repo) : !isFolderRepo(repo)
     if (!isAbsolute(path)) {
       // Why: remote clients may run in a different cwd than the server. Require
       // server-side repo paths to be explicit so `orca serve` cwd is irrelevant.
@@ -10452,7 +10454,7 @@ export class OrcaRuntimeService {
       if (!runtimePathsEqual(repo.path, path)) {
         return false
       }
-      return runtimeRepoMatchesExecutionHost(repo, executionHostId)
+      return runtimeRepoMatchesExecutionHost(repo, executionHostId) && matchesRepoKind(repo)
     })
     if (existing) {
       // Only a runtime host backfills a legacy unstamped repo. An unstamped repo is
@@ -10505,7 +10507,7 @@ export class OrcaRuntimeService {
       if (!runtimePathsEqual(repo.path, repoPath)) {
         return false
       }
-      return runtimeRepoMatchesExecutionHost(repo, executionHostId)
+      return runtimeRepoMatchesExecutionHost(repo, executionHostId) && matchesRepoKind(repo)
     })
     if (existingResolved) {
       if (
@@ -10791,17 +10793,7 @@ export class OrcaRuntimeService {
           getClonePathComparisonKey(repo.path) === clonePathKey &&
           runtimeRepoMatchesExecutionHost(repo, executionHostId)
       )
-    if (existing) {
-      if (isFolderRepo(existing)) {
-        const updated = this.store.updateRepo(existing.id, { kind: 'git' })
-        if (updated) {
-          await prepareLocalWorktreeRootForRepo(this.store, updated)
-          invalidateAuthorizedRootsCache()
-          this.invalidateResolvedWorktreeCache()
-          this.notifyReposChanged()
-          return updated
-        }
-      }
+    if (existing && !isFolderRepo(existing)) {
       return existing
     }
 
