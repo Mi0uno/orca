@@ -9,6 +9,8 @@ import { SettingsSubsectionHeader } from './SettingsFormControls'
 import { translate } from '@/i18n/i18n'
 import { getUpdateCheckClickOptions, getUpdateCheckHint } from '@/lib/update-check-click-options'
 
+const RELEASES_URL = 'https://github.com/Mi0uno/orca/releases'
+
 export function GeneralUpdateSettingsSection(): React.JSX.Element {
   const updateStatus = useAppStore((s) => s.updateStatus)
   // Why: the 'error' variant of UpdateStatus does not carry a `version` field.
@@ -168,10 +170,7 @@ export function GeneralUpdateSettingsSection(): React.JSX.Element {
                 'is available. Click "Install Update" to download and install it.'
               )}{' '}
               <a
-                href={
-                  updateStatus.releaseUrl ??
-                  `https://github.com/stablyai/orca/releases/tag/v${updateStatus.version}`
-                }
+                href={updateStatus.releaseUrl ?? `${RELEASES_URL}/tag/v${updateStatus.version}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-foreground"
@@ -206,10 +205,7 @@ export function GeneralUpdateSettingsSection(): React.JSX.Element {
                 'is ready to install.'
               )}{' '}
               <a
-                href={
-                  updateStatus.releaseUrl ??
-                  `https://github.com/stablyai/orca/releases/tag/v${updateStatus.version}`
-                }
+                href={updateStatus.releaseUrl ?? `${RELEASES_URL}/tag/v${updateStatus.version}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-foreground"

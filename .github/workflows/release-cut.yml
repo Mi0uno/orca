@@ -188,6 +188,7 @@ jobs:
         if: steps.window.outputs.allowed == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORCA_REQUIRED_RELEASE_PLATFORMS: ${{ github.repository == 'stablyai/orca' && 'all' || 'windows' }}
         run: node config/scripts/publish-complete-draft-releases.mjs
 
       - name: Compute next version
@@ -513,9 +514,10 @@ jobs:
           {
             echo "## Release E2E Signal"
             echo ""
-            echo "- Terminal rendering golden is release-blocking."
+            echo "- Terminal rendering golden is release-blocking on the official repository."
             echo "- Full E2E is diagnostic/non-blocking release evidence."
             echo "- Terminal rendering release evidence is diagnostic/non-blocking."
+            echo "- Fork releases prioritize Windows artifacts; non-Windows release signals are best-effort there."
             echo ""
             echo "Publishing behavior is controlled by the existing job dependencies; this summary does not change release gating."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -556,6 +558,9 @@ jobs:
   terminal-rendering-golden:
     needs: cut
     if: needs.cut.outputs.should_release == 'true'
+    # Why: fork release cuts should still publish the Windows installer when
+    # the copied mac/Linux golden jobs are unhealthy or unavailable.
+    continue-on-error: ${{ github.repository != 'stablyai/orca' }}
     name: terminal rendering golden ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -713,6 +718,9 @@ jobs:
       - cut
       - create-release
     if: needs.cut.outputs.should_release == 'true'
+    # Why: fork releases are Windows-first; official releases still require
+    # every platform artifact before publish-release can expose the draft.
+    continue-on-error: ${{ github.repository != 'stablyai/orca' && matrix.platform != 'win' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1544,6 +1552,9 @@ jobs:
       - cut
       - create-release
     if: needs.cut.outputs.should_release == 'true'
+    # Why: forks usually do not have Orca's macOS release credentials, but
+    # should still be able to ship the Windows updater channel.
+    continue-on-error: ${{ github.repository != 'stablyai/orca' }}
     # Why: SignPath requires every job in this signing workflow to be
     # GitHub-hosted. The actual mac build runs in release-mac-build.yml so
     # Blacksmith stays outside Windows artifact provenance.
@@ -1575,6 +1586,7 @@ jobs:
       - build
       - build-mac
       - terminal-rendering-golden
+    if: ${{ always() && needs.cut.outputs.should_release == 'true' && needs.build.result == 'success' && (github.repository != 'stablyai/orca' || (needs.build-mac.result == 'success' && needs.terminal-rendering-golden.result == 'success')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -1614,6 +1626,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.cut.outputs.tag }}
+          ORCA_REQUIRED_RELEASE_PLATFORMS: ${{ github.repository == 'stablyai/orca' && 'all' || 'windows' }}
         run: node config/scripts/verify-release-required-assets.mjs "$TAG"
 
       - name: Publish release

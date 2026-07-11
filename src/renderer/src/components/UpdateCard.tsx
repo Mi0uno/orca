@@ -26,15 +26,14 @@ import {
 import { translate } from '@/i18n/i18n'
 
 // ── Helpers ──────────────────────────────────────────────────────────
+const RELEASES_URL = 'https://github.com/Mi0uno/orca/releases'
 
 function releaseUrlForVersion(version: string | null): string {
   // Why: when no version is cached (typically a failed check), point at the
   // plain releases listing rather than /releases/latest — /latest also breaks
   // when GitHub's release API is degraded, and the listing is the most
   // reliable manual fallback.
-  return version
-    ? `https://github.com/stablyai/orca/releases/tag/v${version}`
-    : 'https://github.com/stablyai/orca/releases'
+  return version ? `${RELEASES_URL}/tag/v${version}` : RELEASES_URL
 }
 
 function isAnimatedGif(url: string | undefined): boolean {
