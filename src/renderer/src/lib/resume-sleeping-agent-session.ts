@@ -140,6 +140,14 @@ function isInvalidWorktreeActivationRecord(record: SleepingAgentSessionRecord): 
   )
 }
 
+export function resumeSleepingAgentSession(paneKey: string): boolean {
+  const record = useAppStore.getState().sleepingAgentSessionsByPaneKey[paneKey]
+  if (!record) {
+    return false
+  }
+  return launchSleepingAgentSession(record)
+}
+
 export function resumeSleepingAgentSessionsForWorktree(
   worktreeId: string,
   options?: ResumeSleepingAgentSessionsOptions
@@ -148,7 +156,8 @@ export function resumeSleepingAgentSessionsForWorktree(
   const worktreeRecords = Object.values(state.sleepingAgentSessionsByPaneKey)
     .filter((record) => record.worktreeId === worktreeId)
     .sort((a, b) => a.capturedAt - b.capturedAt || a.updatedAt - b.updatedAt)
-  const validWorktreeRecords = worktreeRecords.filter(
+  const activationRecords = worktreeRecords.filter((record) => record.origin !== 'terminal-close')
+  const validWorktreeRecords = activationRecords.filter(
     (record) => !isInvalidWorktreeActivationRecord(record)
   )
   const activeWorktreeRecords = validWorktreeRecords.filter(
@@ -162,6 +171,9 @@ export function resumeSleepingAgentSessionsForWorktree(
   for (const record of worktreeRecords) {
     const currentState = useAppStore.getState()
     if (currentState.sleepingAgentSessionsByPaneKey[record.paneKey] !== record) {
+      continue
+    }
+    if (record.origin === 'terminal-close') {
       continue
     }
     const claimKey = getProviderSessionClaimKey(record)

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import type * as ActivateTabAndFocusPaneModule from '@/lib/activate-tab-and-focus-pane'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const LEAF_A = '11111111-1111-4111-8111-111111111111'
 const LEAF_B = '22222222-2222-4222-8222-222222222222'
@@ -69,11 +70,18 @@ function buildMockStoreState(): Record<string, unknown> {
     agentActivityDisplayMode: mockAgentActivityDisplayMode,
     acknowledgedAgentsByPaneKey: {},
     cacheTimerByKey: {},
+    clearSleepingAgentSession: vi.fn(),
+    clearAgentTitle: vi.fn(),
     dropAgentStatus: vi.fn(),
+    dropAgentStatusByTabPrefix: vi.fn(),
     dismissRetainedAgent: vi.fn(),
+    closeTab: vi.fn(),
+    renameAgentTitle: vi.fn(),
+    setTabCustomTitle: vi.fn(),
     acknowledgeAgents: vi.fn(),
     agentSendPopoverTargetMode: null,
     agentStatusByPaneKey: mockAgentStatusByPaneKey,
+    agentCustomTitlesByPaneKey: {},
     agentStatusEpoch: 0,
     activeTabId: mockActiveTabId,
     activeTabType: mockActiveTabType,
@@ -395,7 +403,11 @@ describe('WorktreeCardAgents activation', () => {
     const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
 
     await act(async () => {
-      root.render(<WorktreeCardAgents worktreeId="wt-1" />)
+      root.render(
+        <TooltipProvider>
+          <WorktreeCardAgents worktreeId="wt-1" />
+        </TooltipProvider>
+      )
     })
     const row = host.querySelector('.compact-agent-row')
     expect(row).toBeInstanceOf(HTMLElement)

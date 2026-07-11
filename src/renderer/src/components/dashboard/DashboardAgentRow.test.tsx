@@ -97,18 +97,6 @@ function hoverSwapClasses(markup: string): string[] {
   )
 }
 
-function dismissButtonClass(markup: string): string {
-  const match = markup.match(/<button\b(?=[^>]*aria-label="Dismiss agent")[^>]*class="([^"]*)"/)
-  if (!match) {
-    throw new Error('Expected dismiss agent button in rendered markup')
-  }
-  return match[1]
-}
-
-function dismissButtonClassTokens(markup: string): string[] {
-  return dismissButtonClass(markup).split(/\s+/).filter(Boolean)
-}
-
 function tokenCount(markup: string, token: string): number {
   return classTokens(markup).filter((classToken) => classToken === token).length
 }
@@ -179,7 +167,8 @@ describe('DashboardAgentRow', () => {
     expect(tokens).toContain('h-5')
     expect(tokens).toContain('w-12')
     expect(markup).toContain('lucide-send')
-    expect(markup).not.toContain('aria-label="Dismiss agent"')
+    expect(markup).not.toContain('aria-label="Close agent"')
+    expect(markup).not.toContain('aria-label="Rename agent"')
   })
 
   it('marks disabled send-target rows as muted without an eligibility ring', () => {
@@ -223,8 +212,8 @@ describe('DashboardAgentRow', () => {
 
     expect(tokens).toContain('group/agent-row')
     expect(tokens).toContain('group-hover/agent-row:opacity-0')
-    expect(dismissButtonClassTokens(markup)).toContain('group-hover/agent-row:opacity-100')
-    expect(dismissButtonClassTokens(markup)).toContain('focus-visible:opacity-100')
+    expect(tokens).toContain('group-hover/agent-row:opacity-100')
+    expect(tokens).toContain('focus-within:opacity-100')
     expect(classes.every((className) => !/\bgroup-hover:/.test(className))).toBe(true)
   })
 
@@ -234,9 +223,29 @@ describe('DashboardAgentRow', () => {
     )
     const classes = hoverSwapClasses(markup)
 
-    expect(dismissButtonClassTokens(markup)).toContain('group-hover/agent-row:opacity-100')
-    expect(dismissButtonClassTokens(markup)).toContain('focus-visible:opacity-100')
+    expect(classTokens(markup)).toContain('group-hover/agent-row:opacity-100')
+    expect(classTokens(markup)).toContain('focus-within:opacity-100')
     expect(classes.every((className) => !/\bgroup-hover:/.test(className))).toBe(true)
+  })
+
+  it('shows a hover rename action when the caller supports agent renaming', () => {
+    const markup = renderToStaticMarkup(
+      <TooltipProvider>
+        <DashboardAgentRow
+          agent={makeAgent()}
+          onDismiss={vi.fn()}
+          onRename={vi.fn()}
+          onActivate={vi.fn()}
+          now={NOW}
+          hideIdentityIcon
+          hideExpand
+        />
+      </TooltipProvider>
+    )
+
+    expect(markup).toContain('aria-label="Rename agent"')
+    expect(markup).toContain('lucide-pencil')
+    expect(markup).toContain('aria-label="Close agent"')
   })
 
   it('renders waiting rows with the amber permission color', () => {

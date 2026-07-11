@@ -31,6 +31,7 @@ const HOVER_REVEAL_FILES = [
   resolve(__dirname, 'sidebar/WorkspaceKanbanStatusLane.tsx'),
   resolve(__dirname, 'sidebar/WorktreeCardPorts.tsx'),
   resolve(__dirname, 'sidebar/WorktreeList.tsx'),
+  resolve(__dirname, 'sidebar/worktree-card-compact-agent-row.tsx'),
   resolve(__dirname, 'status-bar/ResourceUsageStatusSegment.tsx'),
   resolve(__dirname, 'status-bar/ports-status-popover-rows.tsx'),
   resolve(__dirname, 'tab-bar/TabBarQuickCommandsMenu.tsx')

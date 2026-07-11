@@ -54,9 +54,9 @@ import SmartWorkspaceNameField, {
 import type { SmartNameMode } from '@/components/new-workspace/smart-workspace-source-results'
 import ProjectCombobox from '@/components/new-workspace/ProjectCombobox'
 import {
-  FolderProjectGitWorktreePrompt,
-  type FolderProjectGitWorktreePromptProps
-} from '@/components/new-workspace/FolderProjectGitWorktreePrompt'
+  ProjectModeSwitchPrompt,
+  type ProjectModeSwitchPromptProps
+} from '@/components/new-workspace/ProjectModeSwitchPrompt'
 import type { SetupConfig } from '@/lib/new-workspace'
 import type { NewWorkspaceProjectOption } from '@/lib/new-workspace-project-options'
 import type {
@@ -92,7 +92,7 @@ type NewWorkspaceComposerCardProps = {
   projectHostSetupOptions?: ProjectHostSetupOption[]
   selectedProjectHostSetupId?: string | null
   onProjectHostSetupChange?: (setupId: string) => void
-  folderProjectGitWorktree?: FolderProjectGitWorktreePromptProps
+  projectModeSwitch?: ProjectModeSwitchPromptProps
   ephemeralVmRecipes?: EphemeralVmRecipeOption[]
   selectedEphemeralVmRecipeId?: string | null
   onEphemeralVmRecipeChange?: (recipeId: string | null) => void
@@ -558,7 +558,7 @@ export default function NewWorkspaceComposerCard({
   projectHostSetupOptions = EMPTY_PROJECT_HOST_SETUP_OPTIONS,
   selectedProjectHostSetupId = null,
   onProjectHostSetupChange,
-  folderProjectGitWorktree,
+  projectModeSwitch,
   ephemeralVmRecipes = EMPTY_EPHEMERAL_VM_RECIPES,
   selectedEphemeralVmRecipeId = null,
   onEphemeralVmRecipeChange,
@@ -867,9 +867,7 @@ export default function NewWorkspaceComposerCard({
                 )}
             </p>
           ) : null}
-          {folderProjectGitWorktree ? (
-            <FolderProjectGitWorktreePrompt {...folderProjectGitWorktree} />
-          ) : null}
+          {projectModeSwitch ? <ProjectModeSwitchPrompt {...projectModeSwitch} /> : null}
           {readyProjectHostSetupOptions.length > 1 || ephemeralVmRecipes.length > 0 ? (
             <div className="space-y-1">
               <label className="block min-w-0 truncate text-xs font-medium text-muted-foreground">

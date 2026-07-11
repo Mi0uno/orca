@@ -1363,7 +1363,7 @@ export default function TerminalPane({
         const leafId = manager.getLeafId(paneId)
         if (leafId) {
           useAppStore.getState().setCacheTimerStartedAt(makePaneKey(tabId, leafId), null)
-          useAppStore.getState().dropAgentStatus(makePaneKey(tabId, leafId))
+          useAppStore.getState().retainClosedAgentSession(makePaneKey(tabId, leafId))
         }
         syncPanePtyLayoutBinding(paneId, null)
         manager.closePane(paneId)

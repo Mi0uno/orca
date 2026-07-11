@@ -449,6 +449,12 @@ export type AutomaticAgentResumeClaim = {
   worktreeId: string
   launchAgent: TuiAgent
   providerSession: AgentProviderSessionMetadata
+  prompt?: string
+  terminalTitle?: string
+  customTitle?: string
+  capturedAt?: number
+  updatedAt?: number
+  interrupted?: boolean
 }
 
 export type TerminalSlice = {
@@ -613,6 +619,7 @@ export type TerminalSlice = {
       remoteCloseOwnedByHost?: boolean
       localPtyTeardownOwnedExternally?: boolean
       precomputedRetirementPlan?: TerminalTabRetirementPlan
+      retainAgentHistory?: boolean
     }
   ) => void
   reorderTabs: (worktreeId: string, tabIds: string[]) => void
@@ -1224,7 +1231,6 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       opts?.precomputedRetirementPlan?.tabId === tabId
         ? opts.precomputedRetirementPlan
         : buildTerminalTabRetirementPlan(get(), tabId)
-    let closingWorktreeId: string | null = null
 
     // Why: a parked tab has no mounted TerminalPane cleanup. Retirement must
     // synchronously revoke its observer/candidate state before provider exit races.
@@ -1274,6 +1280,12 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       })
     }
 
+    // Why: once the tab is removed from tabsByWorktree, older agent status
+    // entries without a stamped worktreeId can no longer be attributed. Capture
+    // resumable history first, then tear down the terminal tab.
+    if (opts?.retainAgentHistory !== false) {
+      get().retainClosedAgentSessionsByTabPrefix(tabId)
+    }
     set((s) => {
       const next = { ...s.tabsByWorktree }
       let closedTab: TerminalTab | null = null
@@ -1282,7 +1294,6 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
         const before = next[wId]
         const closing = before.find((t) => t.id === tabId)
         if (closing) {
-          closingWorktreeId = wId
           // Why: capture the first-matched tab's snapshot for the Cmd+Shift+T
           // reopen stack (see capturedSnapshot below).
           if (!closedTab) {
@@ -1479,19 +1490,6 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
           : {})
       }
     })
-    // Why: sweep live AND retained agent-status entries for this tab — closing
-    // the tab is the user telling us "I'm done with this session", so any
-    // completion snapshots it left behind (in the inline agents list) must go
-    // too. Use dropAgentStatusByTabPrefix (not removeAgentStatusByTabPrefix)
-    // so retention suppressors are planted: a live→gone transition inside the
-    // same frame as the tab close cannot re-snapshot a row we just dropped.
-    // Why: Pi can leave a completed row attributed to the worktree but keyed
-    // under an already-missing tab id; pass the worktree to sweep only that
-    // completed orphan while preserving active pre-render child rows.
-    get().dropAgentStatusByTabPrefix(
-      tabId,
-      closingWorktreeId ? { worktreeId: closingWorktreeId } : undefined
-    )
     // Why: retired pane keys never recur, so stranded foreground entries would
     // accumulate for the renderer's whole lifetime.
     get().clearPaneForegroundAgentByTabPrefix(tabId)
