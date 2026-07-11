@@ -171,22 +171,32 @@ jobs:
           # Kill only its child and require both PTY and watch recovery before packaging.
           node config/scripts/relay-watcher-fault-harness.mjs
 
-      - name: Publish release artifacts (macOS)
+      - name: Publish signed release artifacts (macOS)
+        if: steps.macos-signing-mode.outputs.enabled == 'true'
         uses: nick-fields/retry@v4
         with:
           timeout_minutes: 45
           max_attempts: 3
           retry_wait_seconds: 30
-          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
+          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && ORCA_MAC_RELEASE=1 pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ORCA_MAC_RELEASE: ${{ steps.macos-signing-mode.outputs.enabled == 'true' && '1' || '' }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.macos-signing-mode.outputs.enabled == 'true' && 'true' || 'false' }}
           CSC_LINK: ${{ secrets.MAC_CERTS }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Publish unsigned release artifacts (macOS)
+        if: steps.macos-signing-mode.outputs.enabled != 'true'
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 45
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify release remains draft after artifact upload
         # Why: the macOS build must never be the actor that exposes a partial
