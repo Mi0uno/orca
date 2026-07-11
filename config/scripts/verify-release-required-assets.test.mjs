@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   extractManifestAssetNames,
   getRequiredReleaseAssetNames,
+  getRequiredReleasePlatforms,
   verifyRequiredReleaseAssets
 } from './verify-release-required-assets.mjs'
 
@@ -57,6 +58,23 @@ describe('getRequiredReleaseAssetNames', () => {
         'orca-ide-1.4.27.aarch64.rpm'
       ])
     )
+  })
+
+  it('can scope required assets to the Windows updater channel', () => {
+    expect(getRequiredReleasePlatforms('windows')).toEqual(['windows'])
+    expect(getRequiredReleaseAssetNames('v1.4.27', 'windows')).toEqual([
+      'latest.yml',
+      'orca-windows-setup.exe',
+      'orca-windows-setup.exe.blockmap'
+    ])
+  })
+
+  it('expands platform aliases in declaration order', () => {
+    expect(getRequiredReleasePlatforms('linux,win')).toEqual([
+      'linux-x64',
+      'linux-arm64',
+      'windows'
+    ])
   })
 })
 
@@ -131,5 +149,25 @@ describe('verifyRequiredReleaseAssets', () => {
       verifyRequiredReleaseAssets({ repo: 'stablyai/orca', tag, token: 'token' })
     ).rejects.toThrow('Missing: orca-linux-arm64.AppImage.blockmap')
     expect(arm64Manifest).toBeTruthy()
+  })
+
+  it('defaults fork release verification to Windows assets', async () => {
+    const tag = 'v1.4.27'
+    const release = releaseWithAssets(tag, getRequiredReleaseAssetNames(tag, 'windows'))
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([release]))
+      .mockResolvedValueOnce(
+        jsonResponse(['version: 1.4.27', 'files:', '  - url: orca-windows-setup.exe'].join('\n'))
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      verifyRequiredReleaseAssets({ repo: 'Mi0uno/orca', tag, token: 'token' })
+    ).resolves.toMatchObject({
+      checked: ['latest.yml', 'orca-windows-setup.exe', 'orca-windows-setup.exe.blockmap'],
+      platforms: ['windows']
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
