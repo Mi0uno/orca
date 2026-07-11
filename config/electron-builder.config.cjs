@@ -14,6 +14,16 @@ const {
 
 const isMacRelease = process.env.ORCA_MAC_RELEASE === '1'
 const isLinuxArm64Release = process.env.ORCA_LINUX_ARM64_RELEASE === '1'
+const [githubRepositoryOwner, githubRepositoryName] = (process.env.GITHUB_REPOSITORY ?? '').split(
+  '/'
+)
+const githubRepository = (process.env.GITHUB_REPOSITORY ?? '').toLowerCase()
+const releasePublishOwner = process.env.ORCA_RELEASE_OWNER ?? githubRepositoryOwner ?? 'Mi0uno'
+const releasePublishRepo = process.env.ORCA_RELEASE_REPO ?? githubRepositoryName ?? 'orca'
+const windowsPublisherName =
+  githubRepository === 'stablyai/orca' || process.env.ORCA_WINDOWS_SIGNING_ENABLED === 'true'
+    ? 'SignPath Foundation'
+    : undefined
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
@@ -191,11 +201,15 @@ module.exports = {
   },
   win: {
     executableName: 'Orca',
-    // Why: Windows installers are signed after electron-builder packaging by
-    // SignPath, so the packager cannot infer the updater publisherName.
-    signtoolOptions: {
-      publisherName: 'SignPath Foundation'
-    },
+    // Why: fork CI publishes unsigned Windows installers; embedding Orca's
+    // SignPath publisher there makes electron-updater reject those downloads.
+    ...(windowsPublisherName
+      ? {
+          signtoolOptions: {
+            publisherName: windowsPublisherName
+          }
+        }
+      : {}),
     extraResources: [
       ...commonExtraResources,
       winSpeechNativeResource,
@@ -395,8 +409,8 @@ module.exports = {
   npmRebuild: true,
   publish: {
     provider: 'github',
-    owner: 'stablyai',
-    repo: 'orca',
+    owner: releasePublishOwner,
+    repo: releasePublishRepo,
     releaseType: 'release'
   }
 }
