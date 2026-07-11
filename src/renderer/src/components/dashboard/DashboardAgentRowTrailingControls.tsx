@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react'
-import { ChevronDown, Send, X } from 'lucide-react'
+import { ChevronDown, Pencil, Send, X } from 'lucide-react'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type DashboardAgentRowTrailingControlsProps = {
   paneKey: string
@@ -12,7 +13,8 @@ type DashboardAgentRowTrailingControlsProps = {
    *  offering the X would be a silent no-op. */
   hideDismiss?: boolean
   sendTargetStatus?: 'eligible' | 'disabled' | 'sending'
-  onDismiss: (paneKey: string) => void
+  onCloseAgent: () => void
+  onRenameAgent?: () => void
   onToggleExpanded: () => void
   onSendTargetClick?: (paneKey: string) => void
 }
@@ -24,7 +26,8 @@ export function DashboardAgentRowTrailingControls({
   hideExpand,
   hideDismiss = false,
   sendTargetStatus,
-  onDismiss,
+  onCloseAgent,
+  onRenameAgent,
   onToggleExpanded,
   onSendTargetClick
 }: DashboardAgentRowTrailingControlsProps): React.JSX.Element {
@@ -38,12 +41,19 @@ export function DashboardAgentRowTrailingControls({
       event.stopPropagation()
     }
   }, [])
-  const handleDismiss = useCallback(
+  const handleCloseAgent = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation()
-      onDismiss(paneKey)
+      onCloseAgent()
     },
-    [onDismiss, paneKey]
+    [onCloseAgent]
+  )
+  const handleRenameAgent = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation()
+      onRenameAgent?.()
+    },
+    [onRenameAgent]
   )
   const handleToggleExpand = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -112,45 +122,111 @@ export function DashboardAgentRowTrailingControls({
           >
             {relativeTimestamp}
           </span>
-          <button
-            type="button"
-            onClick={handleDismiss}
-            onMouseDown={stopMouseDown}
-            onKeyDown={stopKeyDown}
+          <span
             className={cn(
-              '[grid-area:1/1] inline-flex items-center justify-center text-muted-foreground/70 hover:text-foreground',
+              '[grid-area:1/1] inline-flex items-center justify-center gap-0.5',
               'can-hover:opacity-0 transition-opacity duration-150',
-              'group-hover/agent-row:opacity-100 focus-visible:opacity-100'
+              'group-hover/agent-row:opacity-100 focus-within:opacity-100',
+              '[@media(hover:none)]:opacity-100'
             )}
-            aria-label={translate(
-              'auto.components.dashboard.DashboardAgentRow.b06e13fcf7',
-              'Dismiss agent'
-            )}
-            title={translate('auto.components.dashboard.DashboardAgentRow.5ae84475cc', 'Dismiss')}
           >
-            <X className="size-3.5" />
-          </button>
+            {onRenameAgent ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={handleRenameAgent}
+                    onMouseDown={stopMouseDown}
+                    onKeyDown={stopKeyDown}
+                    className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-foreground"
+                    aria-label={translate(
+                      'auto.components.dashboard.DashboardAgentRow.renameAgent',
+                      'Rename agent'
+                    )}
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={4}>
+                  {translate('auto.components.dashboard.DashboardAgentRow.rename', 'Rename')}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handleCloseAgent}
+                  onMouseDown={stopMouseDown}
+                  onKeyDown={stopKeyDown}
+                  className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-foreground"
+                  aria-label={translate(
+                    'auto.components.dashboard.DashboardAgentRow.closeAgent',
+                    'Close agent'
+                  )}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={4}>
+                {translate('auto.components.dashboard.DashboardAgentRow.close', 'Close')}
+              </TooltipContent>
+            </Tooltip>
+          </span>
         </span>
       )}
       {!sendTargetStatus && !hideDismiss && relativeTimestamp === null && (
-        <button
-          type="button"
-          onClick={handleDismiss}
-          onMouseDown={stopMouseDown}
-          onKeyDown={stopKeyDown}
+        <span
           className={cn(
-            'inline-flex shrink-0 items-center justify-center text-muted-foreground/70 hover:text-foreground',
+            'inline-flex shrink-0 items-center justify-center gap-0.5',
             'can-hover:opacity-0 transition-opacity duration-150',
-            'group-hover/agent-row:opacity-100 focus-visible:opacity-100'
+            'group-hover/agent-row:opacity-100 focus-within:opacity-100',
+            '[@media(hover:none)]:opacity-100'
           )}
-          aria-label={translate(
-            'auto.components.dashboard.DashboardAgentRow.b06e13fcf7',
-            'Dismiss agent'
-          )}
-          title={translate('auto.components.dashboard.DashboardAgentRow.5ae84475cc', 'Dismiss')}
         >
-          <X className="size-3.5" />
-        </button>
+          {onRenameAgent ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handleRenameAgent}
+                  onMouseDown={stopMouseDown}
+                  onKeyDown={stopKeyDown}
+                  className="inline-flex shrink-0 items-center justify-center text-muted-foreground/70 hover:text-foreground"
+                  aria-label={translate(
+                    'auto.components.dashboard.DashboardAgentRow.renameAgent',
+                    'Rename agent'
+                  )}
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={4}>
+                {translate('auto.components.dashboard.DashboardAgentRow.rename', 'Rename')}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleCloseAgent}
+                onMouseDown={stopMouseDown}
+                onKeyDown={stopKeyDown}
+                className="inline-flex shrink-0 items-center justify-center text-muted-foreground/70 hover:text-foreground"
+                aria-label={translate(
+                  'auto.components.dashboard.DashboardAgentRow.closeAgent',
+                  'Close agent'
+                )}
+              >
+                <X className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4}>
+              {translate('auto.components.dashboard.DashboardAgentRow.close', 'Close')}
+            </TooltipContent>
+          </Tooltip>
+        </span>
       )}
       {!hideExpand && (
         <button

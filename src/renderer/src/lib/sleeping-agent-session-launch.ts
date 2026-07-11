@@ -97,6 +97,9 @@ export function launchSleepingAgentSession(
     launchAgent: record.agent,
     ...(options?.suppressNavigation ? { activate: false, recordInteraction: false } : {})
   })
+  if (record.customTitle?.trim()) {
+    state.setTabCustomTitle(tab.id, record.customTitle.trim(), { recordInteraction: false })
+  }
   state.queueTabStartupCommand(tab.id, {
     command: startupPlan.launchCommand,
     ...(startupPlan.env ? { env: startupPlan.env } : {}),
@@ -116,7 +119,13 @@ export function launchSleepingAgentSession(
   state.claimAutomaticAgentResume(tab.id, {
     worktreeId: record.worktreeId,
     launchAgent: record.agent,
-    providerSession: record.providerSession
+    providerSession: record.providerSession,
+    prompt: record.prompt,
+    ...(record.terminalTitle ? { terminalTitle: record.terminalTitle } : {}),
+    ...(record.customTitle ? { customTitle: record.customTitle } : {}),
+    capturedAt: record.capturedAt,
+    updatedAt: record.updatedAt,
+    ...(record.interrupted !== undefined ? { interrupted: record.interrupted } : {})
   })
   state.clearSleepingAgentSession(record.paneKey)
   if (!options?.suppressNavigation) {

@@ -1,10 +1,13 @@
 /* oxlint-disable max-lines */
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { gitExecFileSync, gitExecFileAsync } from './runner'
 import type { BaseRefSearchResult } from '../../shared/types'
 import { parseGitRevListAheadBehindCounts } from '../../shared/git-rev-list-output'
-import { normalizeRuntimePathSeparators } from '../../shared/cross-platform-path'
+import {
+  getRuntimePathBasename,
+  normalizeRuntimePathSeparators
+} from '../../shared/cross-platform-path'
 import { isForEachRefExcludeUnsupportedError } from '../../shared/git-ref-command-capabilities'
 import { parseWslUncPath } from '../../shared/wsl-paths'
 import { toWindowsWslPath } from '../wsl'
@@ -443,7 +446,7 @@ function isGitBooleanFalse(value: string): boolean {
  * Get a human-readable name for the repo from its path.
  */
 export function getRepoName(path: string): string {
-  const name = basename(path)
+  const name = getRuntimePathBasename(path)
   // Strip .git suffix from bare repos
   return name.endsWith('.git') ? name.slice(0, -4) : name
 }

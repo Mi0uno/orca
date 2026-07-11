@@ -401,6 +401,81 @@ describe('buildRows with pinned worktrees', () => {
     expect(rows[0]).toMatchObject({ type: 'header', label: 'c15t' })
   })
 
+  it('normalizes path-like same-folder project labels and exposes workspace modes', () => {
+    const folderRepo: Repo = {
+      ...repo,
+      id: 'repo-folder',
+      path: 'D:/nextcloud/Personal_Doc/Workf',
+      displayName: 'D:/nextcloud/Personal_Doc/Workf',
+      kind: 'folder',
+      gitRemoteIdentity: {
+        canonicalKey: 'local:D:/nextcloud/Personal_Doc/Workf',
+        remoteName: 'local',
+        remoteUrl: 'file:///D:/nextcloud/Personal_Doc/Workf'
+      }
+    }
+    const gitRepo: Repo = {
+      ...repo,
+      id: 'repo-git',
+      path: 'D:/nextcloud/Personal_Doc/Workf',
+      displayName: 'D:/nextcloud/Personal_Doc/Workf',
+      kind: 'git',
+      gitRemoteIdentity: folderRepo.gitRemoteIdentity
+    }
+    const folderWorktree: Worktree = {
+      ...worktree,
+      id: 'wt-folder',
+      repoId: folderRepo.id,
+      path: folderRepo.path,
+      displayName: 'Workf'
+    }
+    const gitWorktree: Worktree = {
+      ...worktree,
+      id: 'wt-git',
+      repoId: gitRepo.id,
+      path: 'D:/nextcloud/Personal_Doc/Workf-worktrees/feature',
+      displayName: 'feature'
+    }
+    const projection = projectHostSetupProjectionFromRepos([folderRepo, gitRepo])
+
+    const rows = buildRows(
+      'repo',
+      [folderWorktree, gitWorktree],
+      new Map([
+        [folderRepo.id, folderRepo],
+        [gitRepo.id, gitRepo]
+      ]),
+      null,
+      new Set(),
+      undefined,
+      undefined,
+      undefined,
+      {},
+      new Map([
+        [folderWorktree.id, folderWorktree],
+        [gitWorktree.id, gitWorktree]
+      ]),
+      false,
+      undefined,
+      [],
+      new Set(),
+      new Map(),
+      new Map(),
+      [],
+      {
+        projects: projection.projects,
+        projectHostSetups: projection.setups
+      }
+    )
+
+    const headers = rows.filter((row) => row.type === 'header')
+
+    expect(headers).toMatchObject([
+      { type: 'header', label: 'Workf', workspaceMode: 'plain' },
+      { type: 'header', label: 'Workf', workspaceMode: 'worktree' }
+    ])
+  })
+
   it('groups multiple host setups for the same project under one project header', () => {
     const rows = buildRows(
       'repo',

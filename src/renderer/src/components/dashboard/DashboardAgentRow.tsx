@@ -69,6 +69,9 @@ function lastEnteredDoneAt(agent: DashboardAgentRowData): number | null {
 }
 
 function stateDotTooltipLabel(agent: DashboardAgentRowData, dotState: AgentDotState): string {
+  if (agent.rowSource === 'sleeping') {
+    return agentStateLabel(dotState)
+  }
   if (agent.entry.interrupted === true) {
     return 'Interrupted by user'
   }
@@ -78,6 +81,8 @@ function stateDotTooltipLabel(agent: DashboardAgentRowData, dotState: AgentDotSt
 type Props = {
   agent: DashboardAgentRowData
   onDismiss: (paneKey: string) => void
+  onCloseAgent?: (agent: DashboardAgentRowData) => void
+  onRename?: (agent: DashboardAgentRowData) => void
   /** Navigate directly to the tab this agent lives in. paneKey is passed
    *  through so the caller can acknowledge (mark-visited) the specific row
    *  that was clicked, without having to re-derive it from the tab id. */
@@ -152,7 +157,9 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   hideLineageConnectors = false,
   sendTargetStatus,
   sendTargetDisabledReason,
-  onSendTargetClick
+  onSendTargetClick,
+  onCloseAgent,
+  onRename
 }: Props) {
   const hasChildDisclosure =
     typeof childAgentCount === 'number' &&
@@ -162,6 +169,16 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   const handleToggleExpanded = useCallback(() => {
     setExpanded((prev) => !prev)
   }, [])
+  const handleCloseAgent = useCallback(() => {
+    if (onCloseAgent) {
+      onCloseAgent(agent)
+      return
+    }
+    onDismiss(agent.paneKey)
+  }, [agent, onCloseAgent, onDismiss])
+  const handleRenameAgent = useCallback(() => {
+    onRename?.(agent)
+  }, [agent, onRename])
   // Why: agent rows navigate directly to the agent's own tab, while the
   // surrounding worktree card navigates to whatever tab the worktree last had
   // focused. Stop propagation so the card click handler does not run second
@@ -198,13 +215,14 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   const startedAt = agent.startedAt > 0 ? agent.startedAt : null
   const doneAt = lastEnteredDoneAt(agent)
   const prompt = getAgentRowPrimaryText(agent.entry)
+  const customTitle = agent.customTitle?.trim() || agent.tab.customTitle?.trim() || ''
   // Why: `agent.entry.prompt` is normalized to '' when the prompt is unknown
   // (fresh agent, missing telemetry). Rendering the row with an empty primary
   // slot would collapse the text column and leave the row with no human-
   // readable label — just a state dot and icon. Fall back to the state label
   // ("Working", "Done", "Waiting", …) so every row is identifiable at a
   // glance.
-  const displayLabel = prompt || agentStateLabel(asDotState(agent.state))
+  const displayLabel = customTitle || prompt || agentStateLabel(asDotState(agent.state))
   // Why: the tool row describes what the agent is *currently* doing; once it
   // leaves working, that line goes stale and misleads (a done row showing
   // "Bash: pnpm test" reads as if the command is still running). Gate tool
@@ -215,6 +233,7 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   const toolInput = isWorking ? (agent.entry.toolInput?.trim() ?? '') : ''
   const lastAssistantMessage = agent.entry.lastAssistantMessage?.trim() ?? ''
   const isInterrupted = agent.entry.interrupted === true
+  const isSleepingHistory = agent.rowSource === 'sleeping'
   const lineage = agent.lineage
   const isLineageChild = lineage?.depth === 1
   const lineageChildCount = lineage?.childCount ?? 0
@@ -228,7 +247,8 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   // Why: interrupted is a terminal outcome the user needs to scan in the
   // leading state column; the secondary-line text below provides the
   // explanation without competing with the prompt or timestamp.
-  const dotState: AgentDotState = isInterrupted ? 'interrupted' : asDotState(agent.state)
+  const dotState: AgentDotState =
+    isInterrupted && !isSleepingHistory ? 'interrupted' : asDotState(agent.state)
   const dotTooltipLabel = stateDotTooltipLabel(agent, dotState)
 
   // Why: always show the chevron to keep the row's right edge stable — a
@@ -272,6 +292,7 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
         'cursor-pointer rounded-sm worktree-agent-row-hover',
         hasChildDisclosure && 'worktree-agent-lineage-parent-row',
         isLineageChild && 'worktree-agent-lineage-child-row',
+        isSleepingHistory && !isFocusedPane && 'opacity-70',
         sendTargetStatus === 'sending' && 'cursor-progress opacity-75',
         sendTargetStatus === 'disabled' && 'cursor-default opacity-60'
       )}
@@ -398,7 +419,8 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
           hideExpand={hideExpand}
           hideDismiss={agent.rowSource === 'subagent'}
           sendTargetStatus={sendTargetStatus}
-          onDismiss={onDismiss}
+          onCloseAgent={handleCloseAgent}
+          onRenameAgent={onRename ? handleRenameAgent : undefined}
           onToggleExpanded={handleToggleExpanded}
           onSendTargetClick={onSendTargetClick}
         />

@@ -610,7 +610,9 @@
         "5f3d2c8a1b": "MRベースの解決に失敗しました",
         "folderGitWorktreesUnavailableTitle": "Git の設定が必要です",
         "folderGitWorktreesInitializeFailed": "このフォルダーを Git ワークツリー用に準備できませんでした。",
-        "folderGitWorktreesEnableInitialize": "このフォルダーは Git リポジトリではありません。「ここで Git を初期化」を有効にしてから、もう一度お試しください。"
+        "folderGitWorktreesEnableInitialize": "このフォルダーは Git リポジトリではありません。「ここで Git を初期化」を有効にしてから、もう一度お試しください。",
+        "folderWorkspaceModeUnavailableTitle": "フォルダーモードは利用できません",
+        "folderWorkspaceModeUnavailableMessage": "このプロジェクトを通常のフォルダーワークスペースとして準備できませんでした。"
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "ドロップされたファイルのアップロードに失敗しました。",
@@ -4175,7 +4177,12 @@
           "ef18787206": "削除待ち"
         },
         "WorktreeCardAgents": {
-          "1b0a156717": "エージェント"
+          "1b0a156717": "エージェント",
+          "renameTitle": "Rename agent",
+          "renameDescription": "Set the label shown for this agent in the workspace list.",
+          "renameInput": "Agent name",
+          "renameCancel": "Cancel",
+          "renameSave": "Save"
         },
         "WorktreeCardReviewDetailSection": {
           "reviewHeader": "{{value0}} #{{value1}}",
@@ -4306,7 +4313,13 @@
           "hostDisconnected": "切断済み",
           "failedNestWorkspace": "ワークスペースをネストできませんでした",
           "sidebarRowMissing": "対象はもう存在しません",
-          "failedUnnestWorkspace": "ワークスペースの展開に失敗しました"
+          "failedUnnestWorkspace": "ワークスペースのネスト解除に失敗しました",
+          "workspaceModePlain": "通常",
+          "workspaceModePlainDescription": "通常のフォルダーワークスペース",
+          "workspaceModeWorktree": "ワークツリー",
+          "workspaceModeWorktreeDescription": "Git ワークツリーモード",
+          "workspaceModeMixed": "混在",
+          "workspaceModeMixedDescription": "通常フォルダーと Git ワークツリーのワークスペース"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "キャンセル",
@@ -4494,7 +4507,11 @@
               "agents": {
                 "a128d7006b": "{{value0}} {{value1}} 子 {{value2}}",
                 "289a1d2ca7": "{{value0}} を展開します。 {{value1}}",
-                "0c1debfe84": "{{value0}} を折りたたむ"
+                "0c1debfe84": "{{value0}} を折りたたむ",
+                "renameAgent": "Rename agent",
+                "rename": "Rename",
+                "closeAgent": "Close agent",
+                "close": "Close"
               }
             }
           },
@@ -10618,11 +10635,16 @@
           },
           "FolderProjectGitWorktreePrompt": {
             "gitWorktrees": "Git worktrees",
-            "description": "Use branches from this folder instead of plain folder workspaces.",
-            "preparing": "Preparing",
+            "folderWorkspaces": "Plain folder workspaces",
+            "description": "Create or reuse branches from this folder instead of plain folder workspaces.",
+            "folderDescription": "Create workspaces directly in this project folder without Git worktree management.",
+            "preparing": "Switching",
+            "switchToWorktreeMode": "Switch to worktree mode",
+            "switchToFolderMode": "Switch to plain mode",
             "useGitWorktrees": "Use Git worktrees",
             "initializeGit": "Initialize Git here",
-            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository.",
+            "initializeGitRequired": "This folder is not a Git repository. Check Initialize Git here, then switch again."
           }
         }
       },
@@ -12129,7 +12151,11 @@
           "b06e13fcf7": "agent を閉じる",
           "0272969e28": "この agent に送信",
           "92a7017987": "送信中",
-          "019b74d93a": "適格"
+          "019b74d93a": "適格",
+          "renameAgent": "Rename agent",
+          "rename": "Rename",
+          "closeAgent": "Close agent",
+          "close": "Close"
         },
         "DashboardAgentRowMessage": {
           "0a01046763": "中断された",

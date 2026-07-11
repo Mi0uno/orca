@@ -46,6 +46,7 @@ export type SleepingAgentSessionRecord = {
   capturedAt: number
   updatedAt: number
   terminalTitle?: string
+  customTitle?: string
   lastAssistantMessage?: string
   interrupted?: boolean
   connectionId?: string | null
@@ -54,8 +55,10 @@ export type SleepingAgentSessionRecord = {
    *  no origin) are consumed by worktree activation, which opens a fresh tab.
    *  Quit/live records describe panes that still exist in the restored session,
    *  so only the pane's own cold-restore path may consume them — activation
-   *  launching a tab too would duplicate a warm-reattached session (#5232). */
-  origin?: 'worktree-sleep' | 'quit' | 'live'
+   *  launching a tab too would duplicate a warm-reattached session (#5232).
+   *  Terminal-close records are explicit sidebar history and only resume when
+   *  the user clicks that muted row. */
+  origin?: 'worktree-sleep' | 'quit' | 'live' | 'terminal-close'
 }
 
 const RESUMABLE_TUI_AGENT_SET: ReadonlySet<string> = new Set(RESUMABLE_TUI_AGENTS)

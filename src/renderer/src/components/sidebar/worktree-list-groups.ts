@@ -43,11 +43,13 @@ import {
 } from '../../../../shared/execution-host'
 import { parseWslUncPath } from '../../../../shared/wsl-paths'
 import { isWindowsAbsolutePathLike } from '../../../../shared/cross-platform-path'
+import { isFolderRepo } from '../../../../shared/repo-kind'
 
 export { branchName }
 
 export type WorktreeGroupBy = 'none' | 'workspace-status' | 'repo' | 'pr-status'
 export type PinnedWorktreeDisplayPolicy = 'single-location' | 'duplicate-in-groups'
+export type SidebarWorkspaceMode = 'plain' | 'worktree' | 'mixed'
 
 export function getPinnedWorktreeDisplayPolicy(
   settings?: { showPinnedWorktreesInGroups?: boolean } | null
@@ -69,6 +71,7 @@ export type GroupHeaderRow = {
   hostWorktreeCounts?: ReadonlyMap<ExecutionHostId, number>
   hostWorktreeIds?: ReadonlyMap<ExecutionHostId, readonly string[]>
   worktreeIds?: readonly string[]
+  workspaceMode?: SidebarWorkspaceMode
 }
 
 export type WorktreeRow = {
@@ -294,6 +297,37 @@ export function getProjectHeaderRevealTarget(
 
 function addRepoIdToGroup(group: WorktreeGroupEntry, repoId: string): void {
   group.repoIds.add(repoId)
+}
+
+function getRepoWorkspaceMode(repo: Repo | undefined): SidebarWorkspaceMode | undefined {
+  if (!repo) {
+    return undefined
+  }
+  return isFolderRepo(repo) ? 'plain' : 'worktree'
+}
+
+function mergeWorkspaceMode(
+  current: SidebarWorkspaceMode | undefined,
+  next: SidebarWorkspaceMode | undefined
+): SidebarWorkspaceMode | undefined {
+  if (!current) {
+    return next
+  }
+  if (!next || current === next) {
+    return current
+  }
+  return 'mixed'
+}
+
+function getRepoGroupWorkspaceMode(
+  group: WorktreeGroupEntry,
+  repoMap: Map<string, Repo>
+): SidebarWorkspaceMode | undefined {
+  let mode = getRepoWorkspaceMode(group.repo)
+  for (const repoId of group.repoIds) {
+    mode = mergeWorkspaceMode(mode, getRepoWorkspaceMode(repoMap.get(repoId)))
+  }
+  return mode
 }
 
 export type PRGroupKey = 'done' | 'in-review' | 'in-progress' | 'closed'
@@ -836,19 +870,40 @@ function orderMainWorktreeFirst(worktrees: Worktree[]): Worktree[] {
   return [...mainWorktrees, ...worktrees.filter((worktree) => !worktree.isMainWorktree)]
 }
 
+function getRepoSectionDisplayLabel(
+  group: WorktreeGroupEntry,
+  labelsByPath: Map<string, string> | null
+): string {
+  if (!group.repo) {
+    return group.label
+  }
+  const disambiguatedLabel = labelsByPath?.get(getRepoDisplayLabelKey(group.repo))
+  if (disambiguatedLabel) {
+    return disambiguatedLabel
+  }
+  return (
+    getRepoDisplayLabelsByPath([
+      {
+        path: group.repo.path,
+        displayName: group.label,
+        connectionId: group.repo.connectionId,
+        executionHostId: group.repo.executionHostId
+      }
+    ]).get(getRepoDisplayLabelKey(group.repo)) ?? group.label
+  )
+}
+
 function withRepoSectionDisplayLabels(entries: readonly OrderedGroupEntry[]): OrderedGroupEntry[] {
   const repos = entries
     .map((entry) => entry[1].repo)
     .filter((repo): repo is Repo => repo !== undefined)
-  if (repos.length < 2) {
+  if (repos.length === 0) {
     return [...entries]
   }
-  const labelsByPath = getRepoDisplayLabelsByPath(repos)
+  const labelsByPath = repos.length > 1 ? getRepoDisplayLabelsByPath(repos) : null
   return entries.map(([key, group]) => [
     key,
-    group.repo
-      ? { ...group, label: labelsByPath.get(getRepoDisplayLabelKey(group.repo)) ?? group.label }
-      : group
+    group.repo ? { ...group, label: getRepoSectionDisplayLabel(group, labelsByPath) } : group
   ])
 }
 
@@ -1221,7 +1276,8 @@ export function buildRows(
               tone: PROJECT_GROUP_META.tone,
               icon: PROJECT_GROUP_META.icon,
               repo,
-              projectGroupDepth
+              projectGroupDepth,
+              workspaceMode: getRepoGroupWorkspaceMode(group, repoMap)
             }
           : groupBy === 'workspace-status'
             ? (() => {

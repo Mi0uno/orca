@@ -606,11 +606,13 @@
         "chooseOrAddProjectBeforeWorkspace": "Elige o agrega un proyecto antes de crear un espacio de trabajo.",
         "folderWorkspaceCreateFailedTitle": "No se pudo crear el espacio de trabajo de carpeta",
         "folderWorkspaceCreateFailedMessage": "No se pudo crear el espacio de trabajo de carpeta. Revisa los detalles del error de arriba e inténtalo de nuevo.",
-        "setupAgentStartupPolicySaveFailed": "Error al guardar el comportamiento de inicio",
-        "5f3d2c8a1b": "Error al resolver la base del MR",
+        "setupAgentStartupPolicySaveFailed": "No se pudo guardar el comportamiento de inicio de configuración.",
+        "5f3d2c8a1b": "No se pudo resolver la base del MR.",
         "folderGitWorktreesUnavailableTitle": "Se requiere configurar Git",
         "folderGitWorktreesInitializeFailed": "No se pudo preparar esta carpeta para worktrees de Git.",
-        "folderGitWorktreesEnableInitialize": "Esta carpeta no es un repositorio Git. Activa Inicializar Git aquí y vuelve a intentarlo."
+        "folderGitWorktreesEnableInitialize": "Esta carpeta no es un repositorio Git. Activa Inicializar Git aquí y vuelve a intentarlo.",
+        "folderWorkspaceModeUnavailableTitle": "Modo de carpeta no disponible",
+        "folderWorkspaceModeUnavailableMessage": "No se pudo preparar este proyecto como un espacio de trabajo de carpeta simple."
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "No se pudieron cargar los archivos soltados.",
@@ -4194,7 +4196,12 @@
           "ef18787206": "En cola para eliminación"
         },
         "WorktreeCardAgents": {
-          "1b0a156717": "Agents"
+          "1b0a156717": "Agents",
+          "renameTitle": "Rename agent",
+          "renameDescription": "Set the label shown for this agent in the workspace list.",
+          "renameInput": "Agent name",
+          "renameCancel": "Cancel",
+          "renameSave": "Save"
         },
         "WorktreeCardReviewDetailSection": {
           "reviewHeader": "{{value0}} #{{value1}}",
@@ -4325,7 +4332,13 @@
           "hostDisconnected": "Desconectado",
           "failedNestWorkspace": "No se pudo anidar el espacio de trabajo",
           "sidebarRowMissing": "El destino ya no existe",
-          "failedUnnestWorkspace": "Error al expandir el espacio de trabajo"
+          "failedUnnestWorkspace": "No se pudo quitar la anidación del espacio de trabajo",
+          "workspaceModePlain": "normal",
+          "workspaceModePlainDescription": "Espacio de trabajo de carpeta simple",
+          "workspaceModeWorktree": "worktree",
+          "workspaceModeWorktreeDescription": "Modo Git worktree",
+          "workspaceModeMixed": "mixto",
+          "workspaceModeMixedDescription": "Espacios de trabajo de carpeta simple y Git worktree"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancelar",
@@ -4513,7 +4526,11 @@
               "agents": {
                 "a128d7006b": "{{value0}} {{value1}} hijo {{value2}}",
                 "289a1d2ca7": "Expandir {{value0}}. {{value1}}",
-                "0c1debfe84": "Contraer {{value0}}"
+                "0c1debfe84": "Contraer {{value0}}",
+                "renameAgent": "Rename agent",
+                "rename": "Rename",
+                "closeAgent": "Close agent",
+                "close": "Close"
               }
             }
           },
@@ -10618,11 +10635,16 @@
           },
           "FolderProjectGitWorktreePrompt": {
             "gitWorktrees": "Git worktrees",
-            "description": "Use branches from this folder instead of plain folder workspaces.",
-            "preparing": "Preparing",
+            "folderWorkspaces": "Plain folder workspaces",
+            "description": "Create or reuse branches from this folder instead of plain folder workspaces.",
+            "folderDescription": "Create workspaces directly in this project folder without Git worktree management.",
+            "preparing": "Switching",
+            "switchToWorktreeMode": "Switch to worktree mode",
+            "switchToFolderMode": "Switch to plain mode",
             "useGitWorktrees": "Use Git worktrees",
             "initializeGit": "Initialize Git here",
-            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository.",
+            "initializeGitRequired": "This folder is not a Git repository. Check Initialize Git here, then switch again."
           }
         }
       },
@@ -12129,7 +12151,11 @@
           "b06e13fcf7": "Despedir agente",
           "0272969e28": "Enviar a este agente",
           "92a7017987": "envío",
-          "019b74d93a": "elegible"
+          "019b74d93a": "elegible",
+          "renameAgent": "Rename agent",
+          "rename": "Rename",
+          "closeAgent": "Close agent",
+          "close": "Close"
         },
         "DashboardAgentRowMessage": {
           "0a01046763": "interrumpido",
