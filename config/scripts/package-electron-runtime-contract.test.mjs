@@ -124,19 +124,25 @@ describe('Electron runtime package contract', () => {
         release_command
       ])
     )
-    const macReleaseCommand = macWorkflow.jobs['build-mac'].steps.find(
-      (step) => step.name === 'Publish release artifacts (macOS)'
-    ).with.command
+    const macReleaseCommands = macWorkflow.jobs['build-mac'].steps
+      .filter((step) => step.name?.includes('release artifacts (macOS)'))
+      .map((step) => step.with.command)
 
     expect([...releaseCommands.keys()].sort()).toEqual(['linux-arm64', 'linux-x64', 'win'])
-    for (const command of [...releaseCommands.values(), macReleaseCommand]) {
+    expect(macReleaseCommands).toHaveLength(2)
+    for (const command of [...releaseCommands.values(), ...macReleaseCommands]) {
       expect(command).toContain('node config/scripts/ensure-native-runtime.mjs --runtime=electron')
       expect(command).toContain('electron-builder')
       expect(command.indexOf('ensure-native-runtime')).toBeLessThan(
         command.indexOf('electron-builder')
       )
     }
-    expect(macReleaseCommand).toContain(' && ORCA_MAC_RELEASE=1 ')
+    expect(macReleaseCommands).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(' && ORCA_MAC_RELEASE=1 '),
+        expect.stringContaining('CSC_IDENTITY_AUTO_DISCOVERY=false')
+      ])
+    )
     expect(releaseCommands.get('linux-x64')).toContain(' && pnpm exec electron-builder ')
     expect(releaseCommands.get('linux-x64')).toContain('--linux AppImage deb rpm --x64')
     expect(releaseCommands.get('linux-arm64')).toContain('ORCA_LINUX_ARM64_RELEASE=1')
@@ -269,6 +275,12 @@ describe('Electron runtime package contract', () => {
     expect(buildMatrixRunners).not.toContain('blacksmith-6vcpu-macos-15')
     expect(releaseWorkflow.jobs['publish-release'].needs).toContain('build')
     expect(releaseWorkflow.jobs['publish-release'].needs).toContain('build-mac')
+    expect(releaseWorkflow.jobs.build['continue-on-error']).toBe(
+      "${{ github.repository != 'stablyai/orca' && matrix.platform != 'win' }}"
+    )
+    expect(releaseWorkflow.jobs['build-mac']['continue-on-error']).toBe(
+      "${{ github.repository != 'stablyai/orca' }}"
+    )
   })
 
   it('runs the macOS release build in an isolated Blacksmith workflow', () => {
@@ -279,8 +291,11 @@ describe('Electron runtime package contract', () => {
     const releaseMacWorkflow = parse(releaseMacWorkflowText)
     const buildMacJob = releaseMacWorkflow.jobs['build-mac']
     const checkoutStep = buildMacJob.steps.find((step) => step.name === 'Checkout')
-    const publishStep = buildMacJob.steps.find(
-      (step) => step.name === 'Publish release artifacts (macOS)'
+    const signedPublishStep = buildMacJob.steps.find(
+      (step) => step.name === 'Publish signed release artifacts (macOS)'
+    )
+    const unsignedPublishStep = buildMacJob.steps.find(
+      (step) => step.name === 'Publish unsigned release artifacts (macOS)'
     )
 
     expect(releaseMacWorkflow['run-name']).toBe(
@@ -288,13 +303,133 @@ describe('Electron runtime package contract', () => {
     )
     expect(releaseMacWorkflow.on.workflow_dispatch.inputs.tag.required).toBe(true)
     expect(releaseMacWorkflow.on.workflow_dispatch.inputs.release_run_id.required).toBe(true)
-    expect(buildMacJob['runs-on']).toBe('blacksmith-6vcpu-macos-15')
+    expect(buildMacJob['runs-on']).toBe(
+      "${{ github.repository == 'stablyai/orca' && 'blacksmith-6vcpu-macos-15' || 'macos-15' }}"
+    )
     expect(checkoutStep.with.ref).toBe('refs/tags/${{ inputs.tag }}')
-    expect(publishStep.with.command).toContain('ORCA_MAC_RELEASE=1')
-    expect(publishStep.with.command).toContain('electron-builder')
-    expect(publishStep.with.command).toContain('--mac --publish always')
+    expect(signedPublishStep.with.command).toContain('ORCA_MAC_RELEASE=1')
+    expect(signedPublishStep.with.command).toContain('electron-builder')
+    expect(signedPublishStep.with.command).toContain('--mac --publish always')
+    expect(unsignedPublishStep.with.command).toContain('CSC_IDENTITY_AUTO_DISCOVERY=false')
+    expect(unsignedPublishStep.with.command).toContain('--mac --publish always')
     expect(releaseMacWorkflowText).not.toContain('signpath/')
     expect(releaseMacWorkflowText).not.toContain('SIGNPATH_')
+  })
+
+  it('preflights SignPath module install before Windows signing side effects', () => {
+    const releaseWorkflow = readFileSync(
+      join(projectDir, '.github/workflows/release-cut.yml'),
+      'utf8'
+    )
+    const parsedWorkflow = parse(releaseWorkflow)
+    const steps = parsedWorkflow.jobs.build.steps
+    const stepNames = steps.map((step) => step.name)
+    const installStepIndexes = stepNames.flatMap((name, index) =>
+      name === 'Install SignPath PowerShell module' ? [index] : []
+    )
+    const buildIndex = stepNames.indexOf('Build Windows release artifacts')
+    const verifyNodePtyIndex = stepNames.indexOf('Verify Windows node-pty ConPTY runtime')
+    const resolveSigningIndex = stepNames.indexOf('Resolve Windows signing mode')
+    const uploadIndex = stepNames.indexOf('Upload unsigned Windows installer for SignPath')
+    const downloadIndex = stepNames.indexOf('Download signed Windows installer from SignPath')
+
+    expect(verifyNodePtyIndex).toBe(buildIndex + 1)
+    expect(resolveSigningIndex).toBe(verifyNodePtyIndex + 1)
+    expect(installStepIndexes).toEqual([resolveSigningIndex + 1])
+    expect(installStepIndexes[0]).toBeLessThan(uploadIndex)
+
+    expect(steps[verifyNodePtyIndex].run).toContain(
+      'dist/win-unpacked/resources/node_modules/node-pty/build/Release'
+    )
+    expect(steps[verifyNodePtyIndex].run).toContain('conpty/conpty.dll')
+
+    const uploadThroughDownloadScript = steps
+      .slice(uploadIndex, downloadIndex + 1)
+      .map((step) => step.run ?? '')
+      .join('\n')
+
+    expect(uploadThroughDownloadScript).not.toContain('Install-Module -Name SignPath')
+
+    const installStep = steps[installStepIndexes[0]]
+    const installRun = installStep.run
+    const sleepSeconds = [...installRun.matchAll(/Start-Sleep -Seconds (\d+)/g)].map(
+      ([, seconds]) => seconds
+    )
+
+    expect(installStep.if).toBe(
+      "matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'"
+    )
+    expect(installStep.shell).toBe('pwsh')
+    expect(installRun).toContain(
+      'if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue))'
+    )
+    expect(installRun).toContain('Register-PSRepository -Default -InstallationPolicy Trusted')
+    expect(installRun).toContain('Set-PSRepository -Name PSGallery -InstallationPolicy Trusted')
+    expect(installRun).toMatch(/\$env:PSModulePath -split \[System\.IO\.Path\]::PathSeparator/)
+    expect(installRun).toContain(
+      "$signPathModulePath = Join-Path -Path $currentUserModuleRoot -ChildPath 'SignPath'"
+    )
+    expect(installRun).toMatch(/for \(\$attempt = 1; \$attempt -le 3; \$attempt\+\+\)/)
+    expect(sleepSeconds).toEqual(['15', '30'])
+    expect(installRun).toContain(
+      'Install-Module -Name SignPath -Repository PSGallery -MinimumVersion 4.0.0 -MaximumVersion 4.999.999 -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop'
+    )
+    expect(installRun).toContain('Import-Module SignPath')
+    expect(installRun).toContain(
+      'Get-Command -Name Get-SignedArtifact -Module SignPath -ErrorAction Stop'
+    )
+    expect(installRun).toContain('Remove-Item -LiteralPath $signPathModulePath -Recurse -Force')
+    expect(installRun).not.toContain('SignPath*')
+    expect(installRun.indexOf('if ($attempt -eq 3)')).toBeLessThan(
+      installRun.indexOf('Remove-Item -LiteralPath $signPathModulePath')
+    )
+    expect(installRun).toMatch(/if \(\$attempt -eq 3\) {\s+throw\s+}/)
+    expect(installRun).not.toMatch(/throw\s+\$_/)
+  })
+
+  it('verifies Windows inner binary signatures fail-open before publishing', () => {
+    const releaseWorkflow = readFileSync(
+      join(projectDir, '.github/workflows/release-cut.yml'),
+      'utf8'
+    )
+    const parsedWorkflow = parse(releaseWorkflow)
+    const steps = parsedWorkflow.jobs.build.steps
+    const stepNames = steps.map((step) => step.name)
+    const outerVerifyIndex = stepNames.indexOf('Verify signed Windows installer')
+    const innerVerifyIndex = stepNames.indexOf('Verify Windows inner binary signatures')
+    const unsignedVerifyIndex = stepNames.indexOf('Verify unsigned Windows release assets')
+    const evidenceIndex = stepNames.indexOf('Upload Windows inner signing evidence')
+    const publishIndex = stepNames.indexOf('Publish Windows release artifacts')
+
+    expect(outerVerifyIndex).toBeGreaterThan(-1)
+    expect(innerVerifyIndex).toBe(outerVerifyIndex + 1)
+    expect(unsignedVerifyIndex).toBe(innerVerifyIndex + 1)
+    expect(evidenceIndex).toBe(unsignedVerifyIndex + 1)
+    expect(publishIndex).toBe(evidenceIndex + 1)
+
+    // Why fail-open: unsigned inner binaries must warn, not block, until the
+    // flow is proven on a real release (issue #7785). Flip this to 'true'
+    // together with the workflow env to make the gate required.
+    expect(steps[innerVerifyIndex].env.ORCA_WINDOWS_INNER_SIGNATURE_REQUIRED).toBe('false')
+
+    // Why: every step in the inner-signing chain must be unable to fail the
+    // release — a SignPath outage or timeout falls through to today's
+    // unsigned-inner flow instead of blocking the cut.
+    const innerChainStepNames = [
+      'Stage unsigned inner PE files for signing',
+      'Upload unsigned inner binaries for SignPath',
+      'Submit inner binaries signing request',
+      'Notify Slack that inner-binary signing is waiting for approval',
+      'Download signed inner binaries from SignPath',
+      'Restore signed inner binaries into unpacked app',
+      'Replace cached elevate.exe with the signed copy',
+      'Rebuild NSIS installer from signed unpacked app'
+    ]
+    for (const stepName of innerChainStepNames) {
+      const step = steps[stepNames.indexOf(stepName)]
+      expect(step, stepName).toBeDefined()
+      expect(step['continue-on-error'], stepName).toBe(true)
+    }
   })
 
   it('publishes both Linux release matrix entries', () => {
@@ -546,7 +681,10 @@ describe('Electron runtime package contract', () => {
     expect(publishReleaseNeeds).toContain('terminal-rendering-golden')
     expect(publishReleaseNeeds).toContain('build')
     expect(publishReleaseNeeds).not.toContain('terminal-rendering-release-evidence')
-    expect(releaseGoldenJob['continue-on-error']).toBeUndefined()
+    expect(releaseGoldenJob['continue-on-error']).toBe(
+      "${{ github.repository != 'stablyai/orca' }}"
+    )
+    expect(releaseWorkflow.jobs['publish-release'].if).toContain("needs.build.result == 'success'")
     expect(releaseGoldenJob.strategy.matrix.include.map(({ platform }) => platform).sort()).toEqual(
       goldenPlatforms
     )

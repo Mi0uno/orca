@@ -13,11 +13,18 @@ import {
   isWindowsSignatureCheckUnavailableFailure,
   isWindowsSignatureMismatchFailure
 } from '../../../shared/updater-windows-signature-check'
-import { getReleaseNotesUrlForVersion } from '../../../shared/release-channel'
 import { translate } from '@/i18n/i18n'
 
 // ── Helpers ──────────────────────────────────────────────────────────
+const RELEASES_URL = 'https://github.com/Mi0uno/orca/releases'
 
+function releaseUrlForVersion(version: string | null): string {
+  // Why: when no version is cached (typically a failed check), point at the
+  // plain releases listing rather than /releases/latest — /latest also breaks
+  // when GitHub's release API is degraded, and the listing is the most
+  // reliable manual fallback.
+  return version ? `${RELEASES_URL}/tag/v${version}` : RELEASES_URL
+}
 function isAnimatedGif(url: string | undefined): boolean {
   return typeof url === 'string' && url.toLowerCase().endsWith('.gif')
 }
@@ -334,7 +341,7 @@ export function UpdateCard() {
                 'This turns on a process-wide Electron networking switch after restart. Use it for corporate VPNs or proxies that reject HTTP/2 update downloads.'
               ),
               detail: compatibilitySetupError ?? status.message,
-              releaseUrl: getReleaseNotesUrlForVersion(cachedVersion),
+              releaseUrl: releaseUrlForVersion(cachedVersion),
               primaryAction: {
                 label: translate('auto.components.UpdateCard.933c6fdf5b', 'Enable & Restart'),
                 pendingLabel: 'Restarting...',
@@ -356,7 +363,7 @@ export function UpdateCard() {
                 ),
                 detail: status.message,
                 // Why: linking the rejected version would let users bypass the publisher check by re-running it.
-                releaseUrl: getReleaseNotesUrlForVersion(null),
+                releaseUrl: releaseUrlForVersion(null),
                 manualLabel: translate(
                   'auto.components.UpdateCard.c9ff9b9ec2',
                   'Check official releases'
@@ -373,7 +380,7 @@ export function UpdateCard() {
                     "The signature check couldn't run — usually because antivirus software blocked it. Retry the download, or get the installer from our official releases."
                   ),
                   detail: status.message,
-                  releaseUrl: getReleaseNotesUrlForVersion(cachedVersion),
+                  releaseUrl: releaseUrlForVersion(cachedVersion),
                   primaryAction: {
                     label: translate('auto.components.UpdateCard.48565a32bc', 'Retry Download'),
                     onClick: handleUpdate
@@ -386,7 +393,7 @@ export function UpdateCard() {
                     ? 'Could not complete the update.'
                     : 'Could not check for updates.',
                   detail: status.message,
-                  releaseUrl: getReleaseNotesUrlForVersion(cachedVersion),
+                  releaseUrl: releaseUrlForVersion(cachedVersion),
                   // Why: check-time failures are often transient, so offer a Re-check instead of forcing manual download.
                   primaryAction: cachedVersion
                     ? {
@@ -405,7 +412,7 @@ export function UpdateCard() {
             title: translate('auto.components.UpdateCard.4cf109845a', 'Update Error'),
             summary: 'Could not restart to install the update.',
             detail: installError,
-            releaseUrl: getReleaseNotesUrlForVersion(cachedVersion),
+            releaseUrl: releaseUrlForVersion(cachedVersion),
             primaryAction: {
               label: translate('auto.components.UpdateCard.2c2d3e03ca', 'Try Again'),
               onClick: handleInstallRetry
@@ -515,7 +522,7 @@ export function UpdateCard() {
         <LinuxPackageInstallRecoveryCard
           recovery={linuxPackageRecovery.recovery}
           diagnostic={linuxPackageRecovery.diagnostic}
-          releaseUrl={isLocalBuild ? undefined : getReleaseNotesUrlForVersion(cachedVersion)}
+          releaseUrl={isLocalBuild ? undefined : releaseUrlForVersion(cachedVersion)}
           onClose={handleCollapseWithAnimation}
         />
       )
@@ -575,7 +582,7 @@ export function UpdateCard() {
     const releaseUrl = isLocalBuild
       ? undefined
       : (('releaseUrl' in status ? status.releaseUrl : undefined) ??
-        getReleaseNotesUrlForVersion(status.version))
+        releaseUrlForVersion(status.version))
 
     if (isRichMode && changelog) {
       return (
@@ -891,7 +898,7 @@ function DownloadingContent({
           className="text-xs text-muted-foreground underline hover:text-foreground self-start"
           onClick={() =>
             void window.api.shell.openUrl(
-              release ? release.releaseNotesUrl : getReleaseNotesUrlForVersion(version)
+              release ? release.releaseNotesUrl : releaseUrlForVersion(version)
             )
           }
         >

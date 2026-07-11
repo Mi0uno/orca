@@ -36,6 +36,16 @@ const devChannelBuildVersion = isMacHourly
 // be picked up by someone who only meant to ride main.
 const devChannelRepo = isMacHourly ? 'orca-hourly' : isMacAdhoc ? 'orca-adhoc' : null
 const appId = 'com.stablyai.orca'
+const [githubRepositoryOwner, githubRepositoryName] = (process.env.GITHUB_REPOSITORY ?? '').split(
+  '/'
+)
+const githubRepository = (process.env.GITHUB_REPOSITORY ?? '').toLowerCase()
+const releasePublishOwner = process.env.ORCA_RELEASE_OWNER ?? githubRepositoryOwner ?? 'Mi0uno'
+const releasePublishRepo = process.env.ORCA_RELEASE_REPO ?? githubRepositoryName ?? 'orca'
+const windowsPublisherName =
+  githubRepository === 'stablyai/orca' || process.env.ORCA_WINDOWS_SIGNING_ENABLED === 'true'
+    ? 'SignPath Foundation'
+    : undefined
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
@@ -273,11 +283,15 @@ module.exports = {
   },
   win: {
     executableName: 'Orca',
-    // Why: Windows installers are signed after electron-builder packaging by
-    // SignPath, so the packager cannot infer the updater publisherName.
-    signtoolOptions: {
-      publisherName: 'SignPath Foundation'
-    },
+    // Why: fork CI publishes unsigned Windows installers; embedding Orca's
+    // SignPath publisher there makes electron-updater reject those downloads.
+    ...(windowsPublisherName
+      ? {
+          signtoolOptions: {
+            publisherName: windowsPublisherName
+          }
+        }
+      : {}),
     extraResources: [
       ...commonExtraResources,
       ...createPackagedRuntimeNodeModuleResources('win32'),
@@ -487,8 +501,8 @@ module.exports = {
   npmRebuild: true,
   publish: {
     provider: 'github',
-    owner: 'stablyai',
-    repo: devChannelRepo ?? 'orca',
+    owner: devChannelRepo ? 'stablyai' : releasePublishOwner,
+    repo: devChannelRepo ?? releasePublishRepo,
     releaseType: devChannelRepo ? 'prerelease' : 'release'
   }
 }

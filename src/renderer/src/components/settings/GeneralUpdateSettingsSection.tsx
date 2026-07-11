@@ -10,7 +10,8 @@ import { translate } from '@/i18n/i18n'
 import { getUpdateCheckClickOptions, getUpdateCheckHint } from '@/lib/update-check-click-options'
 import { GeneralRemoteServerUpdates } from './GeneralRemoteServerUpdates'
 import { ReleaseChannelSection } from './ReleaseChannelSection'
-import { getReleaseNotesUrlForVersion } from '../../../../shared/release-channel'
+
+const RELEASES_URL = 'https://github.com/Mi0uno/orca/releases'
 
 export function GeneralUpdateSettingsSection(): React.JSX.Element {
   const updateStatus = useAppStore((s) => s.updateStatus)
@@ -184,9 +185,7 @@ export function GeneralUpdateSettingsSection(): React.JSX.Element {
               )}{' '}
               {updateStatus.source !== 'local' && (
                 <a
-                  href={
-                    updateStatus.releaseUrl ?? getReleaseNotesUrlForVersion(updateStatus.version)
-                  }
+                  href={updateStatus.releaseUrl ?? `${RELEASES_URL}/tag/v${updateStatus.version}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-foreground"
@@ -223,9 +222,7 @@ export function GeneralUpdateSettingsSection(): React.JSX.Element {
               )}{' '}
               {updateStatus.source !== 'local' && (
                 <a
-                  href={
-                    updateStatus.releaseUrl ?? getReleaseNotesUrlForVersion(updateStatus.version)
-                  }
+                  href={updateStatus.releaseUrl ?? `${RELEASES_URL}/tag/v${updateStatus.version}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-foreground"

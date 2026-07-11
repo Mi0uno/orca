@@ -3,22 +3,42 @@
 import { pathToFileURL } from 'node:url'
 
 const API_VERSION = '2022-11-28'
+const OFFICIAL_REPOSITORY = 'stablyai/orca'
+const ALL_REQUIRED_RELEASE_PLATFORMS = ['linux-x64', 'linux-arm64', 'mac', 'windows']
 
-export function getRequiredReleaseAssetNames(tag) {
-  const version = tag.replace(/^v/i, '')
-  return [
+const RELEASE_PLATFORM_ALIASES = new Map([
+  ['all', ALL_REQUIRED_RELEASE_PLATFORMS],
+  ['linux', ['linux-x64', 'linux-arm64']],
+  ['linux-x64', ['linux-x64']],
+  ['linux-arm64', ['linux-arm64']],
+  ['mac', ['mac']],
+  ['macos', ['mac']],
+  ['windows', ['windows']],
+  ['win', ['windows']]
+])
+
+const REQUIRED_RELEASE_MANIFEST_NAMES_BY_PLATFORM = {
+  'linux-x64': ['latest-linux.yml'],
+  'linux-arm64': ['latest-linux-arm64.yml'],
+  mac: ['latest-mac.yml'],
+  windows: ['latest.yml']
+}
+
+const REQUIRED_RELEASE_ASSET_NAMES_BY_PLATFORM = {
+  'linux-x64': (version) => [
     'latest-linux.yml',
-    'latest-linux-arm64.yml',
-    'latest-mac.yml',
-    'latest.yml',
     'orca-linux.AppImage',
-    'orca-linux-arm64.AppImage',
     `orca-ide_${version}_amd64.deb`,
+    `orca-ide-${version}.x86_64.rpm`
+  ],
+  'linux-arm64': (version) => [
+    'latest-linux-arm64.yml',
+    'orca-linux-arm64.AppImage',
     `orca-ide_${version}_arm64.deb`,
-    `orca-ide-${version}.x86_64.rpm`,
-    `orca-ide-${version}.aarch64.rpm`,
-    'orca-windows-setup.exe',
-    'orca-windows-setup.exe.blockmap',
+    `orca-ide-${version}.aarch64.rpm`
+  ],
+  mac: (version) => [
+    'latest-mac.yml',
     `Orca-${version}-mac.zip`,
     `Orca-${version}-mac.zip.blockmap`,
     `Orca-${version}-arm64-mac.zip`,
@@ -27,7 +47,48 @@ export function getRequiredReleaseAssetNames(tag) {
     'orca-macos-x64.dmg.blockmap',
     'orca-macos-arm64.dmg',
     'orca-macos-arm64.dmg.blockmap'
-  ]
+  ],
+  windows: () => ['latest.yml', 'orca-windows-setup.exe', 'orca-windows-setup.exe.blockmap']
+}
+
+export function getRequiredReleasePlatforms(input = 'all') {
+  const values = Array.isArray(input)
+    ? input
+    : String(input)
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+  const platforms = new Set()
+
+  for (const value of values.length > 0 ? values : ['all']) {
+    const normalized = value.toLowerCase()
+    const aliases = RELEASE_PLATFORM_ALIASES.get(normalized)
+    if (!aliases) {
+      throw new Error(`Unsupported release asset platform: ${value}`)
+    }
+    for (const platform of aliases) {
+      platforms.add(platform)
+    }
+  }
+
+  return [...platforms]
+}
+
+function getDefaultReleasePlatformInput(repo) {
+  return repo.toLowerCase() === OFFICIAL_REPOSITORY ? 'all' : 'windows'
+}
+
+export function getRequiredReleaseAssetNames(tag, platformInput = 'all') {
+  const version = tag.replace(/^v/i, '')
+  return getRequiredReleasePlatforms(platformInput).flatMap((platform) =>
+    REQUIRED_RELEASE_ASSET_NAMES_BY_PLATFORM[platform](version)
+  )
+}
+
+function getRequiredReleaseManifestNames(platformInput = 'all') {
+  return getRequiredReleasePlatforms(platformInput).flatMap(
+    (platform) => REQUIRED_RELEASE_MANIFEST_NAMES_BY_PLATFORM[platform]
+  )
 }
 
 export function extractManifestAssetNames(manifestText) {
@@ -85,17 +146,17 @@ async function fetchAssetText(repo, asset, token) {
   return res.text()
 }
 
-export async function verifyRequiredReleaseAssets({ repo, tag, token }) {
+export async function verifyRequiredReleaseAssets({ repo, tag, token, requiredPlatforms }) {
   const release = await fetchRelease(repo, tag, token)
   const assetsByName = new Map(release.assets.map((asset) => [asset.name, asset]))
 
-  const requiredNames = new Set(getRequiredReleaseAssetNames(tag))
-  const manifestNames = [
-    'latest-linux.yml',
-    'latest-linux-arm64.yml',
-    'latest-mac.yml',
-    'latest.yml'
-  ]
+  const platformInput =
+    requiredPlatforms ??
+    process.env.ORCA_REQUIRED_RELEASE_PLATFORMS ??
+    getDefaultReleasePlatformInput(repo)
+  const platforms = getRequiredReleasePlatforms(platformInput)
+  const requiredNames = new Set(getRequiredReleaseAssetNames(tag, platforms))
+  const manifestNames = getRequiredReleaseManifestNames(platforms)
 
   for (const manifestName of manifestNames) {
     const manifestAsset = assetsByName.get(manifestName)
@@ -136,6 +197,7 @@ export async function verifyRequiredReleaseAssets({ repo, tag, token }) {
   return {
     tag,
     checked: [...requiredNames].sort(),
+    platforms,
     draft: release.draft,
     prerelease: release.prerelease
   }
@@ -151,8 +213,15 @@ async function main() {
     throw new Error('GH_TOKEN or GITHUB_TOKEN must be set')
   }
   const repo = process.env.GITHUB_REPOSITORY || 'stablyai/orca'
-  const result = await verifyRequiredReleaseAssets({ repo, tag, token })
-  console.log(`Verified ${result.checked.length} required release assets for ${repo}@${tag}`)
+  const result = await verifyRequiredReleaseAssets({
+    repo,
+    tag,
+    token,
+    requiredPlatforms: process.env.ORCA_REQUIRED_RELEASE_PLATFORMS
+  })
+  console.log(
+    `Verified ${result.checked.length} required release assets for ${repo}@${tag} (${result.platforms.join(', ')})`
+  )
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
