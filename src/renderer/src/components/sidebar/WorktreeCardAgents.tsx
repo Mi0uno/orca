@@ -4,6 +4,7 @@ import { useAppStore } from '@/store'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { activateTabAndFocusPane } from '@/lib/activate-tab-and-focus-pane'
 import { resumeSleepingAgentSession } from '@/lib/resume-sleeping-agent-session'
+import { launchSleepingAgentSession } from '@/lib/sleeping-agent-session-launch'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { useNow } from '@/components/dashboard/useNow'
 import { deriveRunningAgentSendTargets } from '@/lib/running-agent-targets'
@@ -26,6 +27,10 @@ import {
   WorktreeCardFullAgentTree
 } from './worktree-card-agent-trees'
 import { isTuiAgent } from '../../../../shared/tui-agent-config'
+import {
+  isResumableTuiAgent,
+  type SleepingAgentSessionRecord
+} from '../../../../shared/agent-session-resume'
 
 export const SUPPRESS_WORKTREE_LIST_SCROLL_ADJUSTMENT_EVENT =
   'orca-suppress-worktree-list-scroll-adjustment'
@@ -226,16 +231,50 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
   )
   const handleActivateRetainedAgent = useCallback(
     (_tabId: string, _paneKey: string, agent?: DashboardAgentRowData) => {
-      if (!agent || !agent.paneKey.startsWith('launching:') || !isTuiAgent(agent.agentType)) {
+      if (!agent) {
+        return
+      }
+      if (agent.paneKey.startsWith('launching:') && isTuiAgent(agent.agentType)) {
+        activateAndRevealWorktree(worktreeId)
+        const launched = launchAgentInNewTab({
+          agent: agent.agentType,
+          worktreeId,
+          launchSource: 'sidebar'
+        })
+        if (launched) {
+          dismissRetainedAgent(agent.paneKey)
+        }
+        return
+      }
+      if (!isResumableTuiAgent(agent.agentType) || !agent.entry.providerSession) {
         return
       }
       activateAndRevealWorktree(worktreeId)
-      const launched = launchAgentInNewTab({
-        agent: agent.agentType,
+      const store = useAppStore.getState()
+      const tabId = agent.entry.tabId ?? agent.tab.id
+      const terminalTitle = agent.entry.terminalTitle ?? agent.tab.title
+      const customTitle = agent.customTitle?.trim() || agent.tab.customTitle?.trim() || undefined
+      const launchConfig = store.getAgentLaunchConfigForStatusEntry?.(agent.entry)
+      const record: SleepingAgentSessionRecord = {
+        paneKey: agent.paneKey,
+        tabId,
         worktreeId,
-        launchSource: 'sidebar'
-      })
-      if (launched) {
+        agent: agent.agentType,
+        providerSession: agent.entry.providerSession,
+        prompt: agent.entry.prompt,
+        state: agent.entry.state,
+        capturedAt: agent.startedAt > 0 ? agent.startedAt : agent.entry.updatedAt,
+        updatedAt: agent.entry.updatedAt,
+        ...(terminalTitle ? { terminalTitle } : {}),
+        ...(customTitle ? { customTitle } : {}),
+        ...(agent.entry.lastAssistantMessage
+          ? { lastAssistantMessage: agent.entry.lastAssistantMessage }
+          : {}),
+        ...(agent.entry.interrupted !== undefined ? { interrupted: agent.entry.interrupted } : {}),
+        ...(launchConfig ? { launchConfig } : {}),
+        origin: 'terminal-close'
+      }
+      if (launchSleepingAgentSession(record)) {
         dismissRetainedAgent(agent.paneKey)
       }
     },
@@ -251,6 +290,7 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
   const handleActivateResumingAgent = useCallback(
     (tabId: string) => {
       activateAndRevealWorktree(worktreeId)
+      useAppStore.getState().setActiveTabType('terminal')
       useAppStore.getState().setActiveTab(tabId)
     },
     [worktreeId]
