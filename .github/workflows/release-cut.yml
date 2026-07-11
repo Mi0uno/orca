@@ -1534,6 +1534,9 @@ jobs:
       # (`IS_OFFICIAL_BUILD === false`) — the exact failure mode flagged
       # in PR #1385's deferred follow-up.
       - name: Verify telemetry constants present in app.asar
+        # Why: fork releases do not have Orca's PostHog secret; keep this
+        # official-release guard strict only where those credentials exist.
+        if: github.repository == 'stablyai/orca'
         run: node config/scripts/verify-telemetry-constants.mjs
 
   build-mac:
