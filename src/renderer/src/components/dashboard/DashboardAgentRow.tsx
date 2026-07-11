@@ -50,6 +50,12 @@ function formatTimeAgo(ts: number, now: number): string {
 // drift away from the true transition moment. For past dones, stateHistory
 // entries already store the per-transition `startedAt` so we read it directly.
 function lastEnteredDoneAt(agent: DashboardAgentRowData): number | null {
+  // Why: idle subagent child rows are alive-but-idle (teammates persist
+  // between turns) — reading their synthetic entry as "done Xm ago" would
+  // mislabel a live teammate as finished.
+  if (agent.rowSource === 'subagent' && agent.state === 'idle') {
+    return null
+  }
   const entry = agent.entry
   if (entry.state === 'done') {
     return entry.stateStartedAt
@@ -180,9 +186,11 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   const handleActivate = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      onActivate(agent.tab.id, agent.paneKey)
+      // Why: subagent child rows have no pane of their own; they focus the
+      // parent pane whose session spawned them.
+      onActivate(agent.tab.id, agent.activationPaneKey ?? agent.paneKey)
     },
-    [onActivate, agent.tab.id, agent.paneKey]
+    [onActivate, agent.tab.id, agent.activationPaneKey, agent.paneKey]
   )
   const handleSendTargetClickCapture = useCallback(
     (e: React.MouseEvent) => {
@@ -353,8 +361,11 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
             on the top row. The sub-rows (tool step, assistant response) are
             about the same agent and do not need the icon repeated next to
             them — keeping the icon only on the prompt row lets the sub-rows
-            indent under the prompt text cleanly. */}
-        {!hideIdentityIcon && (
+            indent under the prompt text cleanly. Subagent child rows carry
+            the child's NAME in agentType (not an iconable agent — it would
+            render the unknown "?" glyph), and nesting under the parent
+            already conveys identity. */}
+        {!hideIdentityIcon && agent.rowSource !== 'subagent' && (
           <span className="inline-flex shrink-0" title={identityTitle}>
             <AgentIcon agent={agentTypeToIconAgent(agent.agentType)} size={14} />
           </span>
@@ -406,6 +417,7 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
           relativeTimestamp={relativeTimestamp}
           expanded={expanded}
           hideExpand={hideExpand}
+          hideDismiss={agent.rowSource === 'subagent'}
           sendTargetStatus={sendTargetStatus}
           onCloseAgent={handleCloseAgent}
           onRenameAgent={onRename ? handleRenameAgent : undefined}

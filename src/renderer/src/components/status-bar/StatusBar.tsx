@@ -51,6 +51,7 @@ import {
   ProviderIcon,
   ProviderPanel,
   barColor,
+  clampUsedPercent,
   formatResetCreditExpiry,
   getProviderUsageStatusLabel
 } from './tooltip'
@@ -716,6 +717,11 @@ function ClaudeSwitcherMenu({
   // settings mutations don't re-run the remote snapshot round trip.
   const loadAccounts = useCallback(async () => {
     const snapshot = await fetchProviderAccountsSnapshot({ activeRuntimeEnvironmentId })
+    // Why: a failed Claude half is a substituted empty roster; keep prior state.
+    if (snapshot.failedProviders?.includes('claude')) {
+      console.error('Claude account list failed; keeping previous status bar state.')
+      return
+    }
     if (mountedRef.current) {
       setAccounts(snapshot.claude)
     }
@@ -932,15 +938,15 @@ function ClaudeSwitcherMenu({
 }
 
 // ---------------------------------------------------------------------------
-// Mini progress bar (shows remaining capacity, grey)
+// Mini progress bar (shows consumption / % used, grey)
 // ---------------------------------------------------------------------------
 
-function MiniBar({ leftPct }: { leftPct: number }): React.JSX.Element {
+function MiniBar({ usedPct }: { usedPct: number }): React.JSX.Element {
   return (
     <div className="w-[48px] h-[6px] rounded-full bg-muted overflow-hidden flex-shrink-0">
       <div
         className="h-full rounded-full transition-all duration-300 bg-muted-foreground/40"
-        style={{ width: `${Math.min(100, Math.max(0, leftPct))}%` }}
+        style={{ width: `${clampUsedPercent(usedPct)}%` }}
       />
     </div>
   )
@@ -957,29 +963,32 @@ export function InlineUsageBars({
   limits: ProviderRateLimits
   isFetching: boolean
 }): React.JSX.Element {
+  // Why: show % used (consumption), not remaining — matches harness meters (#7551).
+  // Keep the "used" word in compact labels so bare "32% 5h" is not read as remaining.
+  const usedSuffix = translate('auto.components.status.bar.tooltip.cedb7b99e3', '% used')
   const usageWindows = [
     limits.session
       ? {
           key: 'session',
-          left: Math.max(0, Math.round(100 - limits.session.usedPercent)),
-          label: translate('auto.components.status.bar.StatusBar.d79c3362c4', '% 5h')
+          used: clampUsedPercent(limits.session.usedPercent),
+          label: translate('auto.components.status.bar.StatusBar.d79c3362c4', '5h')
         }
       : null,
     limits.weekly
       ? {
           key: 'weekly',
-          left: Math.max(0, Math.round(100 - limits.weekly.usedPercent)),
-          label: translate('auto.components.status.bar.StatusBar.5c938d39ac', '% wk')
+          used: clampUsedPercent(limits.weekly.usedPercent),
+          label: translate('auto.components.status.bar.StatusBar.5c938d39ac', 'wk')
         }
       : null,
     limits.fableWeekly
       ? {
           key: 'fableWeekly',
-          left: Math.max(0, Math.round(100 - limits.fableWeekly.usedPercent)),
-          label: translate('auto.components.status.bar.StatusBar.54e8d6bb2d', '% Fable')
+          used: clampUsedPercent(limits.fableWeekly.usedPercent),
+          label: translate('auto.components.status.bar.StatusBar.54e8d6bb2d', 'Fable')
         }
       : null
-  ].filter((window): window is { key: string; left: number; label: string } => window !== null)
+  ].filter((window): window is { key: string; used: number; label: string } => window !== null)
 
   return (
     <div
@@ -992,13 +1001,13 @@ export function InlineUsageBars({
         <div key={window.key} className="flex min-w-0 items-center gap-1">
           <div className="h-[4px] min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
             <div
-              className={`h-full rounded-full ${barColor(window.left)}`}
-              style={{ width: `${window.left}%` }}
+              className={`h-full rounded-full ${barColor(window.used)}`}
+              style={{ width: `${window.used}%` }}
             />
           </div>
           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-            {window.left}
-            {window.label}
+            {window.used}
+            {usedSuffix} {window.label}
           </span>
         </div>
       ))}
@@ -1071,14 +1080,16 @@ function InlineUsageSkeleton(): React.JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Window label (shows percent remaining)
+// Window label (shows percent used / consumption)
 // ---------------------------------------------------------------------------
 
 function WindowLabel({ w, label }: { w: RateLimitWindow; label: string }): React.JSX.Element {
-  const left = Math.max(0, Math.round(100 - w.usedPercent))
+  const used = clampUsedPercent(w.usedPercent)
+  // Why: "32% 5h" is ambiguous after the remaining→used flip; keep "used" explicit.
   return (
     <span className="tabular-nums">
-      {left}% {label}
+      {used}
+      {translate('auto.components.status.bar.tooltip.cedb7b99e3', '% used')} {label}
     </span>
   )
 }
@@ -1150,12 +1161,13 @@ function ProviderSegment({
       <span className="inline-flex items-center gap-1.5">
         <ProviderIcon provider={provider} />
         {visibleBuckets.map((bucket, i) => {
-          const left = Math.max(0, Math.round(100 - bucket.usedPercent))
+          const used = clampUsedPercent(bucket.usedPercent)
           return (
             <React.Fragment key={bucket.name}>
               {i > 0 && <span className="text-muted-foreground">·</span>}
               <span className="tabular-nums">
-                {bucket.name} {left}%
+                {bucket.name} {used}
+                {translate('auto.components.status.bar.tooltip.cedb7b99e3', '% used')}
               </span>
             </React.Fragment>
           )
@@ -1195,7 +1207,7 @@ function ProviderSegment({
   return (
     <span className="inline-flex items-center gap-1.5">
       <ProviderIcon provider={provider} />
-      {p.session && !compact && <MiniBar leftPct={Math.max(0, 100 - p.session.usedPercent)} />}
+      {p.session && !compact && <MiniBar usedPct={clampUsedPercent(p.session.usedPercent)} />}
       {visibleWindows.map((window, index) => (
         <React.Fragment key={window.key}>
           {index > 0 && <span className="text-muted-foreground">·</span>}
@@ -1278,6 +1290,11 @@ function CodexSwitcherMenu({
   // settings mutations don't re-run the remote snapshot round trip.
   const loadAccounts = useCallback(async () => {
     const snapshot = await fetchProviderAccountsSnapshot({ activeRuntimeEnvironmentId })
+    // Why: a failed Codex half is a substituted empty roster; keep prior state.
+    if (snapshot.failedProviders?.includes('codex')) {
+      console.error('Codex account list failed; keeping previous status bar state.')
+      return
+    }
     if (mountedRef.current) {
       setAccounts(snapshot.codex)
     }
@@ -1760,9 +1777,13 @@ export function ProviderDetailsMenu({
                       ? 'O'
                       : provider.provider === 'kimi'
                         ? 'K'
-                        : provider.provider === 'minimax'
-                          ? 'M'
-                          : 'X'}
+                        : provider.provider === 'antigravity'
+                          ? 'A'
+                          : provider.provider === 'minimax'
+                            ? 'M'
+                            : provider.provider === 'grok'
+                              ? 'R'
+                              : 'X'}
               </span>
             </span>
           ) : (
@@ -1908,21 +1929,36 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
     return null
   }
 
-  const { claude, codex, gemini, opencodeGo, kimi, minimax } = rateLimits
+  const { claude, codex, gemini, opencodeGo, kimi, antigravity, minimax, grok } = rateLimits
 
   // Why: a provider earns a bar from either a usable live snapshot or durable
   // setup in Settings. The durable path keeps account switchers visible while
   // usage snapshots hydrate, fail, or temporarily report unavailable.
   // Detection-gating (see status-bar-agent-gating) additionally hides per-CLI
   // bars when the agent isn't installed on PATH.
-  // Why: thread the cookie durability flag from RateLimitState so the
-  // MiniMax bar stays visible after a reload and between snapshot refreshes.
-  const usageSettings = { ...settings, minimaxCookieConfigured: rateLimits.minimaxCookieConfigured }
+  // Why: Antigravity usage has no separate persisted credential. A checked
+  // status item plus detected CLI is the durable signal that the user wants
+  // its usage slot visible while the first snapshot is still pending. The
+  // visibility module additionally requires geminiCliOAuthEnabled (already in
+  // settings) because the snapshot mirrors the Gemini fetch.
+  const antigravityUsageConfigured =
+    statusBarItems.includes('antigravity') &&
+    isStatusBarItemAvailable('antigravity', detectedAgentIds)
+  // Why: thread non-GlobalSettings durability flags from renderer/main state so
+  // bars stay visible after a reload and between snapshot refreshes.
+  const usageSettings = {
+    ...settings,
+    antigravityUsageConfigured,
+    minimaxCookieConfigured: rateLimits.minimaxCookieConfigured,
+    grokAuthConfigured: rateLimits.grokAuthConfigured
+  }
   const visibleClaude = getVisibleUsageProvider('claude', claude, usageSettings)
   const visibleCodex = getVisibleUsageProvider('codex', codex, usageSettings)
   const visibleGemini = getVisibleUsageProvider('gemini', gemini, usageSettings)
   const visibleKimi = getVisibleUsageProvider('kimi', kimi, usageSettings)
+  const visibleAntigravity = getVisibleUsageProvider('antigravity', antigravity, usageSettings)
   const visibleMiniMax = getVisibleUsageProvider('minimax', minimax, usageSettings)
+  const visibleGrok = getVisibleUsageProvider('grok', grok, usageSettings)
   const showClaude =
     visibleClaude !== null &&
     statusBarItems.includes('claude') &&
@@ -1939,9 +1975,17 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
     visibleKimi !== null &&
     statusBarItems.includes('kimi') &&
     isStatusBarItemAvailable('kimi', detectedAgentIds)
+  const showAntigravity =
+    visibleAntigravity !== null &&
+    statusBarItems.includes('antigravity') &&
+    isStatusBarItemAvailable('antigravity', detectedAgentIds)
   // Why: MiniMax is a cookie-auth provider, not a CLI on PATH, so detection-gating
   // doesn't apply (same rationale as OpenCode Go below).
   const showMiniMax = visibleMiniMax !== null && statusBarItems.includes('minimax')
+  const showGrok =
+    visibleGrok !== null &&
+    statusBarItems.includes('grok') &&
+    isStatusBarItemAvailable('grok', detectedAgentIds)
   // Why: OpenCode Go is a web/cookie-auth provider, not a CLI on PATH, so
   // detection-gating doesn't apply.
   const visibleOpencodeGo = getVisibleUsageProvider('opencode-go', opencodeGo, usageSettings)
@@ -1957,14 +2001,16 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
     showGemini ||
     showOpencodeGo ||
     showKimi ||
+    showAntigravity ||
     showMiniMax ||
+    showGrok ||
     showResourceUsage
   // Why: a brand-new user with no provider configured would otherwise see an
   // empty left side of the status bar and wonder what's missing. Settings are
   // included because managed accounts are durable even when live usage
   // snapshots are still hydrating or unavailable after an update.
   const isEmptyUsageState = isUsageEmptyState(
-    { claude, codex, gemini, opencodeGo, kimi, minimax },
+    { claude, codex, gemini, opencodeGo, kimi, antigravity, minimax, grok },
     usageSettings
   )
   // Why: the teaching CTA is a one-time nudge — once the user hides it, keep it
@@ -1976,7 +2022,9 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
     gemini?.status === 'fetching' ||
     opencodeGo?.status === 'fetching' ||
     kimi?.status === 'fetching' ||
-    minimax?.status === 'fetching'
+    antigravity?.status === 'fetching' ||
+    minimax?.status === 'fetching' ||
+    grok?.status === 'fetching'
 
   const compact = containerWidth < 900
   const iconOnly = containerWidth < 500
@@ -2032,6 +2080,17 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
                 )}
               />
             )}
+            {showAntigravity && (
+              <ProviderDetailsMenu
+                provider={visibleAntigravity}
+                compact={compact}
+                iconOnly={iconOnly}
+                ariaLabel={translate(
+                  'auto.components.status.bar.StatusBar.antigravityUsageDetails',
+                  'Open Antigravity usage details'
+                )}
+              />
+            )}
             {showOpencodeGo && (
               <ProviderDetailsMenu
                 provider={visibleOpencodeGo}
@@ -2062,6 +2121,17 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
                 ariaLabel={translate(
                   'auto.components.status.bar.StatusBar.06741a2f3d',
                   'Open MiniMax usage details'
+                )}
+              />
+            )}
+            {showGrok && (
+              <ProviderDetailsMenu
+                provider={visibleGrok}
+                compact={compact}
+                iconOnly={iconOnly}
+                ariaLabel={translate(
+                  'auto.components.status.bar.StatusBar.grokUsageAria',
+                  'Open Grok usage details'
                 )}
               />
             )}
@@ -2186,6 +2256,21 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
               {translate('auto.components.status.bar.StatusBar.c1df0d67ec', 'Gemini Usage')}
             </DropdownMenuCheckboxItem>
           )}
+          {isStatusBarItemAvailable('antigravity', detectedAgentIds) && (
+            <DropdownMenuCheckboxItem
+              checked={statusBarItems.includes('antigravity')}
+              onCheckedChange={() => {
+                recordFeatureInteraction('usage-tracking')
+                toggleStatusBarItem('antigravity')
+              }}
+            >
+              <AgentIcon agent="antigravity" size={14} />
+              {translate(
+                'auto.components.status.bar.StatusBar.antigravityUsage',
+                'Antigravity Usage'
+              )}
+            </DropdownMenuCheckboxItem>
+          )}
           <DropdownMenuCheckboxItem
             checked={statusBarItems.includes('opencode-go')}
             onCheckedChange={() => {
@@ -2218,6 +2303,18 @@ function StatusBarInner({ floatingTerminalOpen }: StatusBarProps): React.JSX.Ele
             <MiniMaxIcon size={14} />
             {translate('auto.components.status.bar.StatusBar.3bbf140864', 'MiniMax Usage')}
           </DropdownMenuCheckboxItem>
+          {isStatusBarItemAvailable('grok', detectedAgentIds) && (
+            <DropdownMenuCheckboxItem
+              checked={statusBarItems.includes('grok')}
+              onCheckedChange={() => {
+                recordFeatureInteraction('usage-tracking')
+                toggleStatusBarItem('grok')
+              }}
+            >
+              <AgentIcon agent="grok" size={14} />
+              {translate('auto.components.status.bar.StatusBar.grokUsageMenu', 'Grok Usage')}
+            </DropdownMenuCheckboxItem>
+          )}
           <DropdownMenuCheckboxItem
             checked={statusBarItems.includes('ssh')}
             onCheckedChange={() => {

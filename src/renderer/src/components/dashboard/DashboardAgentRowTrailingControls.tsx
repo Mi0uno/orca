@@ -9,6 +9,9 @@ type DashboardAgentRowTrailingControlsProps = {
   relativeTimestamp: string | null
   expanded: boolean
   hideExpand: boolean
+  /** Subagent child rows have no store entry of their own to dismiss —
+   *  offering the X would be a silent no-op. */
+  hideDismiss?: boolean
   sendTargetStatus?: 'eligible' | 'disabled' | 'sending'
   onCloseAgent: () => void
   onRenameAgent?: () => void
@@ -21,6 +24,7 @@ export function DashboardAgentRowTrailingControls({
   relativeTimestamp,
   expanded,
   hideExpand,
+  hideDismiss = false,
   sendTargetStatus,
   onCloseAgent,
   onRenameAgent,
@@ -96,9 +100,17 @@ export function DashboardAgentRowTrailingControls({
           <span>{translate('auto.components.dashboard.DashboardAgentRow.912e136cd9', 'Send')}</span>
         </button>
       )}
+      {!sendTargetStatus && hideDismiss && relativeTimestamp !== null && (
+        <span
+          className="pointer-events-none shrink-0 text-[10px] leading-none text-muted-foreground/60"
+          aria-hidden
+        >
+          {relativeTimestamp}
+        </span>
+      )}
       {/* Why: timestamp and row actions share one slot. On no-hover devices the
           actions are visible by default, so the timestamp must yield there too. */}
-      {!sendTargetStatus && relativeTimestamp !== null && (
+      {!sendTargetStatus && !hideDismiss && relativeTimestamp !== null && (
         <span className="relative grid grid-cols-1 grid-rows-1 shrink-0 items-center justify-items-end">
           <span
             className={cn(
@@ -163,7 +175,7 @@ export function DashboardAgentRowTrailingControls({
           </span>
         </span>
       )}
-      {!sendTargetStatus && relativeTimestamp === null && (
+      {!sendTargetStatus && !hideDismiss && relativeTimestamp === null && (
         <span
           className={cn(
             'inline-flex shrink-0 items-center justify-center gap-0.5',

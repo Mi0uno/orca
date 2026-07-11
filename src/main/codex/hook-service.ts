@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- Why: getStatus + install + remove all share the managed-command and trust-key derivation. Splitting would hide that the three operations must agree on group index, event label, and command bytes. */
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, win32 as pathWin32 } from 'node:path'
 import type { SFTPWrapper } from 'ssh2'
 import type { AgentHookInstallState, AgentHookInstallStatus } from '../../shared/agent-hook-types'
 import {
@@ -46,7 +46,8 @@ import { syncSystemConfigIntoManagedCodexHome } from './codex-config-mirror'
 import {
   createCodexWslRuntimeHookInstallPlan,
   type CodexWslRuntimeHookInstallPlan,
-  type CodexWslRuntimeHookTarget
+  type CodexWslRuntimeHookTarget,
+  type WslCanonicalPathSettlement
 } from './codex-wsl-hook-install-plan'
 import {
   CODEX_HOOK_EVENT_LABEL,
@@ -723,6 +724,52 @@ function removeWslRuntimeManagedHookTrustEntries(plan: CodexWslRuntimeHookInstal
   }
 }
 
+function removeStaleWslRuntimeManagedHookTrustEntries(
+  tomlPath: string,
+  desiredEntries: readonly CodexTrustEntry[]
+): void {
+  const desiredKeys = new Set(
+    desiredEntries.map((entry) => normalizeHookTrustKeyForLookup(computeTrustKey(entry)))
+  )
+  const existingEntries = readHookTrustEntries(tomlPath)
+  const ourKeys: string[] = []
+  for (const [key, state] of existingEntries) {
+    if (desiredKeys.has(normalizeHookTrustKeyForLookup(key))) {
+      continue
+    }
+    const parts = parseTrustKey(key)
+    if (!parts || !CODEX_MANAGED_EVENT_LABELS.has(parts.eventLabel)) {
+      continue
+    }
+    const sourcePath = parts.sourcePath
+    // Why: this cleanup owns only guest-side WSL trust. A runtime config can
+    // still contain user Windows/remote hooks, which must remain untouched.
+    if (!sourcePath.startsWith('/') || !sourcePath.endsWith('/hooks.json')) {
+      continue
+    }
+    const runtimeHome = sourcePath.slice(0, -'/hooks.json'.length)
+    const command = wrapReadablePosixHookCommand(`${runtimeHome}/.orca/agent-hooks/codex-hook.sh`)
+    const expectedEntry: CodexTrustEntry = {
+      sourcePath: parts.sourcePath,
+      eventLabel: parts.eventLabel,
+      groupIndex: parts.groupIndex,
+      handlerIndex: parts.handlerIndex,
+      command,
+      timeoutSec: MANAGED_HOOK_TIMEOUT_SECONDS
+    }
+    const recognizedHashes = new Set([
+      computeTrustedHash(expectedEntry),
+      computeTrustedHash({ ...expectedEntry, timeoutSec: undefined })
+    ])
+    if (state.trustedHash && recognizedHashes.has(state.trustedHash)) {
+      ourKeys.push(key)
+    }
+  }
+  if (ourKeys.length > 0) {
+    removeHookTrustEntries(tomlPath, ourKeys)
+  }
+}
+
 function getManagedScript(target: 'local' | 'posix' = 'local'): string {
   if (target === 'local' && process.platform === 'win32') {
     return [
@@ -876,6 +923,7 @@ function installManagedHooksIntoWslRuntime(
     // Why: WSL runtime homes may carry user hook approvals we did not rebuild
     // here; only upsert Orca's entries instead of sweeping the whole source.
     upsertHookTrustEntries(plan.tomlPath, trustEntries)
+    removeStaleWslRuntimeManagedHookTrustEntries(plan.tomlPath, trustEntries)
   } catch (error) {
     return {
       agent: 'codex',
@@ -922,6 +970,13 @@ function refreshWslRuntimeUserHooks(plan: CodexWslRuntimeHookInstallPlan): Agent
   }
   writeCodexHooksJson(plan.configPath, nextHooks)
   removeWslRuntimeManagedHookTrustEntries(plan)
+  try {
+    // Why: the disabled path may be reached after the WSL mount root changed,
+    // so cleanup cannot be scoped only to the plan's current source path.
+    removeStaleWslRuntimeManagedHookTrustEntries(plan.tomlPath, [])
+  } catch (error) {
+    console.warn('[codex-hook-service] failed to clean stale WSL trust entries', error)
+  }
   return {
     agent: 'codex',
     state: 'not_installed',
@@ -931,12 +986,99 @@ function refreshWslRuntimeUserHooks(plan: CodexWslRuntimeHookInstallPlan): Agent
   }
 }
 
+// Why: transport failures preserve the last known-good identity, while a
+// successful absence probe is strong enough to revoke trust immediately.
+function getWslHookReconciliationAction(args: {
+  settlement: WslCanonicalPathSettlement
+  isCurrentGeneration: boolean
+  installedTrustConfigPath: string | null
+  resolvedTrustConfigPath: string | null
+}): 'none' | 'remove' | 'reinstall' {
+  if (!args.isCurrentGeneration) {
+    return 'none'
+  }
+  if (args.settlement.status === 'missing') {
+    return 'remove'
+  }
+  if (
+    args.settlement.status !== 'resolved' ||
+    !args.resolvedTrustConfigPath ||
+    args.resolvedTrustConfigPath === args.installedTrustConfigPath
+  ) {
+    return 'none'
+  }
+  return 'reinstall'
+}
+
 export class CodexHookService {
+  private readonly wslReconciliationGeneration = new Map<string, number>()
+
+  private supersedeWslReconciliation(runtimeHomePath: string | null | undefined): number {
+    if (!runtimeHomePath) {
+      return 0
+    }
+    const key = process.platform === 'win32' ? runtimeHomePath.toLowerCase() : runtimeHomePath
+    const generation = (this.wslReconciliationGeneration.get(key) ?? 0) + 1
+    this.wslReconciliationGeneration.set(key, generation)
+    return generation
+  }
+
   installForRuntimeHome(
     runtimeHomePath: string | null | undefined,
     target?: CodexWslRuntimeHookTarget
   ): AgentHookInstallStatus | null {
-    const wslPlan = createCodexWslRuntimeHookInstallPlan(runtimeHomePath, target)
+    const generation = this.supersedeWslReconciliation(runtimeHomePath)
+    let installedTrustConfigPath: string | null = null
+    const onCanonicalPathSettled = (settlement: WslCanonicalPathSettlement): void => {
+      if (!runtimeHomePath) {
+        return
+      }
+      const key = process.platform === 'win32' ? runtimeHomePath.toLowerCase() : runtimeHomePath
+      const resolvedPlan =
+        settlement.status === 'resolved'
+          ? createCodexWslRuntimeHookInstallPlan(
+              runtimeHomePath,
+              target,
+              () => settlement.canonicalPath
+            )
+          : null
+      const action = getWslHookReconciliationAction({
+        settlement,
+        isCurrentGeneration: this.wslReconciliationGeneration.get(key) === generation,
+        installedTrustConfigPath,
+        resolvedTrustConfigPath: resolvedPlan?.trustConfigPath ?? null
+      })
+      if (action === 'none') {
+        return
+      }
+      if (action === 'remove') {
+        try {
+          removeStaleWslRuntimeManagedHookTrustEntries(
+            pathWin32.join(runtimeHomePath, 'config.toml'),
+            []
+          )
+        } catch (error) {
+          console.warn('[codex-hook-service] failed to revoke stale WSL hook trust', error)
+        }
+        return
+      }
+      if (!resolvedPlan) {
+        return
+      }
+      const status = installManagedHooksIntoWslRuntime(resolvedPlan)
+      if (status.state === 'error') {
+        console.warn('[codex-hook-service] failed to reconcile WSL hook path', status.detail)
+        return
+      }
+      installedTrustConfigPath = resolvedPlan.trustConfigPath
+    }
+    const wslPlan = createCodexWslRuntimeHookInstallPlan(
+      runtimeHomePath,
+      target,
+      undefined,
+      onCanonicalPathSettled
+    )
+    installedTrustConfigPath = wslPlan?.trustConfigPath ?? null
     return wslPlan ? installManagedHooksIntoWslRuntime(wslPlan) : null
   }
 
@@ -944,6 +1086,7 @@ export class CodexHookService {
     runtimeHomePath: string | null | undefined,
     target?: CodexWslRuntimeHookTarget
   ): AgentHookInstallStatus | null {
+    this.supersedeWslReconciliation(runtimeHomePath)
     const wslPlan = createCodexWslRuntimeHookInstallPlan(runtimeHomePath, target)
     return wslPlan ? refreshWslRuntimeUserHooks(wslPlan) : null
   }
@@ -1184,9 +1327,25 @@ export class CodexHookService {
     return this.getStatus()
   }
 
-  async installRemote(sftp: SFTPWrapper, remoteHome: string): Promise<AgentHookInstallStatus> {
-    const remoteConfigPath = `${remoteHome.replace(/\/$/, '')}/.codex/hooks.json`
-    const remoteTomlPath = `${remoteHome.replace(/\/$/, '')}/.codex/config.toml`
+  async installRemote(
+    sftp: SFTPWrapper,
+    remoteHome: string,
+    options?: {
+      /** Explicit CODEX_HOME dir (flat layout: hooks.json/config.toml at its
+       *  root). WSL sessions read Orca's managed runtime home, not ~/.codex —
+       *  installing to the default location leaves those sessions hookless. */
+      codexHomeDir?: string
+      /** Skip the trust write when config.toml doesn't exist yet. The WSL
+       *  runtime home's config.toml is seeded only-if-absent by the launch
+       *  path; creating it here first would silently cancel that seed. A
+       *  later (idempotent) reinstall upserts trust once the seed lands. */
+      deferTrustUntilConfigToml?: boolean
+    }
+  ): Promise<AgentHookInstallStatus> {
+    const codexHomeBase =
+      options?.codexHomeDir?.replace(/\/$/, '') ?? `${remoteHome.replace(/\/$/, '')}/.codex`
+    const remoteConfigPath = `${codexHomeBase}/hooks.json`
+    const remoteTomlPath = `${codexHomeBase}/config.toml`
     const remoteScriptPath = `${remoteHome.replace(/\/$/, '')}/.orca/agent-hooks/codex-hook.sh`
     try {
       const config = await readHooksJsonRemote(sftp, remoteConfigPath)
@@ -1245,7 +1404,17 @@ export class CodexHookService {
       // Preserve non-Orca top-level metadata while replacing the hooks tree.
       await writeHooksJsonRemote(sftp, remoteConfigPath, { ...config, hooks: nextHooks })
       try {
-        const existingToml = (await readTextFileRemote(sftp, remoteTomlPath)) ?? ''
+        const existingTomlRaw = await readTextFileRemote(sftp, remoteTomlPath)
+        if (existingTomlRaw === null && options?.deferTrustUntilConfigToml === true) {
+          return {
+            agent: 'codex',
+            state: 'installed',
+            configPath: remoteConfigPath,
+            managedHooksPresent: true,
+            detail: 'Trust entries deferred until config.toml is seeded by the launch path'
+          }
+        }
+        const existingToml = existingTomlRaw ?? ''
         const updatedToml = upsertHookTrustEntriesInContent(existingToml, trustEntries)
         if (updatedToml !== existingToml) {
           await writeTextFileRemoteAtomic(sftp, remoteTomlPath, updatedToml)
@@ -1387,5 +1556,7 @@ export const codexHookService = new CodexHookService()
 export const _internals = {
   getManagedScript,
   installManagedHooksIntoWslRuntime,
-  refreshWslRuntimeUserHooks
+  refreshWslRuntimeUserHooks,
+  removeStaleWslRuntimeManagedHookTrustEntries,
+  getWslHookReconciliationAction
 }

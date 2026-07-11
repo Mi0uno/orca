@@ -9,7 +9,12 @@ import {
   isPassiveCompletedHibernationEvidence,
   recordPaneIsOwnedByPreservedPane
 } from './sleeping-agent-pane-ownership'
-import { launchSleepingAgentSession } from './sleeping-agent-session-launch'
+import {
+  launchSleepingAgentSession,
+  type ResumeSleepingAgentSessionsOptions
+} from './sleeping-agent-session-launch'
+
+export type { ResumeSleepingAgentSessionsOptions } from './sleeping-agent-session-launch'
 
 function clearPassiveCompletedRecordsForClaimKey(
   records: readonly SleepingAgentSessionRecord[],
@@ -145,7 +150,7 @@ export function resumeSleepingAgentSession(paneKey: string): boolean {
 
 export function resumeSleepingAgentSessionsForWorktree(
   worktreeId: string,
-  options?: { suppressNavigation?: boolean }
+  options?: ResumeSleepingAgentSessionsOptions
 ): number {
   const state = useAppStore.getState()
   const worktreeRecords = Object.values(state.sleepingAgentSessionsByPaneKey)
@@ -172,6 +177,12 @@ export function resumeSleepingAgentSessionsForWorktree(
       continue
     }
     const claimKey = getProviderSessionClaimKey(record)
+    // Why: a mounted pane already consumed (or latched) the in-place
+    // hibernation wake for this session; its record clears when that spawn
+    // succeeds. Launching or clearing here would double-resume the session.
+    if (options?.skipClaimKeys?.has(claimKey)) {
+      continue
+    }
     if (isInvalidWorktreeActivationRecord(record)) {
       state.clearSleepingAgentSession(record.paneKey)
       continue

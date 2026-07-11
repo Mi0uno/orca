@@ -44,6 +44,8 @@ export function formatSummaryStateLabel(state: AgentDotState): string {
       return 'blocked'
     case 'interrupted':
       return 'interrupted'
+    case 'failed':
+      return 'failed'
     case 'working':
       return 'working'
     case 'done':

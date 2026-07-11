@@ -14,6 +14,7 @@ import {
   buildTitleDerivedAgentRows,
   resolveAgentTypeFromTerminalTitle
 } from './worktree-title-derived-agent-rows'
+import { buildSubagentChildRows } from './worktree-subagent-child-rows'
 import { resolveCompatibleAgentTypeForOwner } from '../../../../shared/agent-title-owner'
 import { compareWorktreeAgentRows } from './worktree-agent-row-order'
 import {
@@ -100,6 +101,7 @@ export function buildWorktreeAgentRows(args: {
         startedAt,
         customTitle: args.agentCustomTitlesByPaneKey?.[rowEntry.paneKey]
       })
+      rows.push(...buildSubagentChildRows({ parentEntry: rowEntry, tab, parentIsFresh: isFresh }))
       seenPaneKeys.add(rowEntry.paneKey)
     }
   }
@@ -142,6 +144,7 @@ export function buildWorktreeAgentRows(args: {
       startedAt,
       customTitle: args.agentCustomTitlesByPaneKey?.[rowEntry.paneKey]
     })
+    rows.push(...buildSubagentChildRows({ parentEntry: rowEntry, tab, parentIsFresh: isFresh }))
     seenPaneKeys.add(rowEntry.paneKey)
   }
 

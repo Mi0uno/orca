@@ -13,6 +13,18 @@ import {
 import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
 import { translate } from '@/i18n/i18n'
 
+export type ResumeSleepingAgentSessionsOptions = {
+  suppressNavigation?: boolean
+  /** Provider-session claim keys already woken in place by mounted panes
+   *  (WAKE_HIBERNATED_AGENTS_WORKTREE_EVENT). Their sleeping records are
+   *  cleared only after the in-place spawn succeeds, so the generic resume
+   *  must neither launch nor clear them here. */
+  skipClaimKeys?: ReadonlySet<string>
+  /** Called with the tab id of each freshly launched resume tab, so
+   *  navigation-suppressed callers can background-mount exactly those tabs. */
+  onSessionLaunched?: (tabId: string) => void
+}
+
 function getResumeLaunchPlatform(worktreeId: string): NodeJS.Platform {
   const state = useAppStore.getState()
   const worktree = state.getKnownWorktreeById(worktreeId)
@@ -52,7 +64,7 @@ function appendTabToWorktreeOrder(worktreeId: string, tabId: string): void {
 // the resume tab without stealing the desktop's active worktree/tab/view.
 export function launchSleepingAgentSession(
   record: SleepingAgentSessionRecord,
-  options?: { suppressNavigation?: boolean }
+  options?: ResumeSleepingAgentSessionsOptions
 ): boolean {
   const state = useAppStore.getState()
   const launchConfig = record.launchConfig
@@ -120,5 +132,6 @@ export function launchSleepingAgentSession(
     state.setActiveTabType('terminal')
   }
   appendTabToWorktreeOrder(record.worktreeId, tab.id)
+  options?.onSessionLaunched?.(tab.id)
   return true
 }

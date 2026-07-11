@@ -7,7 +7,10 @@ import { resumeSleepingAgentSession } from '@/lib/resume-sleeping-agent-session'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { useNow } from '@/components/dashboard/useNow'
 import { deriveRunningAgentSendTargets } from '@/lib/running-agent-targets'
-import { selectSendTargetInputs } from './worktree-card-send-target-inputs'
+import {
+  selectSendTargetControlInputs,
+  selectSendTargetInputs
+} from './worktree-card-send-target-inputs'
 import { useWorktreeAgentRows } from './useWorktreeAgentRows'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import { parsePaneKey } from '../../../../shared/stable-pane-id'
@@ -88,8 +91,9 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
   const dropAgentStatus = useAppStore((s) => s.dropAgentStatus)
   const dismissRetainedAgent = useAppStore((s) => s.dismissRetainedAgent)
   const clearSleepingAgentSession = useAppStore((s) => s.clearSleepingAgentSession)
-  const agentSendPopoverTargetMode = useAppStore((s) => s.agentSendPopoverTargetMode)
-  const agentStatusEpoch = useAppStore((s) => s.agentStatusEpoch)
+  const { targetMode: agentSendPopoverTargetMode, agentStatusEpoch } = useAppStore(
+    useShallow((s) => selectSendTargetControlInputs(s, worktreeId))
+  )
   // Why: these five maps are read only to derive send-target eligibility, which
   // matters only while the send-target popover targets THIS card. Two of them
   // (runtimePaneTitlesByTabId, agentStatusByPaneKey) churn on every pane-title
@@ -131,7 +135,7 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     worktreeId
   })
 
-  const isAgentSendTargetModeActive = agentSendPopoverTargetMode?.worktreeId === worktreeId
+  const isAgentSendTargetModeActive = agentSendPopoverTargetMode !== null
   const sendTargetsByPaneKey = useMemo(() => {
     void agentStatusEpoch
     if (!isAgentSendTargetModeActive) {
