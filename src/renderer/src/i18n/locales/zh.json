@@ -631,7 +631,9 @@
         "5f3d2c8a1b": "解析 MR 基础分支失败",
         "folderGitWorktreesUnavailableTitle": "需要 Git 设置",
         "folderGitWorktreesInitializeFailed": "无法将此文件夹准备为 Git 工作树项目。",
-        "folderGitWorktreesEnableInitialize": "此文件夹不是 Git 仓库。启用“在此初始化 Git”，然后重试。"
+        "folderGitWorktreesEnableInitialize": "此文件夹不是 Git 仓库。启用“在此初始化 Git”，然后重试。",
+        "folderWorkspaceModeUnavailableTitle": "普通模式不可用",
+        "folderWorkspaceModeUnavailableMessage": "无法将此项目准备为普通文件夹工作区。"
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "无法上传删除的文件。",
@@ -4206,7 +4208,12 @@
           "ef18787206": "已排队删除"
         },
         "WorktreeCardAgents": {
-          "1b0a156717": "智能体"
+          "1b0a156717": "智能体",
+          "renameTitle": "重命名智能体",
+          "renameDescription": "设置工作区列表中显示的智能体名称。",
+          "renameInput": "智能体名称",
+          "renameCancel": "取消",
+          "renameSave": "保存"
         },
         "WorktreeCardReviewDetailSection": {
           "reviewHeader": "{{value0}} #{{value1}}",
@@ -4337,7 +4344,13 @@
           "hostDisconnected": "已断开连接",
           "failedNestWorkspace": "无法嵌套工作区",
           "sidebarRowMissing": "目标不再存在",
-          "failedUnnestWorkspace": "展开工作区失败"
+          "failedUnnestWorkspace": "取消嵌套工作区失败",
+          "workspaceModePlain": "普通",
+          "workspaceModePlainDescription": "普通文件夹工作区",
+          "workspaceModeWorktree": "工作树",
+          "workspaceModeWorktreeDescription": "Git 工作树模式",
+          "workspaceModeMixed": "混合",
+          "workspaceModeMixedDescription": "普通和 Git 工作树工作区"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "取消",
@@ -4525,7 +4538,11 @@
               "agents": {
                 "a128d7006b": "{{value0}} {{value1}} 儿童 {{value2}}",
                 "289a1d2ca7": "展开{{value0}}。 {{value1}}",
-                "0c1debfe84": "折叠 {{value0}}"
+                "0c1debfe84": "折叠 {{value0}}",
+                "renameAgent": "重命名智能体",
+                "rename": "重命名",
+                "closeAgent": "关闭智能体",
+                "close": "关闭"
               }
             }
           },
@@ -10683,11 +10700,16 @@
           },
           "FolderProjectGitWorktreePrompt": {
             "gitWorktrees": "Git 工作树",
-            "description": "使用此文件夹的分支创建工作树，而不是普通文件夹工作区。",
-            "preparing": "正在准备",
+            "folderWorkspaces": "普通文件夹工作区",
+            "description": "使用此文件夹创建或复用分支，而不是普通文件夹工作区。",
+            "folderDescription": "直接在此项目文件夹中创建工作区，不使用 Git 工作树管理。",
+            "preparing": "正在切换",
+            "switchToWorktreeMode": "切换工作树模式",
+            "switchToFolderMode": "切换普通模式",
             "useGitWorktrees": "使用 Git 工作树",
             "initializeGit": "在此初始化 Git",
-            "initializeGitDescription": "如果此文件夹还不是仓库，则创建初始提交。"
+            "initializeGitDescription": "如果此文件夹还不是仓库，则创建初始提交。",
+            "initializeGitRequired": "此文件夹还不是 Git 仓库。请先勾选“在此初始化 Git”，然后再次切换。"
           }
         }
       },
@@ -12194,7 +12216,11 @@
           "b06e13fcf7": "关闭智能体",
           "0272969e28": "发送给该智能体",
           "92a7017987": "发送",
-          "019b74d93a": "有资格的"
+          "019b74d93a": "有资格的",
+          "renameAgent": "重命名智能体",
+          "rename": "重命名",
+          "closeAgent": "关闭智能体",
+          "close": "关闭"
         },
         "DashboardAgentRowMessage": {
           "0a01046763": "被打断",

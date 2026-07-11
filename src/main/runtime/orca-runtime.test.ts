@@ -93,6 +93,7 @@ import { RpcDispatcher } from './rpc/dispatcher'
 import type { RpcRequest } from './rpc/core'
 import { TERMINAL_METHODS } from './rpc/methods/terminal'
 import { beginWatcherInstall } from '../ipc/watcher-removal-gate'
+import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 
 const ORIGINAL_PLATFORM = process.platform
 const ORIGINAL_PLATFORM_DESCRIPTOR = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -6087,6 +6088,43 @@ describe('OrcaRuntimeService', () => {
     expect(added).toHaveLength(0)
   })
 
+  it('keeps runtime folder and git project modes separate for the same path', async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), 'orca-runtime-mode-coexist-'))
+    execFileSync('git', ['init'], { cwd: tempRoot, stdio: 'ignore' })
+    const repos: Record<string, unknown>[] = [
+      {
+        id: 'runtime-folder-mode',
+        path: tempRoot,
+        displayName: 'folder-mode',
+        badgeColor: 'blue',
+        addedAt: 1,
+        kind: 'folder'
+      }
+    ]
+    const runtimeStore = {
+      ...store,
+      getRepos: () => [...repos] as never,
+      addRepo: (repo: Record<string, unknown>) => {
+        repos.push(repo)
+      },
+      getRepo: (id: string) => repos.find((repo) => repo.id === id) as never
+    }
+    const runtime = new OrcaRuntimeService(runtimeStore as never)
+
+    try {
+      const repo = await runtime.addRepo(tempRoot, 'git')
+
+      expect(repos).toHaveLength(2)
+      expect(normalizeRuntimePathForComparison(repo.path)).toBe(
+        normalizeRuntimePathForComparison(tempRoot)
+      )
+      expect(repo.kind).toBe('git')
+      expect(repo.id).not.toBe('runtime-folder-mode')
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   it('browses runtime server directories before projects are added', async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), 'orca-runtime-browse-'))
     try {
@@ -6211,12 +6249,16 @@ describe('OrcaRuntimeService', () => {
       })
 
       expect(result.project.id).toBe('github:stablyai/orca')
-      expect(result.repo.path).toBe(tempRoot)
+      expect(normalizeRuntimePathForComparison(result.repo.path)).toBe(
+        normalizeRuntimePathForComparison(tempRoot)
+      )
       expect(result.setup).toMatchObject({
         projectId: 'github:stablyai/orca',
-        path: tempRoot,
         setupMethod: 'imported-existing-folder'
       })
+      expect(normalizeRuntimePathForComparison(result.setup.path)).toBe(
+        normalizeRuntimePathForComparison(tempRoot)
+      )
     } finally {
       await rm(tempRoot, { recursive: true, force: true })
     }
@@ -6265,28 +6307,26 @@ describe('OrcaRuntimeService', () => {
       })
 
       expect(repos).toHaveLength(2)
-      expect(repos).toEqual([
-        expect.objectContaining({
-          path: tempRoot,
-          executionHostId: 'runtime:env-1'
-        }),
-        expect.objectContaining({
-          path: tempRoot,
-          executionHostId: 'runtime:env-2'
-        })
+      expect(repos.map((repo) => normalizeRuntimePathForComparison(String(repo.path)))).toEqual([
+        normalizeRuntimePathForComparison(tempRoot),
+        normalizeRuntimePathForComparison(tempRoot)
       ])
-      expect(first.repo).toMatchObject({
-        path: tempRoot,
-        executionHostId: 'runtime:env-1'
-      })
+      expect(repos).toEqual([
+        expect.objectContaining({ executionHostId: 'runtime:env-1' }),
+        expect.objectContaining({ executionHostId: 'runtime:env-2' })
+      ])
+      expect(normalizeRuntimePathForComparison(first.repo.path)).toBe(
+        normalizeRuntimePathForComparison(tempRoot)
+      )
+      expect(first.repo.executionHostId).toBe('runtime:env-1')
       expect(first.setup).toMatchObject({
         repoId: first.repo.id,
         hostId: 'runtime:env-1'
       })
-      expect(second.repo).toMatchObject({
-        path: tempRoot,
-        executionHostId: 'runtime:env-2'
-      })
+      expect(normalizeRuntimePathForComparison(second.repo.path)).toBe(
+        normalizeRuntimePathForComparison(tempRoot)
+      )
+      expect(second.repo.executionHostId).toBe('runtime:env-2')
       expect(second.setup).toMatchObject({
         repoId: second.repo.id,
         hostId: 'runtime:env-2'
@@ -6792,7 +6832,7 @@ describe('OrcaRuntimeService', () => {
     }
   })
 
-  it('preserves existing badgeColor on runtime cloneRepo folder->git dedupe upgrade', async () => {
+  it('adds a separate runtime git repo when cloneRepo targets an existing folder repo path', async () => {
     const spawnSpy = vi.spyOn(gitRunner, 'gitSpawn')
     spawnSpy.mockImplementation(() => {
       const proc = new EventEmitter() as EventEmitter & { stderr: EventEmitter }
@@ -6809,23 +6849,32 @@ describe('OrcaRuntimeService', () => {
       kind: 'folder' as const
     }
     const updates: { id: string; updates: Record<string, unknown> }[] = []
-    const upgraded = { ...existing, kind: 'git' as const }
+    const repos: Record<string, unknown>[] = [existing]
     const colorStore = {
       ...store,
-      getRepos: () => [existing],
+      getRepos: () => [...repos] as never,
+      addRepo: (repo: Record<string, unknown>) => {
+        repos.push(repo)
+      },
+      getRepo: (id: string) => repos.find((repo) => repo.id === id) as never,
       updateRepo: (id: string, repoUpdates: Record<string, unknown>) => {
         updates.push({ id, updates: repoUpdates })
-        return upgraded as never
+        return null
       }
     }
     const runtime = new OrcaRuntimeService(colorStore as never)
 
     try {
       const repo = await runtime.cloneRepo('https://example.com/repo-badge-color.git', '/tmp')
-      expect(updates).toEqual([{ id: existing.id, updates: { kind: 'git' } }])
-      expect(repo).toEqual(upgraded)
-      expect(repo.badgeColor).toBe('#ec4899')
-      expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(colorStore, upgraded)
+      expect(updates).toEqual([])
+      expect(repos).toHaveLength(2)
+      expect(normalizeRuntimePathForComparison(repo.path)).toBe(
+        normalizeRuntimePathForComparison(existing.path)
+      )
+      expect(repo.kind).toBe('git')
+      expect(repo.badgeColor).toBe(DEFAULT_REPO_BADGE_COLOR)
+      expect(repo.id).not.toBe(existing.id)
+      expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(colorStore, repo)
       expect(invalidateAuthorizedRootsCacheMock).toHaveBeenCalled()
     } finally {
       spawnSpy.mockRestore()

@@ -631,7 +631,9 @@
         "5f3d2c8a1b": "MR베이스 확인 실패",
         "folderGitWorktreesUnavailableTitle": "Git 설정 필요",
         "folderGitWorktreesInitializeFailed": "이 폴더를 Git 워크트리용으로 준비할 수 없습니다.",
-        "folderGitWorktreesEnableInitialize": "이 폴더는 Git 저장소가 아닙니다. 여기에서 Git 초기화를 켠 다음 다시 시도하세요."
+        "folderGitWorktreesEnableInitialize": "이 폴더는 Git 저장소가 아닙니다. 여기에서 Git 초기화를 켠 다음 다시 시도하세요.",
+        "folderWorkspaceModeUnavailableTitle": "폴더 모드를 사용할 수 없음",
+        "folderWorkspaceModeUnavailableMessage": "이 프로젝트를 일반 폴더 워크스페이스로 준비할 수 없습니다."
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "드롭한 파일을 업로드하지 못했습니다.",
@@ -4206,7 +4208,12 @@
           "ef18787206": "삭제 대기 중"
         },
         "WorktreeCardAgents": {
-          "1b0a156717": "에이전트"
+          "1b0a156717": "에이전트",
+          "renameTitle": "Rename agent",
+          "renameDescription": "Set the label shown for this agent in the workspace list.",
+          "renameInput": "Agent name",
+          "renameCancel": "Cancel",
+          "renameSave": "Save"
         },
         "WorktreeCardReviewDetailSection": {
           "reviewHeader": "{{value0}} #{{value1}}",
@@ -4337,7 +4344,13 @@
           "hostDisconnected": "연결 끊김",
           "failedNestWorkspace": "워크스페이스를 중첩하지 못했습니다",
           "sidebarRowMissing": "대상이 더 이상 존재하지 않습니다",
-          "failedUnnestWorkspace": "워크트리 펼치기 실패"
+          "failedUnnestWorkspace": "워크스페이스 중첩 해제 실패",
+          "workspaceModePlain": "일반",
+          "workspaceModePlainDescription": "일반 폴더 워크스페이스",
+          "workspaceModeWorktree": "워크트리",
+          "workspaceModeWorktreeDescription": "Git 워크트리 모드",
+          "workspaceModeMixed": "혼합",
+          "workspaceModeMixedDescription": "일반 및 Git 워크트리 워크스페이스"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "취소",
@@ -4525,7 +4538,11 @@
               "agents": {
                 "a128d7006b": "{{value0}} {{value1}} 하위 {{value2}}",
                 "289a1d2ca7": "{{value0}}을 확장합니다. {{value1}}",
-                "0c1debfe84": "{{value0}} 접기"
+                "0c1debfe84": "{{value0}} 접기",
+                "renameAgent": "Rename agent",
+                "rename": "Rename",
+                "closeAgent": "Close agent",
+                "close": "Close"
               }
             }
           },
@@ -10683,11 +10700,16 @@
           },
           "FolderProjectGitWorktreePrompt": {
             "gitWorktrees": "Git worktrees",
-            "description": "Use branches from this folder instead of plain folder workspaces.",
-            "preparing": "Preparing",
+            "folderWorkspaces": "Plain folder workspaces",
+            "description": "Create or reuse branches from this folder instead of plain folder workspaces.",
+            "folderDescription": "Create workspaces directly in this project folder without Git worktree management.",
+            "preparing": "Switching",
+            "switchToWorktreeMode": "Switch to worktree mode",
+            "switchToFolderMode": "Switch to plain mode",
             "useGitWorktrees": "Use Git worktrees",
             "initializeGit": "Initialize Git here",
-            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository.",
+            "initializeGitRequired": "This folder is not a Git repository. Check Initialize Git here, then switch again."
           }
         }
       },
@@ -12194,7 +12216,11 @@
           "b06e13fcf7": "agent 닫기",
           "0272969e28": "이 agent에게 보내기",
           "92a7017987": "전송 중",
-          "019b74d93a": "전송 가능"
+          "019b74d93a": "전송 가능",
+          "renameAgent": "Rename agent",
+          "rename": "Rename",
+          "closeAgent": "Close agent",
+          "close": "Close"
         },
         "DashboardAgentRowMessage": {
           "0a01046763": "중단됨",

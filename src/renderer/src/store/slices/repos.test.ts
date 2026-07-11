@@ -215,9 +215,9 @@ describe('repo slice runtime routing', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('promotes an existing folder project when the same path is added as git', async () => {
+  it('keeps an existing folder project when the same path is added as a separate git project', async () => {
     const folderRepo = { ...localRepo, kind: 'folder' as const, executionHostId: 'local' as const }
-    const gitRepo = { ...localRepo, kind: 'git' as const, worktreeBasePath: '.' }
+    const gitRepo = { ...localRepo, id: 'local-git', kind: 'git' as const, worktreeBasePath: '.' }
     reposAdd.mockResolvedValue({ repo: gitRepo })
     const store = createTestStore()
     store.setState({ repos: [folderRepo] })
@@ -229,7 +229,7 @@ describe('repo slice runtime routing', () => {
       })
     ).resolves.toEqual({ ...gitRepo, executionHostId: 'local' })
 
-    expect(store.getState().repos).toEqual([{ ...gitRepo, executionHostId: 'local' }])
+    expect(store.getState().repos).toEqual([folderRepo, { ...gitRepo, executionHostId: 'local' }])
     expect(toast.success).toHaveBeenCalledWith(
       'Project added',
       expect.objectContaining({ description: gitRepo.displayName })

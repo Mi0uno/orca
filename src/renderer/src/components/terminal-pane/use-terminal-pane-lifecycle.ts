@@ -1315,6 +1315,13 @@ export function useTerminalPaneLifecycle({
           // an exact tombstone blocks queued hooks without suppressing siblings.
           const paneKey = makePaneKey(tabId, leafId)
           useAppStore.getState().retireAgentPaneAuthority(paneKey)
+          // Why: a closed pane can still carry a provider session that the
+          // sidebar can resume later. Non-resumable rows keep drop-style
+          // suppression inside retainClosedAgentSession.
+          useAppStore.getState().setCacheTimerStartedAt(paneKey, null)
+          clearTerminalPaneUnread(paneKey)
+          useAppStore.getState().retainClosedAgentSession(paneKey)
+          useAppStore.getState().clearPaneForegroundAgent(paneKey)
         }
         if (transport) {
           if (isDetachedToTab) {

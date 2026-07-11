@@ -654,7 +654,9 @@
         "5f3d2c8a1b": "Failed to resolve MR base.",
         "folderGitWorktreesUnavailableTitle": "Git setup required",
         "folderGitWorktreesInitializeFailed": "Could not prepare this folder for Git worktrees.",
-        "folderGitWorktreesEnableInitialize": "This folder is not a Git repository. Enable Initialize Git here, then try again."
+        "folderGitWorktreesEnableInitialize": "This folder is not a Git repository. Enable Initialize Git here, then try again.",
+        "folderWorkspaceModeUnavailableTitle": "Folder mode unavailable",
+        "folderWorkspaceModeUnavailableMessage": "Could not prepare this project as a plain folder workspace."
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "Failed to upload dropped files.",
@@ -4271,7 +4273,12 @@
           "ef18787206": "Queued for deletion"
         },
         "WorktreeCardAgents": {
-          "1b0a156717": "Agents"
+          "1b0a156717": "Agents",
+          "renameTitle": "Rename agent",
+          "renameDescription": "Set the label shown for this agent in the workspace list.",
+          "renameInput": "Agent name",
+          "renameCancel": "Cancel",
+          "renameSave": "Save"
         },
         "WorktreeCardReviewDetailSection": {
           "copyLink": "Copy link",
@@ -4402,7 +4409,13 @@
           "groupDeleteFailedDesc": "Something went wrong while deleting the group. No projects were removed.",
           "failedNestWorkspace": "Failed to nest workspace",
           "sidebarRowMissing": "Target no longer exists",
-          "failedUnnestWorkspace": "Failed to unnest workspace"
+          "failedUnnestWorkspace": "Failed to unnest workspace",
+          "workspaceModePlain": "plain",
+          "workspaceModePlainDescription": "Plain folder workspace",
+          "workspaceModeWorktree": "worktree",
+          "workspaceModeWorktreeDescription": "Git worktree mode",
+          "workspaceModeMixed": "mixed",
+          "workspaceModeMixedDescription": "Plain and Git worktree workspaces"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -4590,7 +4603,11 @@
               "agents": {
                 "a128d7006b": "{{value0}} {{value1}} child {{value2}}",
                 "289a1d2ca7": "Expand {{value0}}. {{value1}}",
-                "0c1debfe84": "Collapse {{value0}}"
+                "0c1debfe84": "Collapse {{value0}}",
+                "renameAgent": "Rename agent",
+                "rename": "Rename",
+                "closeAgent": "Close agent",
+                "close": "Close"
               }
             }
           },
@@ -10706,11 +10723,16 @@
           },
           "FolderProjectGitWorktreePrompt": {
             "gitWorktrees": "Git worktrees",
-            "description": "Use branches from this folder instead of plain folder workspaces.",
-            "preparing": "Preparing",
+            "folderWorkspaces": "Plain folder workspaces",
+            "description": "Create or reuse branches from this folder instead of plain folder workspaces.",
+            "folderDescription": "Create workspaces directly in this project folder without Git worktree management.",
+            "preparing": "Switching",
+            "switchToWorktreeMode": "Switch to worktree mode",
+            "switchToFolderMode": "Switch to plain mode",
             "useGitWorktrees": "Use Git worktrees",
             "initializeGit": "Initialize Git here",
-            "initializeGitDescription": "Create an initial commit if this folder is not already a repository."
+            "initializeGitDescription": "Create an initial commit if this folder is not already a repository.",
+            "initializeGitRequired": "This folder is not a Git repository. Check Initialize Git here, then switch again."
           }
         }
       },
@@ -12217,7 +12239,11 @@
           "b06e13fcf7": "Dismiss agent",
           "0272969e28": "Send to this agent",
           "92a7017987": "sending",
-          "019b74d93a": "eligible"
+          "019b74d93a": "eligible",
+          "renameAgent": "Rename agent",
+          "rename": "Rename",
+          "closeAgent": "Close agent",
+          "close": "Close"
         },
         "DashboardAgentRowMessage": {
           "0a01046763": "interrupted",

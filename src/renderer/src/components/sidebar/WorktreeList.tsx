@@ -82,6 +82,7 @@ import { rightSidebarShowsPullRequestData } from '@/lib/right-sidebar-visibility
 import {
   type Row,
   type ProjectGroupingModel,
+  type SidebarWorkspaceMode,
   type WorktreeGroupBy,
   ALL_GROUP_KEY,
   PINNED_GROUP_KEY,
@@ -741,6 +742,57 @@ function SectionMetricsBadge({ count }: { count: number }): React.JSX.Element {
         </TooltipContent>
       </Tooltip>
     </span>
+  )
+}
+
+function getWorkspaceModeBadgeCopy(mode: SidebarWorkspaceMode): {
+  label: string
+  description: string
+} {
+  switch (mode) {
+    case 'plain':
+      return {
+        label: translate('auto.components.sidebar.WorktreeList.workspaceModePlain', 'plain'),
+        description: translate(
+          'auto.components.sidebar.WorktreeList.workspaceModePlainDescription',
+          'Plain folder workspace'
+        )
+      }
+    case 'worktree':
+      return {
+        label: translate('auto.components.sidebar.WorktreeList.workspaceModeWorktree', 'worktree'),
+        description: translate(
+          'auto.components.sidebar.WorktreeList.workspaceModeWorktreeDescription',
+          'Git worktree mode'
+        )
+      }
+    case 'mixed':
+      return {
+        label: translate('auto.components.sidebar.WorktreeList.workspaceModeMixed', 'mixed'),
+        description: translate(
+          'auto.components.sidebar.WorktreeList.workspaceModeMixedDescription',
+          'Plain and Git worktree workspaces'
+        )
+      }
+  }
+}
+
+function WorkspaceModeBadge({ mode }: { mode: SidebarWorkspaceMode }): React.JSX.Element {
+  const copy = getWorkspaceModeBadgeCopy(mode)
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex h-4 shrink-0 items-center rounded-full border border-worktree-sidebar-border bg-worktree-sidebar-accent px-1.5 text-[9px] font-medium leading-none text-muted-foreground/90"
+          aria-label={copy.description}
+        >
+          {copy.label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6}>
+        {copy.description}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -4399,6 +4451,7 @@ const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktreeViewp
                         <div className="min-w-0 truncate text-[13px] font-semibold leading-none">
                           {row.label}
                         </div>
+                        {row.workspaceMode ? <WorkspaceModeBadge mode={row.workspaceMode} /> : null}
                         <RepoForkIndicator upstream={row.repo?.upstream} />
                         <FolderPathStatusIndicator status={projectGroupPathStatus} />
                       </div>

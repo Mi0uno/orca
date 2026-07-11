@@ -21,11 +21,12 @@ export type DashboardAgentRow = {
   entry: AgentStatusEntry
   tab: TerminalTab
   agentType: AgentType
-  rowSource?: 'live' | 'retained' | 'subagent'
+  rowSource?: 'live' | 'retained' | 'subagent' | 'sleeping' | 'resuming' | 'launching'
   state: AgentStatusState | 'idle'
   /** Pane to focus when the row is activated, when it differs from paneKey.
    *  Subagent rows have no pane of their own and activate their parent's. */
   activationPaneKey?: string
+  customTitle?: string
   /** When this agent first began reporting status. Derived from the oldest
    *  stateHistory entry, falling back to updatedAt when no history exists yet.
    *  Used to sort agents by when they started. */

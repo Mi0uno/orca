@@ -84,4 +84,31 @@ describe('getRepoDisplayLabelsByPath', () => {
       'billing/api'
     )
   })
+
+  it('uses the path leaf when a stored display name is an absolute path', () => {
+    const labels = getRepoDisplayLabelsByPath([
+      {
+        path: 'D:/nextcloud/Personal_Doc/Workf',
+        displayName: 'D:/nextcloud/Personal_Doc/Workf'
+      }
+    ])
+
+    expect(labels.get('D:/nextcloud/Personal_Doc/Workf')).toBe('Workf')
+  })
+
+  it('disambiguates colliding path-like display names from real parent folders', () => {
+    const labels = getRepoDisplayLabelsByPath([
+      {
+        path: 'D:/nextcloud/Personal_Doc/Workf',
+        displayName: 'D:/nextcloud/Personal_Doc/Workf'
+      },
+      {
+        path: 'E:/archive/Personal_Doc/Workf',
+        displayName: 'E:/archive/Personal_Doc/Workf'
+      }
+    ])
+
+    expect(labels.get('D:/nextcloud/Personal_Doc/Workf')).toBe('nextcloud/Personal_Doc/Workf')
+    expect(labels.get('E:/archive/Personal_Doc/Workf')).toBe('archive/Personal_Doc/Workf')
+  })
 })
