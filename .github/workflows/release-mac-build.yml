@@ -27,10 +27,10 @@ jobs:
       github.repository == 'stablyai/orca' ||
       github.repository == 'Mi0uno/orca' ||
       github.repository == 'mi0uno/orca'
-    # Why: this workflow is outside the SignPath signing run, so Blacksmith
-    # cannot enter Windows artifact provenance while mac notarization gets the
-    # faster runner.
-    runs-on: blacksmith-6vcpu-macos-15
+    # Why: official releases use the faster Blacksmith runner for notarized
+    # macOS builds; forks fall back to GitHub-hosted macOS where that label does
+    # not exist.
+    runs-on: ${{ github.repository == 'stablyai/orca' && 'blacksmith-6vcpu-macos-15' || 'macos-15' }}
     timeout-minutes: 60
     env:
       NODE_OPTIONS: --max-old-space-size=4096
@@ -50,6 +50,40 @@ jobs:
         with:
           node-version-file: package.json
           cache: pnpm
+
+      - name: Resolve macOS signing mode
+        id: macos-signing-mode
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for key in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [[ -z "${!key:-}" ]]; then
+              missing+=("$key")
+            fi
+          done
+
+          if (( ${#missing[@]} == 0 )); then
+            echo "enabled=true" >>"$GITHUB_OUTPUT"
+            echo "macOS signing and notarization are enabled."
+            exit 0
+          fi
+
+          if [[ "$GITHUB_REPOSITORY" == "stablyai/orca" ]]; then
+            printf '::error::Missing required macOS release signing secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+          # Why: forks cannot access Orca's Apple signing secrets, but still need
+          # reproducible release artifacts from the copied official workflow.
+          echo "enabled=false" >>"$GITHUB_OUTPUT"
+          printf '::warning::Missing macOS signing secrets: %s; publishing unsigned macOS artifacts for this fork release.\n' "${missing[*]}"
 
       # Cache the Electron binary + electron-builder tool downloads (notarytool,
       # winCodeSign, nsis, squirrel, AppImage). Saves ~30-90s per job, incl. mac.
@@ -76,6 +110,7 @@ jobs:
           command: pnpm install --frozen-lockfile
 
       - name: Verify macOS signing environment
+        if: steps.macos-signing-mode.outputs.enabled == 'true'
         run: node config/scripts/verify-macos-release-env.mjs
         env:
           CSC_LINK: ${{ secrets.MAC_CERTS }}
@@ -142,9 +177,11 @@ jobs:
           timeout_minutes: 45
           max_attempts: 3
           retry_wait_seconds: 30
-          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && ORCA_MAC_RELEASE=1 pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
+          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORCA_MAC_RELEASE: ${{ steps.macos-signing-mode.outputs.enabled == 'true' && '1' || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.macos-signing-mode.outputs.enabled == 'true' && 'true' || 'false' }}
           CSC_LINK: ${{ secrets.MAC_CERTS }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
