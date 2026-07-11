@@ -86,6 +86,8 @@ All releases are cut from the **Cut Release** GitHub Actions workflow. There is 
 
 The workflow resolves the next version from GitHub Releases, bumps `package.json`, tags, pushes, and runs the multi-platform build + publish inline.
 
+Fork maintainer notes for `Mi0uno/orca`, including upstream sync, local development, and the Windows-first updater channel, live in [Fork Development and Release Workflow](../docs/reference/fork-development-release-workflow.md).
+
 **How the next version is chosen:**
 
 All stable kinds (`patch`, `minor`, `major`) are computed off the latest _stable_ release, ignoring any RCs in between.
@@ -112,7 +114,7 @@ All stable kinds (`patch`, `minor`, `major`) are computed off the latest _stable
 - **One-off RC for a feature branch:** `kind=rc`, `ref=<branch-or-sha>`. Produces an RC tag that does not touch `main`.
 - **Minor or major bump:** `kind=minor` or `kind=major`.
 
-The scheduled 2x/day RC cron in [`release-rc.yml`](../../actions/workflows/release-rc.yml) is independent and continues to run automatically from `main`.
+There is no push-triggered release path in this fork; run **Cut Release** explicitly when a new GitHub Release is needed.
 
 
 ## Release Channels
