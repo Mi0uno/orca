@@ -69,19 +69,25 @@ describe('Electron runtime package contract', () => {
         release_command
       ])
     )
-    const macReleaseCommand = macWorkflow.jobs['build-mac'].steps.find(
-      (step) => step.name === 'Publish release artifacts (macOS)'
-    ).with.command
+    const macReleaseCommands = macWorkflow.jobs['build-mac'].steps
+      .filter((step) => step.name?.includes('release artifacts (macOS)'))
+      .map((step) => step.with.command)
 
     expect([...releaseCommands.keys()].sort()).toEqual(['linux-arm64', 'linux-x64', 'win'])
-    for (const command of [...releaseCommands.values(), macReleaseCommand]) {
+    expect(macReleaseCommands).toHaveLength(2)
+    for (const command of [...releaseCommands.values(), ...macReleaseCommands]) {
       expect(command).toContain('node config/scripts/ensure-native-runtime.mjs --runtime=electron')
       expect(command).toContain('electron-builder')
       expect(command.indexOf('ensure-native-runtime')).toBeLessThan(
         command.indexOf('electron-builder')
       )
     }
-    expect(macReleaseCommand).toContain(' && ORCA_MAC_RELEASE=1 ')
+    expect(macReleaseCommands).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(' && ORCA_MAC_RELEASE=1 '),
+        expect.stringContaining('CSC_IDENTITY_AUTO_DISCOVERY=false')
+      ])
+    )
     expect(releaseCommands.get('linux-x64')).toContain(' && pnpm exec electron-builder ')
     expect(releaseCommands.get('linux-x64')).toContain('--linux AppImage deb rpm --x64')
     expect(releaseCommands.get('linux-arm64')).toContain('ORCA_LINUX_ARM64_RELEASE=1')
@@ -126,6 +132,12 @@ describe('Electron runtime package contract', () => {
     expect(buildMatrixRunners).not.toContain('blacksmith-6vcpu-macos-15')
     expect(releaseWorkflow.jobs['publish-release'].needs).toContain('build')
     expect(releaseWorkflow.jobs['publish-release'].needs).toContain('build-mac')
+    expect(releaseWorkflow.jobs.build['continue-on-error']).toBe(
+      "${{ github.repository != 'stablyai/orca' && matrix.platform != 'win' }}"
+    )
+    expect(releaseWorkflow.jobs['build-mac']['continue-on-error']).toBe(
+      "${{ github.repository != 'stablyai/orca' }}"
+    )
   })
 
   it('runs the macOS release build in an isolated Blacksmith workflow', () => {
@@ -136,8 +148,11 @@ describe('Electron runtime package contract', () => {
     const releaseMacWorkflow = parse(releaseMacWorkflowText)
     const buildMacJob = releaseMacWorkflow.jobs['build-mac']
     const checkoutStep = buildMacJob.steps.find((step) => step.name === 'Checkout')
-    const publishStep = buildMacJob.steps.find(
-      (step) => step.name === 'Publish release artifacts (macOS)'
+    const signedPublishStep = buildMacJob.steps.find(
+      (step) => step.name === 'Publish signed release artifacts (macOS)'
+    )
+    const unsignedPublishStep = buildMacJob.steps.find(
+      (step) => step.name === 'Publish unsigned release artifacts (macOS)'
     )
 
     expect(releaseMacWorkflow['run-name']).toBe(
@@ -145,11 +160,15 @@ describe('Electron runtime package contract', () => {
     )
     expect(releaseMacWorkflow.on.workflow_dispatch.inputs.tag.required).toBe(true)
     expect(releaseMacWorkflow.on.workflow_dispatch.inputs.release_run_id.required).toBe(true)
-    expect(buildMacJob['runs-on']).toBe('blacksmith-6vcpu-macos-15')
+    expect(buildMacJob['runs-on']).toBe(
+      "${{ github.repository == 'stablyai/orca' && 'blacksmith-6vcpu-macos-15' || 'macos-15' }}"
+    )
     expect(checkoutStep.with.ref).toBe('refs/tags/${{ inputs.tag }}')
-    expect(publishStep.with.command).toContain('ORCA_MAC_RELEASE=1')
-    expect(publishStep.with.command).toContain('electron-builder')
-    expect(publishStep.with.command).toContain('--mac --publish always')
+    expect(signedPublishStep.with.command).toContain('ORCA_MAC_RELEASE=1')
+    expect(signedPublishStep.with.command).toContain('electron-builder')
+    expect(signedPublishStep.with.command).toContain('--mac --publish always')
+    expect(unsignedPublishStep.with.command).toContain('CSC_IDENTITY_AUTO_DISCOVERY=false')
+    expect(unsignedPublishStep.with.command).toContain('--mac --publish always')
     expect(releaseMacWorkflowText).not.toContain('signpath/')
     expect(releaseMacWorkflowText).not.toContain('SIGNPATH_')
   })
@@ -167,11 +186,13 @@ describe('Electron runtime package contract', () => {
     )
     const buildIndex = stepNames.indexOf('Build Windows release artifacts')
     const verifyNodePtyIndex = stepNames.indexOf('Verify Windows node-pty ConPTY runtime')
+    const resolveSigningIndex = stepNames.indexOf('Resolve Windows signing mode')
     const uploadIndex = stepNames.indexOf('Upload unsigned Windows installer for SignPath')
     const downloadIndex = stepNames.indexOf('Download signed Windows installer from SignPath')
 
     expect(verifyNodePtyIndex).toBe(buildIndex + 1)
-    expect(installStepIndexes).toEqual([verifyNodePtyIndex + 1])
+    expect(resolveSigningIndex).toBe(verifyNodePtyIndex + 1)
+    expect(installStepIndexes).toEqual([resolveSigningIndex + 1])
     expect(installStepIndexes[0]).toBeLessThan(uploadIndex)
 
     expect(steps[verifyNodePtyIndex].run).toContain(
@@ -192,7 +213,9 @@ describe('Electron runtime package contract', () => {
       ([, seconds]) => seconds
     )
 
-    expect(installStep.if).toBe("matrix.platform == 'win'")
+    expect(installStep.if).toBe(
+      "matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'"
+    )
     expect(installStep.shell).toBe('pwsh')
     expect(installRun).toContain(
       'if ($null -eq (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue))'
@@ -231,12 +254,14 @@ describe('Electron runtime package contract', () => {
     const stepNames = steps.map((step) => step.name)
     const outerVerifyIndex = stepNames.indexOf('Verify signed Windows installer')
     const innerVerifyIndex = stepNames.indexOf('Verify Windows inner binary signatures')
+    const unsignedVerifyIndex = stepNames.indexOf('Verify unsigned Windows release assets')
     const evidenceIndex = stepNames.indexOf('Upload Windows inner signing evidence')
-    const publishIndex = stepNames.indexOf('Publish signed Windows release artifacts')
+    const publishIndex = stepNames.indexOf('Publish Windows release artifacts')
 
     expect(outerVerifyIndex).toBeGreaterThan(-1)
     expect(innerVerifyIndex).toBe(outerVerifyIndex + 1)
-    expect(evidenceIndex).toBe(innerVerifyIndex + 1)
+    expect(unsignedVerifyIndex).toBe(innerVerifyIndex + 1)
+    expect(evidenceIndex).toBe(unsignedVerifyIndex + 1)
     expect(publishIndex).toBe(evidenceIndex + 1)
 
     // Why fail-open: unsigned inner binaries must warn, not block, until the
@@ -484,7 +509,10 @@ describe('Electron runtime package contract', () => {
     expect(publishReleaseNeeds).toContain('terminal-rendering-golden')
     expect(publishReleaseNeeds).toContain('build')
     expect(publishReleaseNeeds).not.toContain('terminal-rendering-release-evidence')
-    expect(releaseGoldenJob['continue-on-error']).toBeUndefined()
+    expect(releaseGoldenJob['continue-on-error']).toBe(
+      "${{ github.repository != 'stablyai/orca' }}"
+    )
+    expect(releaseWorkflow.jobs['publish-release'].if).toContain("needs.build.result == 'success'")
     expect(releaseGoldenJob.strategy.matrix.include.map(({ platform }) => platform).sort()).toEqual(
       goldenPlatforms
     )

@@ -25,6 +25,7 @@ import {
 } from './updater-fallback'
 import {
   fetchNewerReleaseTagsWithReadiness,
+  getLatestReleaseDownloadUrl,
   getReleaseDownloadUrl
 } from './updater-prerelease-feed'
 import { fetchNudge, shouldApplyNudge } from './updater-nudge'
@@ -1017,7 +1018,7 @@ async function pinDefaultReleaseFeed(
   } else {
     clearPrereleaseFallbackContext()
     clearPublishingWindowLastGoodCheck()
-    const url = 'https://github.com/stablyai/orca/releases/latest/download'
+    const url = getLatestReleaseDownloadUrl()
     console.info(
       `[updater] release feed fallback: current=${currentVersion} includePrerelease=${includePrerelease} → ${url}`
     )
@@ -1404,7 +1405,7 @@ export function setupAutoUpdater(
   // moving /latest redirect changing between check and download.
   autoUpdater.setFeedURL({
     provider: 'generic',
-    url: 'https://github.com/stablyai/orca/releases/latest/download'
+    url: getLatestReleaseDownloadUrl()
   })
 
   if (autoUpdaterInitialized) {
