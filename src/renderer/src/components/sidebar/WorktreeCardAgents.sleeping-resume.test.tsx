@@ -67,12 +67,37 @@ function makeRetainedLaunchedAgent(): DashboardAgentRowData {
   } as unknown as DashboardAgentRowData
 }
 
+function makeRetainedResumableAgent(): DashboardAgentRowData {
+  return {
+    paneKey: 'tab-4:44444444-4444-4444-8444-444444444444',
+    tab: { id: 'tab-4', title: 'Codex', customTitle: null },
+    agentType: 'codex',
+    rowSource: 'retained',
+    state: 'done',
+    startedAt: 20,
+    entry: {
+      paneKey: 'tab-4:44444444-4444-4444-8444-444444444444',
+      state: 'done',
+      prompt: 'implement the sidebar fix',
+      updatedAt: 30,
+      stateStartedAt: 20,
+      stateHistory: [],
+      agentType: 'codex',
+      worktreeId: 'wt-1',
+      tabId: 'tab-4',
+      terminalTitle: 'Codex',
+      providerSession: { key: 'session_id', id: 'codex-session-4' }
+    }
+  } as unknown as DashboardAgentRowData
+}
+
 let capturedActivation: ((tabId: string, paneKey: string) => void) | null = null
 let mockAgents: DashboardAgentRowData[] = []
 
 const storeMocks = vi.hoisted(() => ({
   dismissRetainedAgent: vi.fn(),
-  setActiveTab: vi.fn()
+  setActiveTab: vi.fn(),
+  setActiveTabType: vi.fn()
 }))
 
 const activationMocks = vi.hoisted(() => ({
@@ -84,7 +109,8 @@ const resumeMocks = vi.hoisted(() => ({
 }))
 
 const launchMocks = vi.hoisted(() => ({
-  launchAgentInNewTab: vi.fn()
+  launchAgentInNewTab: vi.fn(),
+  launchSleepingAgentSession: vi.fn()
 }))
 
 vi.mock('@/store', () => ({
@@ -103,6 +129,7 @@ vi.mock('@/store', () => ({
         renameAgentTitle: vi.fn(),
         setTabCustomTitle: vi.fn(),
         setActiveTab: storeMocks.setActiveTab,
+        setActiveTabType: storeMocks.setActiveTabType,
         agentSendPopoverTargetMode: null,
         agentStatusByPaneKey: {},
         agentCustomTitlesByPaneKey: {},
@@ -121,7 +148,9 @@ vi.mock('@/store', () => ({
       getState: () => ({
         tabsByWorktree: {},
         agentStatusByPaneKey: {},
-        setActiveTab: storeMocks.setActiveTab
+        terminalLayoutsByTabId: {},
+        setActiveTab: storeMocks.setActiveTab,
+        setActiveTabType: storeMocks.setActiveTabType
       })
     }
   )
@@ -137,6 +166,10 @@ vi.mock('@/lib/resume-sleeping-agent-session', () => ({
 
 vi.mock('@/lib/launch-agent-in-new-tab', () => ({
   launchAgentInNewTab: launchMocks.launchAgentInNewTab
+}))
+
+vi.mock('@/lib/sleeping-agent-session-launch', () => ({
+  launchSleepingAgentSession: launchMocks.launchSleepingAgentSession
 }))
 
 vi.mock('@/lib/activate-tab-and-focus-pane', () => ({
@@ -193,6 +226,7 @@ describe('WorktreeCardAgents sleeping resume rows', () => {
     capturedActivation?.('tab-2', 'resuming:tab-2')
 
     expect(activationMocks.activateAndRevealWorktree).toHaveBeenCalledWith('wt-1')
+    expect(storeMocks.setActiveTabType).toHaveBeenCalledWith('terminal')
     expect(storeMocks.setActiveTab).toHaveBeenCalledWith('tab-2')
     expect(resumeMocks.resumeSleepingAgentSession).not.toHaveBeenCalled()
   })
@@ -212,5 +246,31 @@ describe('WorktreeCardAgents sleeping resume rows', () => {
       launchSource: 'sidebar'
     })
     expect(storeMocks.dismissRetainedAgent).toHaveBeenCalledWith('launching:tab-3')
+  })
+
+  it('resumes a retained done row when its original terminal tab is gone', async () => {
+    launchMocks.launchSleepingAgentSession.mockReturnValue(true)
+    mockAgents = [makeRetainedResumableAgent()]
+    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+
+    renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
+    capturedActivation?.('tab-4', 'tab-4:44444444-4444-4444-8444-444444444444')
+
+    expect(activationMocks.activateAndRevealWorktree).toHaveBeenCalledWith('wt-1')
+    expect(launchMocks.launchSleepingAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paneKey: 'tab-4:44444444-4444-4444-8444-444444444444',
+        tabId: 'tab-4',
+        worktreeId: 'wt-1',
+        agent: 'codex',
+        prompt: 'implement the sidebar fix',
+        state: 'done',
+        providerSession: { key: 'session_id', id: 'codex-session-4' },
+        origin: 'terminal-close'
+      })
+    )
+    expect(storeMocks.dismissRetainedAgent).toHaveBeenCalledWith(
+      'tab-4:44444444-4444-4444-8444-444444444444'
+    )
   })
 })
