@@ -920,8 +920,35 @@ jobs:
             Get-Item -LiteralPath $file
           }
 
-      - name: Install SignPath PowerShell module
+      - name: Resolve Windows signing mode
+        id: windows-signing-mode
         if: matrix.platform == 'win'
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          $hasSignPath = -not [string]::IsNullOrWhiteSpace($env:SIGNPATH_API_TOKEN)
+          $hasSlack = -not [string]::IsNullOrWhiteSpace($env:SLACK_WEBHOOK_URL)
+          $isOfficial = $env:GITHUB_REPOSITORY -eq 'stablyai/orca'
+
+          if ($hasSignPath -and $hasSlack) {
+            'enabled=true' >> $env:GITHUB_OUTPUT
+            Write-Host 'SignPath signing is enabled for this Windows release.'
+            exit 0
+          }
+
+          if ($isOfficial) {
+            throw 'SIGNPATH_API_TOKEN and SLACK_WEBHOOK_URL secrets are required for official Windows releases.'
+          }
+
+          # Why: forks cannot access Orca's SignPath/Slack secrets, but still
+          # need reproducible release artifacts from the copied official workflow.
+          'enabled=false' >> $env:GITHUB_OUTPUT
+          Write-Host '::warning::SignPath or Slack secrets are missing; publishing unsigned Windows artifacts for this fork release.'
+
+      - name: Install SignPath PowerShell module
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -1052,7 +1079,7 @@ jobs:
 
       - name: Upload unsigned inner binaries for SignPath
         id: upload-unsigned-inner
-        if: matrix.platform == 'win' && steps.stage-inner.outcome == 'success'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true' && steps.stage-inner.outcome == 'success'
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
@@ -1238,7 +1265,7 @@ jobs:
       # ── End Windows inner-binary signing ───────────────────────────────
 
       - name: Upload unsigned Windows installer for SignPath
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         id: upload-unsigned-windows-installer
         uses: actions/upload-artifact@v7
         with:
@@ -1250,7 +1277,7 @@ jobs:
       # so the release job waits while the signing request is approved in UI.
       - name: Submit Windows installer signing request
         id: submit-signing-request
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -1262,7 +1289,7 @@ jobs:
           wait-for-completion: false
 
       - name: Notify Slack that Windows signing is waiting for approval
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         shell: pwsh
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -1301,7 +1328,7 @@ jobs:
           Invoke-RestMethod -Method Post -Uri $env:SLACK_WEBHOOK_URL -ContentType 'application/json' -Body $payload
 
       - name: Download signed Windows installer from SignPath
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         shell: pwsh
         env:
           SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -1319,7 +1346,7 @@ jobs:
           Expand-Archive -Path signed-windows.zip -DestinationPath signed-windows -Force
 
       - name: Stage signed Windows release assets
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         shell: pwsh
         run: |
           $signedInstaller = Get-ChildItem -Path signed-windows -Recurse -File -Filter 'orca-windows-setup.exe' | Select-Object -First 1
@@ -1355,7 +1382,7 @@ jobs:
           Get-Item 'dist/orca-windows-setup.exe', 'dist/orca-windows-setup.exe.blockmap', 'dist/latest.yml'
 
       - name: Verify signed Windows installer
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         shell: pwsh
         run: |
           $signature = Get-AuthenticodeSignature -FilePath 'dist/orca-windows-setup.exe'
@@ -1373,7 +1400,7 @@ jobs:
       # proven on a real release, then flip ORCA_WINDOWS_INNER_SIGNATURE_REQUIRED
       # to 'true' so unsigned inner binaries block the release.
       - name: Verify Windows inner binary signatures
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled == 'true'
         shell: pwsh
         env:
           ORCA_WINDOWS_INNER_SIGNATURE_REQUIRED: 'false'
@@ -1440,6 +1467,12 @@ jobs:
             Write-Host "::warning::Windows inner-binary evidence gate errored: $_ (fail-open, issue #7785)."
           }
 
+      - name: Verify unsigned Windows release assets
+        if: matrix.platform == 'win' && steps.windows-signing-mode.outputs.enabled != 'true'
+        shell: pwsh
+        run: |
+          Get-Item 'dist/orca-windows-setup.exe', 'dist/orca-windows-setup.exe.blockmap', 'dist/latest.yml'
+
       - name: Upload Windows inner signing evidence
         if: always() && matrix.platform == 'win'
         uses: actions/upload-artifact@v7
@@ -1451,7 +1484,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Publish signed Windows release artifacts
+      - name: Publish Windows release artifacts
         if: matrix.platform == 'win'
         uses: nick-fields/retry@v4
         with:
