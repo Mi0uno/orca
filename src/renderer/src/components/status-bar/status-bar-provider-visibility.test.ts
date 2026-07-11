@@ -32,6 +32,10 @@ describe('isProviderConfigured', () => {
     expect(isProviderConfigured(null)).toBe(false)
   })
 
+  it('hides a missing provider snapshot from older or partial rate-limit state', () => {
+    expect(isProviderConfigured(undefined)).toBe(false)
+  })
+
   it('hides an unconfigured (unavailable) provider', () => {
     // The bug: Gemini OAuth off / OpenCode Go cookie unset returns a non-null
     // `unavailable` object, which previously slipped past the `!== null` gate
@@ -225,6 +229,21 @@ describe('getVisibleUsageProvider', () => {
 
     expect(visible).toMatchObject({
       provider: 'codex',
+      status: 'fetching',
+      session: null,
+      weekly: null
+    })
+  })
+
+  it('keeps configured providers visible when their snapshot key is missing', () => {
+    const visible = getVisibleUsageProvider(
+      'grok',
+      undefined,
+      usageSettings({ grokAuthConfigured: true })
+    )
+
+    expect(visible).toMatchObject({
+      provider: 'grok',
       status: 'fetching',
       session: null,
       weekly: null
