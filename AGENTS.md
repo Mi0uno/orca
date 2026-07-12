@@ -22,6 +22,10 @@ Never use vague names like `helpers`, `utils`, `common`, `misc`, or `shared-stuf
 
 Always use the primary working directory (the worktree) for all file reads and edits. Never follow absolute paths from subagent results that point to the main repo.
 
+## Fork Development and Release Workflow
+
+When working on upstream sync, release publishing, updater behavior, Windows builds, or fork-specific CI for this repository, read [`docs/reference/fork-development-release-workflow.md`](./docs/reference/fork-development-release-workflow.md) before making changes or running release commands.
+
 ## Cross-Platform Support
 
 Orca targets macOS, Linux, and Windows. Keep all platform-dependent behavior behind runtime checks:
