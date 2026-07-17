@@ -9221,6 +9221,16 @@
           "availability": "Available on",
           "testFlight": "TestFlight",
           "androidApk": "Android APK"
+        },
+        "RepositoryIssueSourceSection": {
+          "title": "Issue Source",
+          "description": "Choose which repository's issues this fork shows and files against.",
+          "longDescription": "This fork can list and create issues on the upstream project or on your fork. Auto uses upstream when it exists, otherwise your fork. Pull requests are unaffected.",
+          "showingFrom": "Showing issues from {{slug}}",
+          "modeLabel": "Issue source",
+          "auto": "Auto",
+          "upstream": "Upstream",
+          "origin": "Origin"
         }
       },
       "right": {

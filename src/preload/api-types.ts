@@ -108,6 +108,7 @@ import type {
   GitHubWorkItem,
   GitHubWorkItemDetails,
   GitHubViewer,
+  IssueSourcePreference,
   GitLabAssignableUser,
   GitLabAuthDiagnostic,
   GitLabCommentResult,
@@ -1568,6 +1569,9 @@ export type PreloadApi = {
       query?: string
       page?: number
       noCache?: boolean
+      /** Temporary source override (create-worktree panel). When set, main
+       *  resolves against this instead of the repo's persisted preference. */
+      issueSourcePreference?: IssueSourcePreference
     }) => Promise<ListWorkItemsResult<Omit<GitHubWorkItem, 'repoId'>>>
     prChecks: (
       args: GitHubRepoSelectorArgs & {
