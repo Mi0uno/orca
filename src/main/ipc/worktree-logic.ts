@@ -5,6 +5,7 @@ import { isWslUncPath } from '../../shared/wsl-paths'
 import { splitWorktreeId } from '../../shared/worktree-id'
 import { replaceKnownEmojiWithShortcodes } from '../../shared/emoji-shortcode-catalog'
 import { getWslHome, parseWslPath } from '../wsl'
+import { areWorktreePathsEqual } from './worktree-path-comparison'
 
 type WorktreePathSettings = Pick<GlobalSettings, 'nestWorkspaces' | 'workspaceDir'>
 type WorktreeBasePathRepo = Pick<Repo, 'path' | 'worktreeBasePath'>
@@ -15,7 +16,7 @@ export {
   computeValidatedBranchName
 } from './worktree-branch-name'
 export { mergeWorktree } from './worktree-metadata-merge'
-export { areWorktreePathsEqual } from './worktree-path-comparison'
+export { areWorktreePathsEqual }
 
 /**
  * Sanitize a worktree name for use in branch names and directory paths.

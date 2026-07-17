@@ -1,7 +1,12 @@
 const SLASH_CHAR_CODE = '/'.charCodeAt(0)
 
 export function isWindowsAbsolutePathLike(value: string): boolean {
-  return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\') || value.startsWith('//')
+  return (
+    /^[A-Za-z]:[\\/]/.test(value) ||
+    value.startsWith('\\\\') ||
+    value.startsWith('//') ||
+    value.startsWith('\\')
+  )
 }
 
 export function normalizeRuntimePathSeparators(value: string): string {
