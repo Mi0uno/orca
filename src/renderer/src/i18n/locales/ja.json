@@ -10087,6 +10087,16 @@
           "setupRecipe": "クラウドプロバイダー用の環境レシピをセットアップします。",
           "createWorkspace": "ワークスペースを作成し、「実行先」でそのレシピを選択します。",
           "openSetup": "環境レシピをセットアップ"
+        },
+        "RepositoryIssueSourceSection": {
+          "title": "Issue Source",
+          "description": "Choose which repository's issues this fork shows and files against.",
+          "longDescription": "This fork can list and create issues on the upstream project or on your fork. Auto uses upstream when it exists, otherwise your fork. Pull requests are unaffected.",
+          "showingFrom": "Showing issues from {{slug}}",
+          "modeLabel": "Issue source",
+          "auto": "Auto",
+          "upstream": "Upstream",
+          "origin": "Origin"
         }
       },
       "right": {

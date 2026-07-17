@@ -10087,6 +10087,16 @@
           "setupRecipe": "Configura una receta de entorno para tu proveedor de nube.",
           "createWorkspace": "Crea un espacio de trabajo y selecciona esa receta en Ejecutar en.",
           "openSetup": "Configurar recetas de entorno"
+        },
+        "RepositoryIssueSourceSection": {
+          "title": "Issue Source",
+          "description": "Choose which repository's issues this fork shows and files against.",
+          "longDescription": "This fork can list and create issues on the upstream project or on your fork. Auto uses upstream when it exists, otherwise your fork. Pull requests are unaffected.",
+          "showingFrom": "Showing issues from {{slug}}",
+          "modeLabel": "Issue source",
+          "auto": "Auto",
+          "upstream": "Upstream",
+          "origin": "Origin"
         }
       },
       "right": {

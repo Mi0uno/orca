@@ -10107,6 +10107,16 @@
           "description": "用于语音听写的输入设备，系统默认会跟随操作系统的麦克风设置。",
           "accessHint": "允许麦克风访问以列出输入设备。",
           "allowAccess": "允许访问"
+        },
+        "RepositoryIssueSourceSection": {
+          "title": "Issue Source",
+          "description": "Choose which repository's issues this fork shows and files against.",
+          "longDescription": "This fork can list and create issues on the upstream project or on your fork. Auto uses upstream when it exists, otherwise your fork. Pull requests are unaffected.",
+          "showingFrom": "Showing issues from {{slug}}",
+          "modeLabel": "Issue source",
+          "auto": "Auto",
+          "upstream": "Upstream",
+          "origin": "Origin"
         }
       },
       "right": {

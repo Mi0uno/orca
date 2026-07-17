@@ -643,6 +643,19 @@ import {
   type GitLabIssueListState
 } from '../gitlab/gitlab-preload-args'
 import { recordGitLabProjectRecent } from '../gitlab/gitlab-project-recents'
+import type {
+  GitHubIssueUpdate,
+  GitHubPullRequestStateUpdate,
+  GitHubPRFile,
+  GitHubPRReviewCommentInput,
+  GitLabIssueUpdate,
+  GitLabMRInlineCommentInput,
+  GitLabProjectRef,
+  GitLabWorkItem,
+  IssueSourcePreference,
+  ListWorkItemsResult,
+  MRListState
+} from '../../shared/types'
 import { inspectSetupScriptImportCandidates } from '../../shared/setup-script-imports'
 import type {
   CreateHostedReviewInput,
@@ -19295,15 +19308,19 @@ export class OrcaRuntimeService {
     limit?: number,
     query?: string,
     page?: number,
-    noCache?: boolean
+    noCache?: boolean,
+    issueSourcePreferenceOverride?: IssueSourcePreference
   ): Promise<ListWorkItemsResult<MainWorkItem>> {
     const repo = await this.resolveRepoSelector(repoSelector)
+    // Why: an explicit override (create-worktree panel's temporary pick) wins
+    // over the repo's persisted preference without mutating it.
+    const preference = issueSourcePreferenceOverride ?? repo.issueSourcePreference
     return listWorkItems(
       repo.path,
       limit,
       query,
       page,
-      repo.issueSourcePreference,
+      preference,
       repo.connectionId ?? null,
       noCache,
       ...this.getLocalGitExecutionOptionArgs(repo)
@@ -37015,6 +37032,7 @@ async function initializeRuntimeGitRepository(path: string): Promise<{ error: st
     const stepLabel =
       step === 'init' ? 'Failed to initialize git repository' : 'Failed to create initial commit'
     return { error: `${stepLabel}: ${message}` }
+  }
 }
 
 function inferWorktreeIdFromPtyId(ptyId: string): string | null {
