@@ -13,6 +13,7 @@ import type {
   GitHubPRRefreshCandidate,
   GitHubPRRefreshEnqueueResult,
   GitHubPRRefreshReason,
+  IssueSourcePreference,
   PRRefreshOutcome
 } from '../../shared/types'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
@@ -435,15 +436,19 @@ export function registerGitHubHandlers(store: Store, stats: StatsCollector): voi
         query?: string
         page?: number
         noCache?: boolean
+        issueSourcePreference?: IssueSourcePreference
       }
     ) => {
       const repo = assertRegisteredRepo(args, store)
+      // Why: an explicit per-fetch override (create-worktree panel's temporary
+      // pick) wins over the repo's persisted preference without mutating it.
+      const preference = args.issueSourcePreference ?? repo.issueSourcePreference
       return listWorkItems(
         repo.path,
         args.limit,
         args.query,
         args.page,
-        repo.issueSourcePreference,
+        preference,
         repoConnectionId(repo),
         args.noCache,
         ...localGitOptionArgs(store, repo)
