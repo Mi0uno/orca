@@ -63,10 +63,25 @@ export function getRepoDisplayLabelsByPath(
 ): Map<string, string> {
   const labels = new Map<string, string>()
   const itemsByName = new Map<string, RepoDisplayLabelItem[]>()
+  const pathCounts = new Map<string, number>()
+
+  for (const item of items) {
+    const pathKey = normalizeRuntimePathForComparison(item.path)
+    pathCounts.set(pathKey, (pathCounts.get(pathKey) ?? 0) + 1)
+  }
+
+  const setRepoLabel = (item: RepoDisplayLabelItem, label: string): void => {
+    labels.set(getRepoDisplayLabelKey(item), label)
+    // Why: older callers still look up by raw path, but duplicate paths across
+    // hosts cannot share one raw-path value without one repo overwriting another.
+    if ((pathCounts.get(normalizeRuntimePathForComparison(item.path)) ?? 0) === 1) {
+      labels.set(item.path, label)
+    }
+  }
 
   for (const item of items) {
     const displayName = normalizeDisplayName(item)
-    labels.set(getRepoDisplayLabelKey(item), displayName)
+    setRepoLabel(item, displayName)
     const colliding = itemsByName.get(displayName) ?? []
     colliding.push({ ...item, displayName })
     itemsByName.set(displayName, colliding)
@@ -92,7 +107,8 @@ export function getRepoDisplayLabelsByPath(
       nextLabels = collidingItems.map((item) => labelForDepth(item, depth))
     }
     collidingItems.forEach((item, index) => {
-      labels.set(getRepoDisplayLabelKey(item), nextLabels[index] ?? item.displayName)
+      const label = nextLabels[index] ?? item.displayName
+      setRepoLabel(item, label)
     })
   }
 

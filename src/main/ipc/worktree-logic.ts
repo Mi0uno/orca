@@ -4,13 +4,14 @@ import { isWindowsAbsolutePathLike, resolveRuntimePath } from '../../shared/cros
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { splitWorktreeId } from '../../shared/worktree-id'
 import { getWslHome, parseWslPath } from '../wsl'
+import { areWorktreePathsEqual } from './worktree-path-comparison'
 
 type WorktreePathSettings = Pick<GlobalSettings, 'nestWorkspaces' | 'workspaceDir'>
 type WorktreeBasePathRepo = Pick<Repo, 'path' | 'worktreeBasePath' | 'projectHostSetupMethod'>
 
 export { computeBranchName, getConfiguredBranchPrefix } from './worktree-branch-name'
 export { mergeWorktree } from './worktree-metadata-merge'
-export { areWorktreePathsEqual } from './worktree-path-comparison'
+export { areWorktreePathsEqual }
 
 /**
  * Sanitize a worktree name for use in branch names and directory paths.
