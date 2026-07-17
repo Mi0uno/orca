@@ -9268,6 +9268,16 @@
           "howToUseDescription": "Ask an agent working a Linear-linked worktree to read context, post updates, move the ticket, or attach the PR.",
           "terminalTitle": "Linear skill setup",
           "terminalAriaLabel": "Linear skill install terminal"
+        },
+        "RepositoryIssueSourceSection": {
+          "title": "Issue Source",
+          "description": "Choose which repository's issues this fork shows and files against.",
+          "longDescription": "This fork can list and create issues on the upstream project or on your fork. Auto uses upstream when it exists, otherwise your fork. Pull requests are unaffected.",
+          "showingFrom": "Showing issues from {{slug}}",
+          "modeLabel": "Issue source",
+          "auto": "Auto",
+          "upstream": "Upstream",
+          "origin": "Origin"
         }
       },
       "right": {

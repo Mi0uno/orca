@@ -28,6 +28,7 @@ import { getRepositoryPaneSearchEntries } from './repository-search'
 import { RepositoryHostSetupsSection } from './RepositoryHostSetupsSection'
 import { RepoSettingsDraftInput } from './RepositorySettingsDraftInput'
 import { RepositoryForkSyncSection } from './RepositoryForkSyncSection'
+import { RepositoryIssueSourceSection } from './RepositoryIssueSourceSection'
 import { translate } from '@/i18n/i18n'
 import { RepositoryWindowsRuntimeSection } from './RepositoryWindowsRuntimeSection'
 import { matchesRepositoryIdentitySearch } from './repository-identity-search'
@@ -345,6 +346,8 @@ export function RepositoryPane({
               updateRepo={updateSelectedRepo}
               forceVisible={forceFullPaneForRepoMatch}
             />
+
+            <RepositoryIssueSourceSection repo={repo} forceVisible={forceFullPaneForRepoMatch} />
 
             <RepositoryWorktreeDefaultsSection
               repo={repo}

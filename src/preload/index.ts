@@ -28,6 +28,7 @@ import type {
   GitHubCommentResult,
   GitHubCreateIssueResult,
   GitHubWorkItem,
+  IssueSourcePreference,
   JiraProjectStatusOrder,
   GitPushTarget,
   GitStagingArea,
@@ -1335,6 +1336,7 @@ const api = {
       query?: string
       page?: number
       noCache?: boolean
+      issueSourcePreference?: IssueSourcePreference
     }): Promise<ListWorkItemsResult<Omit<GitHubWorkItem, 'repoId'>>> =>
       ipcRenderer.invoke('gh:listWorkItems', args),
 

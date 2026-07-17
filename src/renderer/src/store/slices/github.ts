@@ -214,6 +214,10 @@ type GitHubWorkItemsListArgs = {
   query?: string
   page?: number
   noCache?: true
+  /** Temporary per-fetch source override (create-worktree panel). Forwarded to
+   *  main/runtime so the fetch resolves against that source instead of the
+   *  repo's persisted preference. */
+  issueSourcePreference?: IssueSourcePreference
 }
 
 function settingsForGitHubRepoOwner(
@@ -664,6 +668,14 @@ type FetchOptions = {
   force?: boolean
   noCache?: boolean
   sourceContext?: TaskSourceContext | null
+  /**
+   * Per-fetch issue-source override for the create-worktree panel's temporary
+   * Upstream/Origin pick. When set, it (a) is sent to main so the fetch hits
+   * that source and (b) discriminates the cache key so it never overwrites the
+   * repo's persisted-preference entry the Tasks view reads. `undefined` = use
+   * the repo's stored `issueSourcePreference` (the default everywhere else).
+   */
+  issueSourceOverride?: IssueSourcePreference
 }
 
 type RepoScopedFetchOptions = FetchOptions & {
@@ -789,6 +801,22 @@ export function workItemsCacheKey(
     return hostId !== LOCAL_EXECUTION_HOST_ID ? `${hostId}::${owner}` : owner
   }
   return scope ? `${scope}::${owner}` : owner
+}
+
+/**
+ * Append a source discriminator so a temporary Upstream/Origin override (the
+ * create-worktree panel) caches separately from the repo's persisted-preference
+ * entry. Suffix (not prefix) so `getWorkItemsAnySourcesForRepo`'s primary-key
+ * `startsWith` scan still finds these entries — origin/upstream candidates are
+ * source-independent, so reusing either variant's `sources` is correct.
+ */
+function withIssueSourceOverrideKey(
+  key: string,
+  override: IssueSourcePreference | undefined
+): string {
+  // Why: `'auto'` means "no explicit override" — same as the persisted path,
+  // so it must not create a distinct bucket.
+  return override && override !== 'auto' ? `${key}::__src=${override}` : key
 }
 
 function workItemsInflightRequestKey(
@@ -2001,7 +2029,8 @@ export type GitHubSlice = {
     limit: number,
     query: string,
     repoPath?: string,
-    sourceContext?: TaskSourceContext | null
+    sourceContext?: TaskSourceContext | null,
+    issueSourceOverride?: IssueSourcePreference
   ) => GitHubWorkItem[] | null
   /**
    * Why: the Tasks view header reads sources from the cache to render the
@@ -2715,15 +2744,19 @@ export const createGitHubSlice: StateCreator<AppState, [], [], GitHubSlice> = (s
     applyRowPatch(set, cacheKey, rowId, nextRow)
   },
 
-  getCachedWorkItems: (repoId, limit, query, repoPath, sourceContext) => {
+  getCachedWorkItems: (repoId, limit, query, repoPath, sourceContext, issueSourceOverride) => {
     if (isGitHubWorkItemsQueryTooLarge(query)) {
       return null
     }
     const state = get()
-    const key =
+    const baseKey =
       sourceContext?.provider === 'github'
         ? workItemsCacheKey(repoId, limit, query, getTaskSourceCacheScope(sourceContext))
         : getWorkItemsCacheKeyForOwner(state, repoId, limit, query, repoPath)
+    // Why: match the override-suffixed bucket `fetchWorkItems` writes so the
+    // panel reads back its temporary Upstream/Origin pick, not the persisted
+    // entry the Tasks view populates at a different bucket.
+    const key = withIssueSourceOverrideKey(baseKey, issueSourceOverride)
     return get().workItemsCache[key]?.data ?? null
   },
 
@@ -2768,7 +2801,10 @@ export const createGitHubSlice: StateCreator<AppState, [], [], GitHubSlice> = (s
     )
     const ownerHostId = getGitHubWorkItemSourceHostId(requestState, repo, options?.sourceContext)
     const cacheScope = getGitHubWorkItemSourceCacheScope(requestState, repo, options?.sourceContext)
-    const key = workItemsCacheKey(repoId, limit, query, cacheScope)
+    const key = withIssueSourceOverrideKey(
+      workItemsCacheKey(repoId, limit, query, cacheScope),
+      options?.issueSourceOverride
+    )
     const cached = get().workItemsCache[key]
     if (!options?.force && isFresh(cached, WORK_ITEMS_CACHE_TTL)) {
       return cached.data ?? []
@@ -2801,7 +2837,10 @@ export const createGitHubSlice: StateCreator<AppState, [], [], GitHubSlice> = (s
         const envelope = await listGitHubWorkItemsForRepo(requestContext, {
           limit,
           query: query || undefined,
-          ...(options?.noCache ? { noCache: true } : {})
+          ...(options?.noCache ? { noCache: true } : {}),
+          ...(options?.issueSourceOverride && options.issueSourceOverride !== 'auto'
+            ? { issueSourcePreference: options.issueSourceOverride }
+            : {})
         })
         // Why: stamp repoId at the renderer fetch boundary so every downstream
         // consumer (cross-repo merge, row rendering, drawer) can rely on the

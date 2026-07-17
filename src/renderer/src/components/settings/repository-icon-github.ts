@@ -49,6 +49,16 @@ function resolveRepositorySlugLive(
   )
 }
 
+/** Resolve the repo's `origin` owner/repo on the host that owns it (SSH/runtime
+ *  aware). Exposed for the issue-source setting, which needs the origin slug to
+ *  label the "Origin" choice for forks. */
+export function resolveRepositoryOriginLive(
+  runtimeTarget: RuntimeTarget,
+  repo: Repo
+): Promise<GitHubRepositoryIdentity | null> {
+  return resolveRepositorySlugLive(runtimeTarget, repo)
+}
+
 export async function resolveRepositoryGitHubAvatar(
   runtimeTarget: RuntimeTarget,
   repo: Repo,

@@ -52,6 +52,12 @@ import { getRepoOwnerRoutedSettings } from '@/lib/repo-runtime-owner'
 import { cn } from '@/lib/utils'
 import { LinearIcon } from '@/components/icons/LinearIcon'
 import { JiraIcon } from '@/components/icons/JiraIcon'
+import IssueSourceSelector from '@/components/github/IssueSourceSelector'
+import {
+  recordCreateWorktreeIssueSourcePick,
+  resolveCreateWorktreeIssueSourceDefault,
+  type CreateWorktreeIssueSource
+} from './create-worktree-issue-source-recommendation'
 import { searchRuntimeRepoBaseRefDetails } from '@/runtime/runtime-repo-client'
 import {
   buildSmartWorkspaceSourceRows,
@@ -65,6 +71,7 @@ import {
 import { filterAvailableTaskProviders } from '../../../../shared/task-providers'
 import type {
   BaseRefSearchResult,
+  GitHubOwnerRepo,
   GitHubWorkItem,
   GitLabWorkItem,
   LinearIssue
@@ -79,8 +86,11 @@ import {
 } from './smart-workspace-localized-options'
 import {
   buildTaskSourceContextFromRepo,
+  getTaskSourceRuntimeSettings,
   type TaskSourceContext
 } from '../../../../shared/task-source-context'
+import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { resolveRepositoryOriginLive } from '@/components/settings/repository-icon-github'
 import { parseExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
 
 type RepoOption = ReturnType<typeof useAppStore.getState>['repos'][number]
@@ -287,6 +297,76 @@ export default function SmartWorkspaceNameField({
         : null,
     [selectedRepo]
   )
+  // Why: the Upstream/Origin picker only makes sense against a single repo —
+  // with a cross-repo search there's no one source to toggle. Gate on a lone
+  // repo-backed target (falling back to the selected repo) so forks get the
+  // control without it appearing for multi-repo searches.
+  const issueSourceRepo =
+    repoBackedSearchTargets.length === 1 ? repoBackedSearchTargets[0].repo : selectedRepo
+  // Why: origin/upstream candidates also live on the work-items cache entry
+  // (stamped after the first list fetch), but relying on that alone would hide
+  // the selector until results load — bad UX on a fresh open. So we resolve
+  // both eagerly: upstream from the repo record (`repo.upstream`, already
+  // known) and origin via the SSH-aware live resolver, then fall back to the
+  // cache. Scanned across override buckets by prefix, so a temporary Origin
+  // fetch still surfaces both candidates.
+  const issueSourceCacheSources = useAppStore((s) =>
+    issueSourceRepo
+      ? s.getWorkItemsAnySourcesForRepo(issueSourceRepo.id, RESULT_LIMIT, issueSourceRepo.path)
+      : null
+  )
+  const [resolvedOrigin, setResolvedOrigin] = useState<GitHubOwnerRepo | null>(null)
+  const issueSourceRuntimeTarget = useMemo(
+    () => getActiveRuntimeTarget(getTaskSourceRuntimeSettings(githubSourceContext)),
+    [githubSourceContext]
+  )
+  useEffect(() => {
+    // Why: only forks (upstream present) can diverge, so skip the origin lookup
+    // otherwise — the selector won't render anyway.
+    if (!issueSourceRepo || !issueSourceRepo.upstream) {
+      setResolvedOrigin(null)
+      return
+    }
+    let cancelled = false
+    void resolveRepositoryOriginLive(issueSourceRuntimeTarget, issueSourceRepo)
+      .then((origin) => {
+        if (!cancelled) {
+          setResolvedOrigin(origin)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedOrigin(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [issueSourceRepo, issueSourceRuntimeTarget])
+  const issueSourceUpstream =
+    issueSourceRepo?.upstream ?? issueSourceCacheSources?.upstreamCandidate ?? null
+  const issueSourceOrigin = resolvedOrigin ?? issueSourceCacheSources?.originCandidate ?? null
+  // Why: the panel's source pick is TEMPORARY — it never writes the repo's
+  // persisted `issueSourcePreference` (Tasks/settings own that). We seed from a
+  // per-repo usage tally so "picked more often" becomes the default, and record
+  // each pick to steer the next open. Keyed by repo id so switching the
+  // selected project re-seeds. `null` until a fork repo is resolved.
+  const [issueSourceOverride, setIssueSourceOverride] = useState<CreateWorktreeIssueSource | null>(
+    null
+  )
+  const issueSourceRepoId = issueSourceRepo?.id ?? null
+  useEffect(() => {
+    if (!issueSourceRepoId) {
+      setIssueSourceOverride(null)
+      return
+    }
+    setIssueSourceOverride(
+      resolveCreateWorktreeIssueSourceDefault(
+        issueSourceRepoId,
+        issueSourceRepo?.issueSourcePreference
+      )
+    )
+  }, [issueSourceRepoId, issueSourceRepo?.issueSourcePreference])
   const [mode, setMode] = useState<SmartNameMode>(textOnly ? 'text' : 'smart')
   const [mrStateFilter, setMrStateFilter] = useState<MrStateFilter>('opened')
   const [open, setOpen] = useState(false)
@@ -699,12 +779,20 @@ export default function SmartWorkspaceNameField({
     const query = trimmed ? normalizedGhQuery.query : ''
     if (repoBackedSearchTargets.length === 1) {
       const target = repoBackedSearchTargets[0]
+      // Why: only apply the temporary source override when it targets THIS
+      // fetched repo — `issueSourceRepo` falls back to `selectedRepo`, which
+      // may differ from the single search target in cross-repo-add flows.
+      const overrideForTarget =
+        issueSourceOverride && issueSourceRepoId === target.repo.id
+          ? issueSourceOverride
+          : undefined
       const cached = getCachedWorkItems(
         target.repo.id,
         RESULT_LIMIT,
         query,
         target.repo.path,
-        target.githubSourceContext
+        target.githubSourceContext,
+        overrideForTarget
       )
       if (cached) {
         setGithubItems(cached.slice(0, RESULT_LIMIT))
@@ -713,7 +801,8 @@ export default function SmartWorkspaceNameField({
         setGithubLoading(true)
       }
       void fetchWorkItems(target.repo.id, target.repo.path, RESULT_LIMIT, query, {
-        sourceContext: target.githubSourceContext
+        sourceContext: target.githubSourceContext,
+        issueSourceOverride: overrideForTarget
       })
         .then((items) => {
           if (!stale) {
@@ -775,7 +864,9 @@ export default function SmartWorkspaceNameField({
     githubSourceContext,
     selectedRepo,
     crossRepoSwitchTarget,
-    shouldQueryGithub
+    shouldQueryGithub,
+    issueSourceOverride,
+    issueSourceRepoId
   ])
 
   const branchSearchRequest = useMemo(
@@ -1358,6 +1449,28 @@ export default function SmartWorkspaceNameField({
               ))}
             </TabsList>
           </Tabs>
+          {(mode === 'github' || mode === 'smart') && issueSourceRepo && issueSourceOverride ? (
+            // Why: forks can search issues from either upstream or their own
+            // origin — TEMPORARILY, just for this search. The pick never writes
+            // the repo's persisted preference; it drives this fetch and feeds a
+            // per-repo usage tally that seeds the next open. Pinned to the tab
+            // row (not the results popover) so it's always visible without
+            // opening the dropdown first. Self-suppresses when there's nothing
+            // to toggle (no upstream remote, or origin === upstream), so it
+            // only appears for real forks.
+            <div className="flex shrink-0 items-center pb-1">
+              <IssueSourceSelector
+                preference={issueSourceOverride}
+                origin={issueSourceOrigin}
+                upstream={issueSourceUpstream}
+                density="compact"
+                onChange={(next) => {
+                  setIssueSourceOverride(next)
+                  recordCreateWorktreeIssueSourcePick(issueSourceRepo.id, next)
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       )}
 

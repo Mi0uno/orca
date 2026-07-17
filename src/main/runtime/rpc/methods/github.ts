@@ -11,7 +11,10 @@ const WorkItemsList = RepoSelector.extend({
   limit: OptionalFiniteNumber,
   query: OptionalString,
   page: z.number().int().positive().optional(),
-  noCache: z.boolean().optional()
+  noCache: z.boolean().optional(),
+  // Why: temporary per-fetch source override from the create-worktree panel;
+  // resolved against this instead of the runtime repo's persisted preference.
+  issueSourcePreference: z.enum(['auto', 'upstream', 'origin']).optional()
 })
 
 const IssuesList = RepoSelector.extend({
@@ -307,7 +310,8 @@ export const GITHUB_METHODS: RpcMethod[] = [
         params.limit,
         params.query,
         params.page,
-        params.noCache
+        params.noCache,
+        params.issueSourcePreference
       )
   }),
   defineMethod({
