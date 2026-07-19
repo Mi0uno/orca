@@ -51,11 +51,45 @@ describe('resolveRemoteNodePath', () => {
       '/home/u/.nvm/versions/node/v22.22.0/bin/node'
     )
 
-    expect(execCommandMock.mock.calls[1]![1]).toContain("'/usr/bin/npm' --version")
+    expect(execCommandMock.mock.calls[1]![1]).toContain("PATH='/usr/bin':$PATH npm --version")
     expect(execCommandMock.mock.calls[2]![1]).toContain(
-      "'/home/u/.nvm/versions/node/v22.22.0/bin/npm' --version"
+      "PATH='/home/u/.nvm/versions/node/v22.22.0/bin':$PATH npm --version"
     )
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'accepts npm elsewhere on PATH without probing another Node candidate',
+    async () => {
+      const root = mkdtempSync(path.join(os.tmpdir(), 'orca-split-node-npm-'))
+      try {
+        const nodePath = path.join(root, 'selected node', 'bin', 'node')
+        const npmBinDir = path.join(root, 'npm elsewhere', 'bin')
+        mkdirSync(path.dirname(nodePath), { recursive: true })
+        mkdirSync(npmBinDir, { recursive: true })
+        writeFileSync(nodePath, '#!/bin/sh\nprintf "v22.22.0\\n"\n')
+        writeFileSync(path.join(npmBinDir, 'npm'), '#!/bin/sh\nprintf "11.13.0\\n"\n')
+        chmodSync(nodePath, 0o755)
+        chmodSync(path.join(npmBinDir, 'npm'), 0o755)
+
+        execCommandMock
+          .mockResolvedValueOnce(`${nodePath}\n${path.join(root, 'fallback', 'bin', 'node')}\n`)
+          .mockImplementationOnce((_conn: SshConnection, command: string) =>
+            Promise.resolve(
+              execFileSync('/bin/sh', ['-c', command], {
+                encoding: 'utf8',
+                env: { HOME: root, PATH: npmBinDir }
+              })
+            )
+          )
+
+        await expect(resolveRemoteNodePath(conn)).resolves.toBe(nodePath)
+        // One inventory exec plus one candidate probe keeps SSH startup work bounded.
+        expect(execCommandMock).toHaveBeenCalledTimes(2)
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('probes mise install directories', async () => {
     execCommandMock
@@ -151,32 +185,35 @@ describe('resolveRemoteNodePath', () => {
     expect(callScript.trimEnd()).toMatch(/\ntrue$/)
   })
 
-  it('expands tilde NVM_DIR assignments from shell dotfiles', async () => {
-    execCommandMock
-      .mockResolvedValueOnce('/home/u/.nvm/versions/node/v20.11.0/bin/node\n')
-      .mockResolvedValueOnce('v20.11.0\n')
+  it.runIf(process.platform !== 'win32')(
+    'expands tilde NVM_DIR assignments from shell dotfiles',
+    async () => {
+      execCommandMock
+        .mockResolvedValueOnce('/home/u/.nvm/versions/node/v20.11.0/bin/node\n')
+        .mockResolvedValueOnce('v20.11.0\n')
 
-    await resolveRemoteNodePath(conn)
+      await resolveRemoteNodePath(conn)
 
-    const callScript = execCommandMock.mock.calls[0]![1] as string
-    const home = mkdtempSync(path.join(os.tmpdir(), 'orca-nvm-probe-'))
-    try {
-      const nodePath = path.join(home, 'tilde-nvm/versions/node/v20.11.0/bin/node')
-      mkdirSync(path.dirname(nodePath), { recursive: true })
-      writeFileSync(nodePath, '#!/bin/sh\nprintf "v20.11.0\\n"\n')
-      chmodSync(nodePath, 0o755)
-      writeFileSync(path.join(home, '.zshrc'), 'export NVM_DIR=~/tilde-nvm\n')
+      const callScript = execCommandMock.mock.calls[0]![1] as string
+      const home = mkdtempSync(path.join(os.tmpdir(), 'orca-nvm-probe-'))
+      try {
+        const nodePath = path.join(home, 'tilde-nvm/versions/node/v20.11.0/bin/node')
+        mkdirSync(path.dirname(nodePath), { recursive: true })
+        writeFileSync(nodePath, '#!/bin/sh\nprintf "v20.11.0\\n"\n')
+        chmodSync(nodePath, 0o755)
+        writeFileSync(path.join(home, '.zshrc'), 'export NVM_DIR=~/tilde-nvm\n')
 
-      const output = execFileSync('/bin/sh', ['-c', callScript], {
-        encoding: 'utf8',
-        env: { HOME: home, PATH: '/usr/bin:/bin' }
-      })
+        const output = execFileSync('/bin/sh', ['-c', callScript], {
+          encoding: 'utf8',
+          env: { HOME: home, PATH: '/usr/bin:/bin' }
+        })
 
-      expect(output.split('\n')).toContain(nodePath)
-    } finally {
-      rmSync(home, { recursive: true, force: true })
+        expect(output.split('\n')).toContain(nodePath)
+      } finally {
+        rmSync(home, { recursive: true, force: true })
+      }
     }
-  })
+  )
 
   it('joins probes with newlines, not ||, so a missing dir does not mask later probes', async () => {
     execCommandMock
