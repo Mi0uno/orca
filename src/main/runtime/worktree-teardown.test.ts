@@ -321,7 +321,7 @@ describe('killAllProcessesForWorktree', () => {
 
     const result = await killAllProcessesForWorktree('w1', { runtime, localProvider })
 
-    expect(stopTerminalsForWorktree).toHaveBeenCalledWith('w1', {
+    expect(stopTerminalsForWorktree).toHaveBeenCalledWith('id:w1', {
       deadline: expect.any(Number),
       stopPty: expect.any(Function)
     })
@@ -507,7 +507,10 @@ describe('killAllProcessesForWorktree', () => {
             // The daemon never replies; the request only rejects when its own
             // timeout elapses, exactly like the real client.
             return new Promise((_resolve, reject) => {
-              setTimeout(() => reject(new Error(`Request kill timed out after ${timeoutMs}ms`)), timeoutMs)
+              setTimeout(
+                () => reject(new Error(`Request kill timed out after ${timeoutMs}ms`)),
+                timeoutMs
+              )
             })
           }
           return Promise.resolve({})

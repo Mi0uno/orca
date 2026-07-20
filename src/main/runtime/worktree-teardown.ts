@@ -97,7 +97,7 @@ export async function killAllProcessesForWorktree(
   // may fall through to the provider and registry physical-owner sweeps.
   const runtimeSweep = deps.runtime
     ? settleBeforeDeadline(
-        () => deps.runtime!.stopTerminalsForWorktree(worktreeId, { deadline, stopPty }),
+        () => deps.runtime!.stopTerminalsForWorktree(`id:${worktreeId}`, { deadline, stopPty }),
         { stopped: 0 },
         deadline,
         deps.requirePhysicalStop ? deadlineError : undefined,
