@@ -1062,6 +1062,7 @@ const api = {
         data: string
         seq?: number
         rawLength?: number
+        transformed?: boolean
         background?: boolean
         droppedOutput?: boolean
       }) => void
@@ -1073,6 +1074,7 @@ const api = {
           data: string
           seq?: number
           rawLength?: number
+          transformed?: boolean
           background?: boolean
           droppedOutput?: boolean
         }
