@@ -24981,6 +24981,77 @@ describe('OrcaRuntimeService', () => {
     expect(killed).toBe(false)
   })
 
+  it('stops an explicit graph worktree before Git discovery observes it', async () => {
+    const runtime = new OrcaRuntimeService(store)
+    const pendingWorktreeId = 'repo-1::/tmp/pending-worktree'
+    const kill = vi.fn(() => true)
+    runtime.setPtyController({
+      write: () => true,
+      kill,
+      getForegroundProcess: async () => null
+    })
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, {
+      tabs: [
+        {
+          tabId: 'pending-tab',
+          worktreeId: pendingWorktreeId,
+          title: 'Terminal',
+          activeLeafId: 'pending-pane',
+          layout: null
+        }
+      ],
+      leaves: [
+        {
+          tabId: 'pending-tab',
+          worktreeId: pendingWorktreeId,
+          leafId: 'pending-pane',
+          paneRuntimeId: 1,
+          ptyId: 'pending-pty'
+        }
+      ]
+    })
+    const discoveryCallsBeforeStop = vi.mocked(listWorktrees).mock.calls.length
+
+    await expect(runtime.stopTerminalsForWorktree(`id:${pendingWorktreeId}`)).resolves.toEqual({
+      stopped: 1
+    })
+    expect(kill).toHaveBeenCalledWith('pending-pty')
+    expect(listWorktrees).toHaveBeenCalledTimes(discoveryCallsBeforeStop)
+  })
+
+  it('resolves an active terminal from an explicit graph worktree before Git discovery', async () => {
+    const runtime = new OrcaRuntimeService(store)
+    const pendingWorktreeId = 'repo-1::/tmp/pending-worktree'
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, {
+      tabs: [
+        {
+          tabId: 'pending-tab',
+          worktreeId: pendingWorktreeId,
+          title: 'Terminal',
+          activeLeafId: 'pending-pane',
+          layout: null
+        }
+      ],
+      leaves: [
+        {
+          tabId: 'pending-tab',
+          worktreeId: pendingWorktreeId,
+          leafId: 'pending-pane',
+          paneRuntimeId: 1,
+          ptyId: 'pending-pty'
+        }
+      ]
+    })
+    const discoveryCallsBeforeResolve = vi.mocked(listWorktrees).mock.calls.length
+
+    await expect(runtime.resolveActiveTerminal(`id:${pendingWorktreeId}`)).resolves.toMatch(
+      /^term_/
+    )
+    expect(listWorktrees).toHaveBeenCalledTimes(discoveryCallsBeforeResolve)
+  })
+
   it('awaits physical PTY stop when destructive teardown supplies shared dedupe', async () => {
     const runtime = new OrcaRuntimeService(store)
     const physicalStop = makeDeferred()

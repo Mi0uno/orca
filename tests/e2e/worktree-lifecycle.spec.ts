@@ -159,7 +159,7 @@ test.describe('Worktree Lifecycle', () => {
       .toBe(originalWorktreeId)
 
     const result = await removeWorktreeViaStore(orcaPage, newWorktreeId)
-    expect(result.ok).toBe(true)
+    expect(result).toEqual({ ok: true })
     // Successful removal — afterEach hook no longer needs to clean this up.
     createdWorktreeId = null
 

@@ -13,7 +13,11 @@ import {
   drainPreHandlerPtyData,
   drainPreHandlerPtyExit
 } from './pty-pre-handler-buffer'
-import { deliverPtyExitToHandlers } from './pty-exit-delivery'
+import {
+  deliverPtyExitToHandlers,
+  subscribeToPtyExitSidecar,
+  takePtyExitSidecars
+} from './pty-exit-delivery'
 import {
   clearReceivedPtyCharTotal,
   isPtyPushDeliveryBlackholed,
@@ -42,10 +46,6 @@ export const ptyDataSidecars = new Map<string, Set<(data: string) => void>>()
 /** Per-PTY replay handlers on a dedicated pty:replay channel so the renderer can engage the replay guard and suppress xterm auto-replies. */
 export const ptyReplayHandlers = new Map<string, (data: string) => void>()
 export const ptyExitHandlers = new Map<string, (code: number) => void>()
-const ptyExitSidecars = new Map<
-  string,
-  Set<(code: number, context: { hadPrimary: boolean }) => void>
->()
 /** Per-PTY teardown callbacks that clear closure state which would otherwise fire after the data handler is removed. */
 export const ptyTeardownHandlers = new Map<string, () => void>()
 let ptyDispatcherAttached = false
@@ -201,10 +201,7 @@ function attachPtySecondaryPushListeners(unsubscribes: (() => void)[]): void {
       // Why: main drops its accounting on exit; drop totals too so a reused id restarts at zero on both sides.
       clearProcessedPtyCharTotal(payload.id)
       clearReceivedPtyCharTotal(payload.id)
-      const sidecars = ptyExitSidecars.get(payload.id)
-      if (sidecars) {
-        ptyExitSidecars.delete(payload.id)
-      }
+      const sidecars = takePtyExitSidecars(payload.id)
       const primary = ptyExitHandlers.get(payload.id)
       if (primary) {
         // Why: one-shot owner — remove before invoking so a throwing callback can't stay registered for a duplicate exit.
@@ -214,7 +211,7 @@ function attachPtySecondaryPushListeners(unsubscribes: (() => void)[]): void {
         ptyId: payload.id,
         code: payload.code,
         ...(primary ? { primary } : {}),
-        sidecars: sidecars ? Array.from(sidecars) : []
+        sidecars
       })
     })
   )
@@ -237,22 +234,7 @@ export function subscribeToPtyExit(
   watcher: (code: number, context: { hadPrimary: boolean }) => void
 ): () => void {
   ensurePtyDispatcher()
-  let set = ptyExitSidecars.get(ptyId)
-  if (!set) {
-    set = new Set()
-    ptyExitSidecars.set(ptyId, set)
-  }
-  set.add(watcher)
-  return () => {
-    const current = ptyExitSidecars.get(ptyId)
-    if (!current) {
-      return
-    }
-    current.delete(watcher)
-    if (current.size === 0) {
-      ptyExitSidecars.delete(ptyId)
-    }
-  }
+  return subscribeToPtyExitSidecar(ptyId, watcher, () => ptyExitHandlers.has(ptyId))
 }
 
 // ─── Eager PTY buffer for reconnection on restart ────────────────────

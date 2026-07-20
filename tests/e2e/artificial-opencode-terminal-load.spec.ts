@@ -146,7 +146,8 @@ const MAX_TIMER_DRIFT_MS = 250
 // the real baseline.
 const MAX_TIMER_DRIFT_UNDER_LOAD_MS = 2_500
 const MAX_SCROLL_LATENCY_MS = 150
-const MAX_RENDERER_SCHEDULER_QUEUED_CHARS = 3 * 1024 * 1024
+// Why: aggregate sampling can catch the sibling scenario's 5 MiB budget plus one 128 KiB flush; 6 MiB still rejects sustained growth.
+const MAX_RENDERER_SCHEDULER_QUEUED_CHARS = 6 * 1024 * 1024
 
 function readPositiveInt(name: string, fallback: number): number {
   const raw = process.env[name]
@@ -482,7 +483,7 @@ async function runConfiguredMainPressureScenario({
     testRepoPath,
     maxMedianKeyLatencyMs: MAX_MEDIAN_KEY_LATENCY_MS,
     maxScrollLatencyMs: MAX_SCROLL_LATENCY_MS,
-    maxTimerDriftMs: MAX_TIMER_DRIFT_MS,
+    maxTimerDriftMs: MAX_TIMER_DRIFT_UNDER_LOAD_MS,
     maxWorstKeyLatencyMs: MAX_WORST_KEY_LATENCY_UNDER_LOAD_MS,
     deps: terminalLoadScenarioDeps
   })

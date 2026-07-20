@@ -499,7 +499,12 @@ export function ensureWorktreeHasInitialTerminal(
     return null
   }
 
-  if (!shouldAutoCreateInitialTerminal(renderableTabCount)) {
+  const initialTerminalAlreadyApplied =
+    store.defaultTerminalTabsAppliedByWorktreeId[worktreeId] === true
+  if (renderableTabCount > 0 && !initialTerminalAlreadyApplied) {
+    store.markDefaultTerminalTabsApplied(worktreeId)
+  }
+  if (!shouldAutoCreateInitialTerminal(renderableTabCount, initialTerminalAlreadyApplied)) {
     const existingTerminalTabId = store.tabsByWorktree[worktreeId]?.[0]?.id
     if (existingTerminalTabId && (setup || issueCommand)) {
       // Why: main may have adopted the startup tab but failed to spawn setup; renderer must still launch the returned fallback setup.
@@ -529,6 +534,10 @@ export function ensureWorktreeHasInitialTerminal(
   )
   if (templatedTabId) {
     return templatedTabId
+  }
+
+  if (!defaultTabs) {
+    store.markDefaultTerminalTabsApplied(worktreeId)
   }
 
   // Why: tag this activation-created tab so its PTY spawn doesn't count as activity and reshuffle the Recent sort.

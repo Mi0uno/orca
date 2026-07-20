@@ -52,7 +52,8 @@ describe('filesystem-list-files real git fallback', () => {
 
   afterEach(async () => {
     if (tempDir) {
-      await rm(tempDir, { recursive: true, force: true })
+      // Why: canceled Git siblings can briefly retain repo handles on Windows.
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 })
       tempDir = null
     }
     vi.clearAllMocks()

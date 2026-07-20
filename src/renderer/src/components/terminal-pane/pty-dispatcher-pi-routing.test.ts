@@ -334,6 +334,18 @@ describe('dispatcher → transport → onTitleChange for Pi spinner', () => {
     expect(duplicateExit).not.toHaveBeenCalled()
   })
 
+  it('delivers a buffered exit to a sidecar registered after the PTY exits', async () => {
+    const { ensurePtyDispatcher, subscribeToPtyExit } = await import('./pty-dispatcher')
+    const sidecar = vi.fn()
+
+    ensurePtyDispatcher()
+    exitDispatcherCallback?.({ id: 'pty-parked-fast-exit', code: 7 })
+    subscribeToPtyExit('pty-parked-fast-exit', sidecar)
+    await Promise.resolve()
+
+    expect(sidecar).toHaveBeenCalledWith(7, { hadPrimary: false })
+  })
+
   it('finalizes a throwing primary exit and still delivers every sidecar', async () => {
     const { ensurePtyDispatcher, ptyExitHandlers, subscribeToPtyExit } =
       await import('./pty-dispatcher')

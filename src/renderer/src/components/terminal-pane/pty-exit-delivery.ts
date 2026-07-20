@@ -1,14 +1,58 @@
 import {
   bufferPreHandlerPtyExit,
   clearPreHandlerPtyState,
-  consumePreHandlerPtyState
+  consumePreHandlerPtyState,
+  drainPreHandlerPtyExit
 } from './pty-pre-handler-buffer'
+
+type PtyExitSidecar = (code: number, context: { hadPrimary: boolean }) => void
+
+const ptyExitSidecars = new Map<string, Set<PtyExitSidecar>>()
+
+export function takePtyExitSidecars(ptyId: string): PtyExitSidecar[] {
+  const sidecars = ptyExitSidecars.get(ptyId)
+  if (!sidecars) {
+    return []
+  }
+  ptyExitSidecars.delete(ptyId)
+  return Array.from(sidecars)
+}
+
+export function subscribeToPtyExitSidecar(
+  ptyId: string,
+  watcher: PtyExitSidecar,
+  hasPrimary: () => boolean
+): () => void {
+  let set = ptyExitSidecars.get(ptyId)
+  if (!set) {
+    set = new Set()
+    ptyExitSidecars.set(ptyId, set)
+  }
+  set.add(watcher)
+  const unsubscribe = (): void => {
+    const current = ptyExitSidecars.get(ptyId)
+    current?.delete(watcher)
+    if (current?.size === 0) {
+      ptyExitSidecars.delete(ptyId)
+    }
+  }
+  queueMicrotask(() => {
+    if (!ptyExitSidecars.get(ptyId)?.has(watcher) || hasPrimary()) {
+      return
+    }
+    drainPreHandlerPtyExit(ptyId, (code) => {
+      unsubscribe()
+      watcher(code, { hadPrimary: false })
+    })
+  })
+  return unsubscribe
+}
 
 type PtyExitDelivery = {
   ptyId: string
   code: number
   primary?: (code: number) => void
-  sidecars: readonly ((code: number, context: { hadPrimary: boolean }) => void)[]
+  sidecars: readonly PtyExitSidecar[]
 }
 
 /** Delivers one exit to its primary owner and every observational sidecar. */

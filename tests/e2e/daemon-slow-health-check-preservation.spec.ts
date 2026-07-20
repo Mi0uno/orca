@@ -83,11 +83,14 @@ test('preserves a live daemon PTY when the daemon is too slow for the startup he
       }
     }, RESUME_DAEMON_AFTER_MS)
     try {
-      const secondLaunch = await session.launch()
-      secondApp = secondLaunch.app
-      secondApp.process().stderr?.on('data', (chunk: Buffer) => {
-        stderrLines.push(chunk.toString())
+      const secondLaunch = await session.launch({
+        onAppLaunched: (app) => {
+          app.process().stderr?.on('data', (chunk: Buffer) => {
+            stderrLines.push(chunk.toString())
+          })
+        }
       })
+      secondApp = secondLaunch.app
 
       await waitForSessionReady(secondLaunch.page)
       await expect

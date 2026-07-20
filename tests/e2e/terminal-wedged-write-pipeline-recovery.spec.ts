@@ -21,28 +21,34 @@ import {
 async function wedgeActivePaneWritePipeline(
   page: Parameters<typeof waitForSessionReady>[0]
 ): Promise<void> {
-  await page.evaluate(() => {
-    const state = window.__store?.getState()
-    const worktreeId = state?.activeWorktreeId
-    const tabId =
-      state?.activeTabType === 'terminal'
-        ? state.activeTabId
-        : worktreeId
-          ? (state?.activeTabIdByWorktree?.[worktreeId] ?? null)
-          : null
-    const manager = tabId ? window.__paneManagers?.get(tabId) : null
-    const pane = manager?.getActivePane?.() ?? manager?.getPanes?.()[0] ?? null
-    if (!pane) {
-      throw new Error('No active terminal pane to wedge')
-    }
-    // Same escape class as issue #2836: WriteBuffer._innerWrite invokes write
-    // callbacks with no try/catch; a synchronous throw skips the loop's tail
-    // re-schedule and write() only re-arms on an EMPTY buffer, so the pipeline
-    // never drains again.
-    pane.terminal.write('', () => {
-      throw new Error('e2e: simulated unguarded write-completion throw')
+  try {
+    await page.evaluate(() => {
+      const state = window.__store?.getState()
+      const worktreeId = state?.activeWorktreeId
+      const tabId =
+        state?.activeTabType === 'terminal'
+          ? state.activeTabId
+          : worktreeId
+            ? (state?.activeTabIdByWorktree?.[worktreeId] ?? null)
+            : null
+      const manager = tabId ? window.__paneManagers?.get(tabId) : null
+      const pane = manager?.getActivePane?.() ?? manager?.getPanes?.()[0] ?? null
+      if (!pane) {
+        throw new Error('No active terminal pane to wedge')
+      }
+      // Same escape class as issue #2836: WriteBuffer._innerWrite invokes write
+      // callbacks with no try/catch; a synchronous throw skips the loop's tail
+      // re-schedule and write() only re-arms on an EMPTY buffer, so the pipeline
+      // never drains again.
+      pane.terminal.write('', () => {
+        throw new Error('e2e: simulated unguarded write-completion throw')
+      })
     })
-  })
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes('simulated unguarded')) {
+      throw error
+    }
+  }
 }
 
 test.describe('Wedged terminal write pipeline recovery', () => {

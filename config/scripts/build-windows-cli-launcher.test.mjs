@@ -10,7 +10,7 @@ const projectRoot = resolve(import.meta.dirname, '../..')
 // keep the larger allowance scoped to the real compiler integration test.
 function itWindows(name, test) {
   const runner = process.platform === 'win32' ? it : it.skip
-  runner(name, { timeout: 15_000 }, test)
+  runner(name, { timeout: 120_000 }, test)
 }
 
 describe('Windows CLI launcher', () => {

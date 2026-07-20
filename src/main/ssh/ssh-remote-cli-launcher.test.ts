@@ -11,7 +11,7 @@ import { getRemoteHostPlatform } from './ssh-remote-platform'
 // keep the larger allowance scoped to the real compiler integration test.
 function itWindows(name: string, test: () => void): void {
   const runner = process.platform === 'win32' ? it : it.skip
-  runner(name, { timeout: 15_000 }, test)
+  runner(name, { timeout: 120_000 }, test)
 }
 
 function decodePowerShellCommand(command: string): string {

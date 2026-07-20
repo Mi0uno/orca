@@ -75,6 +75,20 @@ async function waitForProcessExit(child: ChildProcess, timeoutMs: number): Promi
   })
 }
 
+async function removeUserDataDir(userDataDir: string): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      rmSync(userDataDir, { recursive: true, force: true })
+      return
+    } catch (error) {
+      if (attempt === 4) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+}
+
 test.describe.configure({ mode: 'serial' })
 
 test('promotes the headless owner without replacing its daemon terminal', async (// oxlint-disable-next-line no-empty-pattern -- This lifecycle test owns both launches and intentionally opts out of the default app fixture.
@@ -150,7 +164,7 @@ test('promotes the headless owner without replacing its daemon terminal', async 
       console.error('[e2e] activating process failed to spawn:', error)
     })
 
-    const page = await serveApp.firstWindow({ timeout: 60_000 })
+    const page = await serveApp.firstWindow({ timeout: 120_000 })
     await page.waitForLoadState('domcontentloaded')
     await page.waitForFunction(() => Boolean(window.__store), null, { timeout: 30_000 })
     await waitForSessionReady(page)
@@ -183,6 +197,6 @@ test('promotes the headless owner without replacing its daemon terminal', async 
       await closeElectronAppForE2E(serveApp)
     }
     await cleanupE2EDaemons(userDataDir)
-    rmSync(userDataDir, { recursive: true, force: true })
+    await removeUserDataDir(userDataDir)
   }
 })

@@ -124,8 +124,10 @@ describe('rebuild-native-deps Electron install fallback', () => {
 })
 
 describe('rebuild-native-deps patched node-pty rebuild', () => {
+  // Why: the real Electron runtime probe can exceed the unit-test budget on a cold Windows host.
   it.skipIf(process.platform !== 'win32')(
     'repairs a missing ConPTY runtime before probing without recompiling node-pty',
+    { timeout: 120_000 },
     () => {
       const projectDir = mkTempProject()
 

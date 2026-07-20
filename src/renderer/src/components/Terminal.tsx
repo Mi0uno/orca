@@ -259,6 +259,10 @@ function Terminal(): React.JSX.Element | null {
     [allWorktrees, folderWorkspaces]
   )
   const activeWorktreeId = useAppStore((s) => s.activeWorktreeId)
+  const initialTerminalAlreadyApplied = useAppStore((s) =>
+    activeWorktreeId ? s.defaultTerminalTabsAppliedByWorktreeId[activeWorktreeId] === true : false
+  )
+  const markDefaultTerminalTabsApplied = useAppStore((s) => s.markDefaultTerminalTabsApplied)
   const renderedActiveWorktreeId = activeWorktreeId
   const activeWorktreeDeferralHostId = useAppStore((s) =>
     getResolvedExecutionHostIdForWorktree(s, renderedActiveWorktreeId)
@@ -1134,12 +1138,26 @@ function Terminal(): React.JSX.Element | null {
 
     // Why: give a newly activated worktree a focusable surface when nothing renders, without recreating one after the user closes the last visible tab.
     const { renderableTabCount } = reconcileWorktreeTabModel(activeWorktreeId)
-    if (!shouldAutoCreateInitialTerminal(renderableTabCount)) {
+    if (renderableTabCount > 0) {
+      if (!initialTerminalAlreadyApplied) {
+        markDefaultTerminalTabsApplied(activeWorktreeId)
+      }
       return
     }
+    if (!shouldAutoCreateInitialTerminal(renderableTabCount, initialTerminalAlreadyApplied)) {
+      return
+    }
+    markDefaultTerminalTabsApplied(activeWorktreeId)
     // Why: tag this never-visited-worktree tab so its PTY spawn doesn't count as activity and reshuffle the sidebar (explicit New Tab still bumps).
     createTab(activeWorktreeId, undefined, undefined, { pendingActivationSpawn: true })
-  }, [workspaceSessionReady, activeWorktreeId, createTab, reconcileWorktreeTabModel])
+  }, [
+    workspaceSessionReady,
+    activeWorktreeId,
+    createTab,
+    initialTerminalAlreadyApplied,
+    markDefaultTerminalTabsApplied,
+    reconcileWorktreeTabModel
+  ])
 
   const startupResumeWorktreeIdsRef = useRef(new Set<string>())
   useEffect(() => {

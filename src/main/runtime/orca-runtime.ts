@@ -11332,9 +11332,12 @@ export class OrcaRuntimeService {
   // Why: when --terminal is omitted, the CLI auto-resolves to the active
   // terminal in the current worktree — matching browser's implicit active tab.
   async resolveActiveTerminal(worktreeSelector?: string): Promise<string> {
+    const explicitWorktreeId = worktreeSelector
+      ? this.getValidatedExplicitWorktreeIdSelector(worktreeSelector)
+      : null
     if (this.graphStatus !== 'ready') {
       const targetWorktreeId = worktreeSelector
-        ? (await this.resolveWorktreeSelector(worktreeSelector)).id
+        ? (explicitWorktreeId ?? (await this.resolveWorktreeSelector(worktreeSelector)).id)
         : null
       const snapshots = targetWorktreeId
         ? [this.getMobileSessionTabsForWorktree(targetWorktreeId)]
@@ -11361,7 +11364,7 @@ export class OrcaRuntimeService {
     this.assertGraphReady()
 
     const targetWorktreeId = worktreeSelector
-      ? (await this.resolveWorktreeSelector(worktreeSelector)).id
+      ? (explicitWorktreeId ?? (await this.resolveWorktreeSelector(worktreeSelector)).id)
       : null
 
     // Prefer the tab's activeLeafId — this is the pane the user last focused
@@ -20413,19 +20416,21 @@ export class OrcaRuntimeService {
   ): Promise<{ stopped: number }> {
     // Why: this mutates live PTYs, so reject while the graph is reloading rather than act on cached leaf ownership.
     const graphEpoch = this.captureReadyGraphEpoch()
-    const worktree = await this.resolveWorktreeSelector(worktreeSelector)
+    const explicitWorktreeId = this.getValidatedExplicitWorktreeIdSelector(worktreeSelector)
+    const worktreeId =
+      explicitWorktreeId ?? (await this.resolveWorktreeSelector(worktreeSelector)).id
     this.assertStableReadyGraph(graphEpoch)
     if (options.deadline !== undefined && Date.now() >= options.deadline) {
       return { stopped: 0 }
     }
     const ptyIds = new Set<string>()
     for (const leaf of this.leaves.values()) {
-      if (leaf.worktreeId === worktree.id && leaf.ptyId) {
+      if (leaf.worktreeId === worktreeId && leaf.ptyId) {
         ptyIds.add(leaf.ptyId)
       }
     }
     for (const pty of this.ptysById.values()) {
-      if (pty.worktreeId === worktree.id && pty.connected) {
+      if (pty.worktreeId === worktreeId && pty.connected) {
         ptyIds.add(pty.ptyId)
       }
     }

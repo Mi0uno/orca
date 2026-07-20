@@ -73,7 +73,7 @@ async function createLinkedWorktreeFixture(): Promise<{
   return { mainPath, siblingPath }
 }
 
-test.afterEach(() => {
+test.afterAll(() => {
   for (const root of tempRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true })
   }
@@ -147,9 +147,9 @@ test.describe('Add project default checkout', () => {
     await orcaPage.evaluate((folderPath) => {
       window.__store?.getState().openModal('confirm-add-project-from-folder', { folderPath })
     }, fixture.mainPath)
-    const addProjectDialog = orcaPage.getByRole('dialog', { name: /^Add Project$/i })
+    const addProjectDialog = orcaPage.getByRole('dialog').filter({ hasText: fixture.mainPath })
     await expect(addProjectDialog).toBeVisible()
-    await addProjectDialog.getByRole('button', { name: /^Add Project$/ }).click()
+    await addProjectDialog.locator('button:has(svg.lucide-folder-plus)').click()
 
     await expect(addProjectDialog).toBeHidden()
     await expect(orcaPage.getByRole('dialog', { name: /Repo added/i })).toBeHidden()
@@ -158,12 +158,12 @@ test.describe('Add project default checkout', () => {
     await expect
       .poll(
         () =>
-          orcaPage.evaluate((mainPath) => {
+          orcaPage.evaluate((repoName) => {
             const state = window.__store?.getState()
             if (!state) {
               return null
             }
-            const repo = state.repos.find((candidate) => candidate.path === mainPath)
+            const repo = state.repos.find((candidate) => candidate.displayName === repoName)
             if (!repo) {
               return null
             }
@@ -175,7 +175,7 @@ test.describe('Add project default checkout', () => {
               visibleBranches: worktrees.map((worktree) => worktree.branch).sort(),
               visibleCount: worktrees.length
             }
-          }, fixture.mainPath),
+          }, path.basename(fixture.mainPath)),
         {
           timeout: 30_000,
           message: 'linked worktrees were not revealed before opening the default checkout'

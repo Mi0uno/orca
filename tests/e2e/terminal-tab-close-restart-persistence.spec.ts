@@ -54,6 +54,23 @@ test('durable whole-tab close removes a split tab across restart', async (// oxl
       throw new Error('First launch did not expose an active terminal tab')
     }
     expect(await getWorktreeTabs(firstLaunch.page, worktreeId)).toHaveLength(1)
+    await expect
+      .poll(() =>
+        firstLaunch.page.evaluate(
+          (id) => window.__store?.getState().defaultTerminalTabsAppliedByWorktreeId[id] === true,
+          worktreeId
+        )
+      )
+      .toBe(true)
+    await expect
+      .poll(() =>
+        firstLaunch.page.evaluate(
+          async (id) =>
+            (await window.api.session.get()).defaultTerminalTabsAppliedByWorktreeId?.[id] === true,
+          worktreeId
+        )
+      )
+      .toBe(true)
 
     const client = new RuntimeClient(session.userDataDir, 30_000)
     const active = await client.call<{ handle: string }>('terminal.resolveActive', {
@@ -93,6 +110,12 @@ test('durable whole-tab close removes a split tab across restart', async (// oxl
     const secondLaunch = await session.launch()
     secondApp = secondLaunch.app
     await waitForSessionReady(secondLaunch.page)
+    expect(
+      await secondLaunch.page.evaluate(
+        (id) => window.__store?.getState().defaultTerminalTabsAppliedByWorktreeId[id] === true,
+        worktreeId
+      )
+    ).toBe(true)
     const restoredWorktreeId = await attachRepoAndOpenTerminal(secondLaunch.page, repoPath)
     expect(restoredWorktreeId).toBe(worktreeId)
 

@@ -95,6 +95,7 @@ describe('ensureWorktreeHasInitialTerminal', () => {
       pendingActivationSpawn: true
     })
     expect(store.setActiveTab).toHaveBeenCalledWith('tab-1')
+    expect(store.markDefaultTerminalTabsApplied).toHaveBeenCalledWith('wt-1')
     expect(store.queueTabStartupCommand).not.toHaveBeenCalled()
     expect(store.queueTabSetupSplit).not.toHaveBeenCalled()
   })
@@ -208,7 +209,7 @@ describe('ensureWorktreeHasInitialTerminal', () => {
       ]
     })
 
-    expect(store.createTab).toHaveBeenCalledTimes(1)
+    expect(store.createTab).not.toHaveBeenCalled()
     expect(store.setTabCustomTitle).not.toHaveBeenCalledWith('tab-1', 'Claude', {
       recordInteraction: false
     })
@@ -350,6 +351,7 @@ describe('ensureWorktreeHasInitialTerminal', () => {
     expect(store.queueTabStartupCommand).not.toHaveBeenCalled()
     expect(store.queueTabSetupSplit).not.toHaveBeenCalled()
     expect(store.queueTabIssueCommandSplit).not.toHaveBeenCalled()
+    expect(store.markDefaultTerminalTabsApplied).toHaveBeenCalledWith('wt-1')
   })
 
   it('queues returned setup on an existing terminal tab when startup was already adopted', () => {
