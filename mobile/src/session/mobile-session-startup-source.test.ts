@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 const source = readFileSync(
   new URL('../../app/h/[hostId]/session/[worktreeId].tsx', import.meta.url),
   'utf8'
-)
+).replaceAll('\r\n', '\n')
 const reconciliationHookSource = readFileSync(
   new URL('./use-mobile-session-tabs-reconciliation.ts', import.meta.url),
   'utf8'

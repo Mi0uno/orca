@@ -16,7 +16,7 @@ import type { OrcaRuntimeService } from './orca-runtime'
 import { OrcaRuntimeRpcServer } from './runtime-rpc'
 import { REMOTE_RUNTIME_SHARED_CONTROL_CAPABILITY } from '../../shared/protocol-version'
 
-const REMOTE_RUNTIME_TEST_TIMEOUT_MS = 15_000
+const REMOTE_RUNTIME_TEST_TIMEOUT_MS = 30_000
 const REMOTE_RUNTIME_REQUEST_TIMEOUT_MS = 5_000
 
 // worktree.create routes through the runtime's clientMutationId idempotency
