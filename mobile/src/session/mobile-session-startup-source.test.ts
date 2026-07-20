@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 const source = readFileSync(
   new URL('../../app/h/[hostId]/session/[worktreeId].tsx', import.meta.url),
   'utf8'
-)
+).replaceAll('\r\n', '\n')
 
 function sliceBetween(startPattern: string, endPattern: string): string {
   const start = source.indexOf(startPattern)

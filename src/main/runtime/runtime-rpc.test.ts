@@ -1044,7 +1044,7 @@ describe('OrcaRuntimeRpcServer', () => {
       disconnectSpy.mockRestore()
       await server.stop()
     }
-  }, 15_000)
+  })
 
   it('does not revoke runtime-scoped devices through mobile revocation', async () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-rpc-'))
@@ -1113,7 +1113,7 @@ describe('OrcaRuntimeRpcServer', () => {
     } finally {
       await server.stop()
     }
-  }, 15_000)
+  })
 
   it('rotates unused runtime pairing links without revoking already-used grants', async () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-rpc-'))
@@ -1169,7 +1169,7 @@ describe('OrcaRuntimeRpcServer', () => {
     } finally {
       await server.stop()
     }
-  }, 15_000)
+  })
 
   it('caps WebSocket long-polls and aborts them when the socket closes', async () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-rpc-'))
