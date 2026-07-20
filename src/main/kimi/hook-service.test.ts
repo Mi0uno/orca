@@ -1,14 +1,27 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as osModule from 'node:os'
 import { KimiHookService } from './hook-service'
 import { KIMI_HOOK_EVENTS } from './kimi-hook-config-toml'
+
+const { homedirMock } = vi.hoisted(() => ({
+  homedirMock: vi.fn<() => string>()
+}))
+
+vi.mock('os', async (importOriginal) => {
+  const actual = await importOriginal<typeof osModule>()
+  return {
+    ...actual,
+    homedir: homedirMock.mockImplementation(actual.homedir)
+  }
+})
 
 // Why: getSharedManagedScriptPath() writes the managed script under
 // homedir()/.orca, and getKimiHome() honors KIMI_CODE_HOME. Point both at a
 // temp dir so the local install/remove cycle never touches the real ~/.orca or
-// ~/.kimi-code. os.homedir() resolves $HOME on POSIX (verified at write time).
+// ~/.kimi-code.
 let home: string
 let originalHome: string | undefined
 let originalKimiHome: string | undefined
@@ -18,6 +31,7 @@ beforeEach(() => {
   originalHome = process.env.HOME
   originalKimiHome = process.env.KIMI_CODE_HOME
   process.env.HOME = home
+  homedirMock.mockReturnValue(home)
   process.env.KIMI_CODE_HOME = join(home, '.kimi-code')
 })
 

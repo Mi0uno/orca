@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { join, sep } from 'node:path'
+import { posix } from 'node:path'
 import type { GlobalSettings, Repo } from '../../shared/types'
 import type { WorktreeBasePollEvent } from './worktree-base-directory-poller'
 
@@ -45,7 +45,8 @@ type PollerCallback = (events: WorktreeBasePollEvent[]) => void
 
 const watcherCallbacks = new Map<string, PollerCallback>()
 const unsubscribeMocks = new Map<string, ReturnType<typeof vi.fn>>()
-const absolutePath = (...parts: string[]): string => join(sep, ...parts)
+const join = posix.join
+const absolutePath = (...parts: string[]): string => posix.join('/', ...parts)
 const WORKTREE_ROOT = absolutePath('workspace', 'worktrees')
 const PROJECT_ROOT = absolutePath('workspace', 'projects', 'project')
 const PROJECT_GIT_COMMON_DIR = join(PROJECT_ROOT, '.git')

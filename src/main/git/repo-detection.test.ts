@@ -17,6 +17,10 @@ function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] })
 }
 
+function expectedRepoRoot(path: string): string {
+  return path.replace(/\\/g, '/')
+}
+
 describe('isGitRepo', () => {
   let tmpDir: string
 
@@ -75,7 +79,7 @@ describe('isGitRepo', () => {
     git(realRepo, ['init', '--quiet'])
 
     withGitUnavailable(() => {
-      expect(getGitRepoRoot(nestedDir)).toBe(realRepo)
+      expect(getGitRepoRoot(nestedDir)).toBe(expectedRepoRoot(realRepo))
     })
   })
 
@@ -325,7 +329,7 @@ describe('isGitRepo', () => {
     const bareRepo = path.join(tmpDir, 'bare.git')
     git(tmpDir, ['init', '--bare', '--quiet', bareRepo])
 
-    expect(getGitRepoRoot(bareRepo)).toBe(bareRepo)
+    expect(getGitRepoRoot(bareRepo)).toBe(expectedRepoRoot(bareRepo))
   })
 })
 

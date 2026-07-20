@@ -117,8 +117,8 @@ describe('PullRequestPage host boundaries', () => {
     expect(source).toContain('sourceContext,')
     expect(cacheKeySection).toContain('sourceCacheScope')
     expect(source).toContain('getTaskSourceCacheScope(sourceContext)')
-    expect(matchInvalidationSection).toContain(
-      'if (removed) {\n    workItemDetailsCacheGeneration += 1'
+    expect(matchInvalidationSection).toMatch(
+      /if\s*\(\s*removed\s*\)\s*{\s*workItemDetailsCacheGeneration\s*\+=\s*1/
     )
   })
 

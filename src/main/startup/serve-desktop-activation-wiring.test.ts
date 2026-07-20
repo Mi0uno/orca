@@ -14,10 +14,7 @@ describe('serve desktop activation wiring', () => {
 
   it('settles the persistent provider before headless PTY registration', () => {
     const appReadyIndex = source.indexOf('app.whenReady().then(async () => {')
-    const startupIndex = source.indexOf(
-      '\n  startTerminalRuntimeStartupServices()\n',
-      appReadyIndex
-    )
+    const startupIndex = source.indexOf('startTerminalRuntimeStartupServices()', appReadyIndex)
     const serveIndex = source.indexOf('if (serveOptions) {', appReadyIndex)
     const ptyReadyIndex = source.indexOf('await localPtyStartupReady', serveIndex)
     const headlessRegistrationIndex = source.indexOf('registerHeadlessPtyRuntime(', serveIndex)

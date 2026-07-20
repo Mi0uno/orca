@@ -53,6 +53,9 @@ vi.mock('../minimax/minimax-cookie-store', () => ({
   hasMiniMaxSessionCookie: vi.fn(() => false)
 }))
 
+const allowBackgroundPtyFallback = process.platform !== 'win32'
+const allowClaudeUsagePanelSupplement = process.platform !== 'win32'
+
 type Deferred<T> = {
   promise: Promise<T>
   resolve: (value: T) => void
@@ -1013,7 +1016,7 @@ describe('RateLimitService', () => {
       expect.objectContaining({
         authPreparation: undefined,
         allowPtyFallback: false,
-        allowUsagePanelSupplement: true,
+        allowUsagePanelSupplement: allowClaudeUsagePanelSupplement,
         signal: expect.any(AbortSignal)
       })
     )
@@ -1126,8 +1129,8 @@ describe('RateLimitService', () => {
           wslLinuxConfigDir: '/home/jin/.claude',
           stripAuthEnv: true
         }),
-        allowPtyFallback: true,
-        allowUsagePanelSupplement: true,
+        allowPtyFallback: allowBackgroundPtyFallback,
+        allowUsagePanelSupplement: allowClaudeUsagePanelSupplement,
         signal: expect.any(AbortSignal)
       })
     )
@@ -1155,7 +1158,7 @@ describe('RateLimitService', () => {
       expect.objectContaining({
         authPreparation: expect.objectContaining({ provenance: 'system' }),
         allowPtyFallback: false,
-        allowUsagePanelSupplement: true,
+        allowUsagePanelSupplement: allowClaudeUsagePanelSupplement,
         signal: expect.any(AbortSignal)
       })
     )
@@ -1173,7 +1176,7 @@ describe('RateLimitService', () => {
       expect.objectContaining({
         authPreparation: undefined,
         allowPtyFallback: false,
-        allowUsagePanelSupplement: true,
+        allowUsagePanelSupplement: allowClaudeUsagePanelSupplement,
         signal: expect.any(AbortSignal)
       })
     )
@@ -1201,7 +1204,7 @@ describe('RateLimitService', () => {
       expect.objectContaining({
         authPreparation: expect.objectContaining({ provenance: 'wsl:Ubuntu:system' }),
         allowPtyFallback: false,
-        allowUsagePanelSupplement: true,
+        allowUsagePanelSupplement: allowClaudeUsagePanelSupplement,
         signal: expect.any(AbortSignal)
       })
     )
@@ -1262,7 +1265,10 @@ describe('RateLimitService', () => {
     })
 
     expect(fetchClaudeRateLimits).toHaveBeenLastCalledWith(
-      expect.objectContaining({ allowPtyFallback: true, allowUsagePanelSupplement: true })
+      expect.objectContaining({
+        allowPtyFallback: allowBackgroundPtyFallback,
+        allowUsagePanelSupplement: allowClaudeUsagePanelSupplement
+      })
     )
 
     expect(service.getState().inactiveClaudeAccounts).not.toEqual(
@@ -1301,7 +1307,7 @@ describe('RateLimitService', () => {
     ])
   })
 
-  it('allows usage-panel Fable supplements for inactive Claude account previews', async () => {
+  it('passes platform-specific usage-panel supplement policy for inactive Claude account previews', async () => {
     const service = new RateLimitService()
     const account = { id: 'account-1', managedAuthPath: '/tmp/account-1/auth' }
     service.setInactiveClaudeAccountsResolver(() => [account])
@@ -1312,7 +1318,7 @@ describe('RateLimitService', () => {
     expect(fetchManagedAccountUsage).toHaveBeenCalledWith(
       account,
       expect.objectContaining({
-        allowUsagePanelSupplement: true,
+        allowUsagePanelSupplement: allowClaudeUsagePanelSupplement,
         signal: expect.any(AbortSignal)
       })
     )

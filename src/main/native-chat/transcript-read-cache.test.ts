@@ -77,9 +77,9 @@ afterEach(async () => {
 
 describe('readNativeChatTranscriptCached', () => {
   it('returns the same cached object on an mtime hit without re-reading', async () => {
-    await seedSession('sess-hit', 3)
-    const first = await readNativeChatTranscriptCached('claude', 'sess-hit')
-    const second = await readNativeChatTranscriptCached('claude', 'sess-hit')
+    const filePath = await seedSession('sess-hit', 3)
+    const first = await readNativeChatTranscriptCached('claude', 'sess-hit', filePath)
+    const second = await readNativeChatTranscriptCached('claude', 'sess-hit', filePath)
     expect(readSpy).toHaveBeenCalledTimes(1)
     // Same reference: the second call served the cached parse.
     expect(second).toBe(first)
@@ -87,20 +87,20 @@ describe('readNativeChatTranscriptCached', () => {
 
   it('re-reads when the file mtime changes', async () => {
     const filePath = await seedSession('sess-mtime', 2)
-    await readNativeChatTranscriptCached('claude', 'sess-mtime')
+    await readNativeChatTranscriptCached('claude', 'sess-mtime', filePath)
     expect(readSpy).toHaveBeenCalledTimes(1)
     // Bump mtime into the future to invalidate without changing content shape.
     const future = new Date(Date.now() + 5_000)
     await utimes(filePath, future, future)
-    await readNativeChatTranscriptCached('claude', 'sess-mtime')
+    await readNativeChatTranscriptCached('claude', 'sess-mtime', filePath)
     expect(readSpy).toHaveBeenCalledTimes(2)
   })
 
   it('clear() empties the cache so the next read re-reads', async () => {
-    await seedSession('sess-clear', 1)
-    await readNativeChatTranscriptCached('claude', 'sess-clear')
+    const filePath = await seedSession('sess-clear', 1)
+    await readNativeChatTranscriptCached('claude', 'sess-clear', filePath)
     clearNativeChatTranscriptCache()
-    await readNativeChatTranscriptCached('claude', 'sess-clear')
+    await readNativeChatTranscriptCached('claude', 'sess-clear', filePath)
     expect(readSpy).toHaveBeenCalledTimes(2)
   })
 

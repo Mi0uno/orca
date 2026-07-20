@@ -2132,6 +2132,14 @@ function normalizeTerminalFileUriAuthorityPath(
   if (!pathText.startsWith('//')) {
     return pathText
   }
+  const loopbackDriveMatch = /^\/\/(localhost|127\.0\.0\.1|::1)([A-Za-z]:[\\/].*)$/i.exec(pathText)
+  if (
+    loopbackDriveMatch &&
+    isLoopbackFileUriHostname(loopbackDriveMatch[1]!.toLowerCase()) &&
+    (connectionId || process.platform !== 'win32')
+  ) {
+    return normalizeLeadingSlashDrivePath(loopbackDriveMatch[2]!, worktreePath)
+  }
   const match = /^\/\/([^/\\]+)([/\\].*)$/.exec(pathText)
   if (!match) {
     return pathText

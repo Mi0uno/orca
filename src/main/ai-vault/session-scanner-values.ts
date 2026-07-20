@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { getRuntimePathBasename, resolveRuntimePath } from '../../shared/cross-platform-path'
 
 export function timestampMs(value: unknown): number {
   if (typeof value === 'string') {
@@ -137,15 +138,15 @@ export function normalizeAgentSessionsDir(
     return join(homedir(), agentHomeDirName, 'agent', 'sessions')
   }
   const normalized = trimmed.replace(/[\\/]+$/, '')
-  const leaf = basename(normalized)
+  const leaf = getRuntimePathBasename(normalized)
   if (leaf === 'sessions') {
     return normalized
   }
   if (leaf === 'agent') {
-    return join(normalized, 'sessions')
+    return resolveRuntimePath(normalized, 'sessions')
   }
   if (leaf === agentHomeDirName) {
-    return join(normalized, 'agent', 'sessions')
+    return resolveRuntimePath(resolveRuntimePath(normalized, 'agent'), 'sessions')
   }
   return normalized
 }

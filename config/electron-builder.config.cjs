@@ -45,13 +45,7 @@ const relayExtraResource = {
 // from package directories where pnpm's symlink farm is absent. Copy the exact
 // runtime dependency closure to Resources/node_modules so bare require() calls
 // do not fall through to a developer checkout's node_modules.
-const packagedRuntimeNodeModuleResources = createPackagedRuntimeNodeModuleResources()
-
-const commonExtraResources = [
-  relayExtraResource,
-  ...packagedRuntimeNodeModuleResources,
-  skillFreshnessResources
-]
+const commonExtraResources = [relayExtraResource, skillFreshnessResources]
 const macSpeechNativeResource = {
   from: 'node_modules/sherpa-onnx-darwin-${arch}',
   to: 'node_modules/sherpa-onnx-darwin-${arch}'
@@ -212,6 +206,7 @@ module.exports = {
       : {}),
     extraResources: [
       ...commonExtraResources,
+      ...createPackagedRuntimeNodeModuleResources('win32'),
       winSpeechNativeResource,
       {
         from: 'resources/win32/bin/orca.cmd',
@@ -275,6 +270,7 @@ module.exports = {
     notarize: isMacRelease,
     extraResources: [
       ...commonExtraResources,
+      ...createPackagedRuntimeNodeModuleResources('darwin'),
       macSpeechNativeResource,
       {
         from: 'resources/darwin/bin/orca',
@@ -338,6 +334,7 @@ module.exports = {
     },
     extraResources: [
       ...commonExtraResources,
+      ...createPackagedRuntimeNodeModuleResources('linux'),
       linuxSpeechNativeResource,
       {
         from: 'resources/linux/bin/orca-ide',

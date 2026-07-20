@@ -92,6 +92,18 @@ function createMockDispatcher() {
   return dispatcher
 }
 
+function expectedPtyKillArgs(signal: string): [] | [string] {
+  return process.platform === 'win32' ? [] : [signal]
+}
+
+function expectPtyKillWith(mockKill: ReturnType<typeof vi.fn>, signal: string): void {
+  expect(mockKill).toHaveBeenCalledWith(...expectedPtyKillArgs(signal))
+}
+
+function expectPtyKillCalls(mockKill: ReturnType<typeof vi.fn>, signals: readonly string[]): void {
+  expect(mockKill.mock.calls).toEqual(signals.map((signal) => expectedPtyKillArgs(signal)))
+}
+
 describe('PtyHandler', () => {
   let dispatcher: ReturnType<typeof createMockDispatcher>
   let handler: PtyHandler
@@ -826,7 +838,7 @@ describe('PtyHandler', () => {
       aliveSpy.mockRestore()
     }
 
-    expect(mockKill).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(mockKill, 'SIGKILL')
     expect(handler.activePtyCount).toBe(0)
     expect(vi.getTimerCount()).toBe(0)
   })
@@ -878,9 +890,13 @@ describe('PtyHandler', () => {
     // no-op) on POSIX to close the UnixTerminal.destroy() → socket-close →
     // SIGHUP-to-recycled-pid race. After the 5s timer fires, term.kill is the
     // neutralized function, not the original spy. killSpy retains call history.
-    expect(killSpy).toHaveBeenCalledWith('SIGTERM')
+    expectPtyKillWith(killSpy, 'SIGTERM')
     vi.advanceTimersByTime(5000)
-    expect(killSpy).toHaveBeenCalledWith('SIGKILL')
+    if (process.platform === 'win32') {
+      expect(killSpy).toHaveBeenCalledTimes(1)
+    } else {
+      expectPtyKillWith(killSpy, 'SIGKILL')
+    }
     expect(handler.activePtyCount).toBe(1)
 
     onExitCb?.({ exitCode: 137 })
@@ -901,7 +917,7 @@ describe('PtyHandler', () => {
     vi.advanceTimersByTime(50)
     expect(term.write).not.toHaveBeenCalled()
     expect(handler.retainedStartupCommandCount).toBe(0)
-    expect(killSpy).toHaveBeenCalledWith('SIGTERM')
+    expectPtyKillWith(killSpy, 'SIGTERM')
   })
 
   it('releases pending provider-delivered commands on shutdown before delivery', async () => {
@@ -930,7 +946,7 @@ describe('PtyHandler', () => {
 
     expect(handler.retainedStartupCommandCount).toBe(0)
     expect(term.write).not.toHaveBeenCalled()
-    expect(killSpy).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(killSpy, 'SIGKILL')
   })
 
   it('increments PTY ids on each spawn', async () => {
@@ -1218,7 +1234,7 @@ describe('PtyHandler', () => {
 
     await dispatcher.callRequest('pty.spawn', {})
     await dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: false })
-    expect(mockKill).toHaveBeenCalledWith('SIGTERM')
+    expectPtyKillWith(mockKill, 'SIGTERM')
   })
 
   // Why: node-pty's Windows agent throws "Signals not supported on windows."
@@ -1377,72 +1393,78 @@ describe('PtyHandler', () => {
       id: 'pty-1',
       data: 'last words'
     })
-    expect(mockKill).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(mockKill, 'SIGKILL')
   })
 
-  it('notifies pty.exit when graceful shutdown falls back to SIGKILL', async () => {
-    let onExitCb: ((evt: { exitCode: number }) => void) | undefined
-    const mockKill = vi.fn()
-    mockPtySpawn.mockReturnValue({
-      ...mockPtyInstance,
-      kill: mockKill,
-      onData: vi.fn(),
-      onExit: vi.fn((cb: (evt: { exitCode: number }) => void) => {
-        onExitCb = cb
+  it.skipIf(process.platform === 'win32')(
+    'notifies pty.exit when graceful shutdown falls back to SIGKILL',
+    async () => {
+      let onExitCb: ((evt: { exitCode: number }) => void) | undefined
+      const mockKill = vi.fn()
+      mockPtySpawn.mockReturnValue({
+        ...mockPtyInstance,
+        kill: mockKill,
+        onData: vi.fn(),
+        onExit: vi.fn((cb: (evt: { exitCode: number }) => void) => {
+          onExitCb = cb
+        })
       })
-    })
-    const exits: { id: string; paneKey?: string }[] = []
-    handler.setExitListener((evt) => exits.push(evt))
+      const exits: { id: string; paneKey?: string }[] = []
+      handler.setExitListener((evt) => exits.push(evt))
 
-    await dispatcher.callRequest('pty.spawn', { env: { ORCA_PANE_KEY: 'tab-fallback:0' } })
-    await dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: false })
-    vi.advanceTimersByTime(5000)
+      await dispatcher.callRequest('pty.spawn', { env: { ORCA_PANE_KEY: 'tab-fallback:0' } })
+      await dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: false })
+      vi.advanceTimersByTime(5000)
 
-    expect(handler.activePtyCount).toBe(1)
-    expect(exits).toEqual([])
-    expect(dispatcher.notify).not.toHaveBeenCalledWith('pty.exit', expect.anything())
-    onExitCb!({ exitCode: 137 })
+      expect(handler.activePtyCount).toBe(1)
+      expect(exits).toEqual([])
+      expect(dispatcher.notify).not.toHaveBeenCalledWith('pty.exit', expect.anything())
+      onExitCb!({ exitCode: 137 })
 
-    expect(mockKill).toHaveBeenCalledWith('SIGTERM')
-    expect(mockKill).toHaveBeenCalledWith('SIGKILL')
-    expect(dispatcher.notify).toHaveBeenCalledWith('pty.exit', { id: 'pty-1', code: 137 })
-    expect(exits).toEqual([{ id: 'pty-1', paneKey: 'tab-fallback:0' }])
-    expect(handler.activePtyCount).toBe(0)
-  })
+      expectPtyKillWith(mockKill, 'SIGTERM')
+      expectPtyKillWith(mockKill, 'SIGKILL')
+      expect(dispatcher.notify).toHaveBeenCalledWith('pty.exit', { id: 'pty-1', code: 137 })
+      expect(exits).toEqual([{ id: 'pty-1', paneKey: 'tab-fallback:0' }])
+      expect(handler.activePtyCount).toBe(0)
+    }
+  )
 
-  it('retries a rejected graceful SIGKILL fallback while retaining ownership', async () => {
-    let onExitCb: ((evt: { exitCode: number }) => void) | undefined
-    let forceAttempts = 0
-    const mockKill = vi.fn((signal: string) => {
-      if (signal === 'SIGKILL' && forceAttempts++ === 0) {
-        throw new Error('transient kill failure')
-      }
-    })
-    mockPtySpawn.mockReturnValue({
-      ...mockPtyInstance,
-      kill: mockKill,
-      onData: vi.fn(),
-      onExit: vi.fn((cb: (evt: { exitCode: number }) => void) => {
-        onExitCb = cb
+  it.skipIf(process.platform === 'win32')(
+    'retries a rejected graceful SIGKILL fallback while retaining ownership',
+    async () => {
+      let onExitCb: ((evt: { exitCode: number }) => void) | undefined
+      let forceAttempts = 0
+      const mockKill = vi.fn((signal: string) => {
+        if (signal === 'SIGKILL' && forceAttempts++ === 0) {
+          throw new Error('transient kill failure')
+        }
       })
-    })
+      mockPtySpawn.mockReturnValue({
+        ...mockPtyInstance,
+        kill: mockKill,
+        onData: vi.fn(),
+        onExit: vi.fn((cb: (evt: { exitCode: number }) => void) => {
+          onExitCb = cb
+        })
+      })
 
-    await dispatcher.callRequest('pty.spawn', {})
-    await dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: false })
-    vi.advanceTimersByTime(5000)
+      await dispatcher.callRequest('pty.spawn', {})
+      await dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: false })
+      vi.advanceTimersByTime(5000)
 
-    expect(mockKill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']])
-    expect(handler.activePtyCount).toBe(1)
-    expect(vi.getTimerCount()).toBe(1)
+      expectPtyKillCalls(mockKill, ['SIGTERM', 'SIGKILL'])
+      expect(handler.activePtyCount).toBe(1)
+      expect(vi.getTimerCount()).toBe(1)
 
-    vi.runOnlyPendingTimers()
-    expect(mockKill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL'], ['SIGKILL']])
-    expect(handler.activePtyCount).toBe(1)
+      vi.runOnlyPendingTimers()
+      expectPtyKillCalls(mockKill, ['SIGTERM', 'SIGKILL', 'SIGKILL'])
+      expect(handler.activePtyCount).toBe(1)
 
-    onExitCb!({ exitCode: 137 })
-    expect(handler.activePtyCount).toBe(0)
-    expect(vi.getTimerCount()).toBe(0)
-  })
+      onExitCb!({ exitCode: 137 })
+      expect(handler.activePtyCount).toBe(0)
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
 
   it('kills PTY on shutdown with SIGKILL when immediate', async () => {
     let onExitCb: ((evt: { exitCode: number }) => void) | undefined
@@ -1460,7 +1482,7 @@ describe('PtyHandler', () => {
     const shutdown = dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: true })
     onExitCb!({ exitCode: 137 })
     await shutdown
-    expect(mockKill).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(mockKill, 'SIGKILL')
   })
 
   it('throws for attach on nonexistent PTY', async () => {
@@ -2318,7 +2340,7 @@ describe('PtyHandler', () => {
     onExitCb!({ exitCode: 0 })
     await shutdown
 
-    expect(mockKill).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(mockKill, 'SIGKILL')
     expect(exits).toEqual([{ id: 'pty-1', paneKey: 'tab-shutdown:0' }])
     expect(handler.activePtyCount).toBe(0)
   })
@@ -2360,7 +2382,7 @@ describe('PtyHandler', () => {
       settled = true
     })
     await Promise.resolve()
-    expect(firstKill).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(firstKill, 'SIGKILL')
     expect(secondKill).not.toHaveBeenCalled()
     expect(settled).toBe(false)
     expect(handler.activePtyCount).toBe(2)
@@ -2414,7 +2436,7 @@ describe('PtyHandler', () => {
     const dispose = handler.dispose()
     await admittedSpawn
 
-    expect(mockKill).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(mockKill, 'SIGKILL')
     expect(handler.activePtyCount).toBe(1)
     await expect(dispatcher.callRequest('pty.spawn', {})).rejects.toThrow(
       'PTY handler is shutting down'
@@ -2441,8 +2463,9 @@ describe('PtyHandler', () => {
   it('retries a rejected force kill during dispose and waits for physical exit', async () => {
     let onExitCb: ((evt: { exitCode: number }) => void) | undefined
     let forceAttempts = 0
-    const mockKill = vi.fn((signal: string) => {
-      if (signal === 'SIGKILL' && forceAttempts++ === 0) {
+    const mockKill = vi.fn((signal?: string) => {
+      const isForceKill = process.platform === 'win32' ? signal === undefined : signal === 'SIGKILL'
+      if (isForceKill && forceAttempts++ === 0) {
         throw new Error('transient dispose kill failure')
       }
     })
@@ -2459,10 +2482,10 @@ describe('PtyHandler', () => {
     const dispose = handler.dispose()
     await Promise.resolve()
 
-    expect(mockKill.mock.calls).toEqual([['SIGKILL']])
+    expectPtyKillCalls(mockKill, ['SIGKILL'])
     expect(handler.activePtyCount).toBe(1)
     await vi.advanceTimersByTimeAsync(250)
-    expect(mockKill.mock.calls).toEqual([['SIGKILL'], ['SIGKILL']])
+    expectPtyKillCalls(mockKill, ['SIGKILL', 'SIGKILL'])
     expect(handler.activePtyCount).toBe(1)
 
     onExitCb!({ exitCode: 137 })
@@ -2471,42 +2494,45 @@ describe('PtyHandler', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('takes ownership when dispose overlaps a queued graceful force-kill retry', async () => {
-    let onExitCb: ((evt: { exitCode: number }) => void) | undefined
-    let forceAttempts = 0
-    const mockKill = vi.fn((signal: string) => {
-      if (signal === 'SIGKILL' && forceAttempts++ < 2) {
-        throw new Error('transient overlapping kill failure')
-      }
-    })
-    mockPtySpawn.mockReturnValue({
-      ...mockPtyInstance,
-      kill: mockKill,
-      onData: vi.fn(),
-      onExit: vi.fn((cb: (evt: { exitCode: number }) => void) => {
-        onExitCb = cb
+  it.skipIf(process.platform === 'win32')(
+    'takes ownership when dispose overlaps a queued graceful force-kill retry',
+    async () => {
+      let onExitCb: ((evt: { exitCode: number }) => void) | undefined
+      let forceAttempts = 0
+      const mockKill = vi.fn((signal: string) => {
+        if (signal === 'SIGKILL' && forceAttempts++ < 2) {
+          throw new Error('transient overlapping kill failure')
+        }
       })
-    })
+      mockPtySpawn.mockReturnValue({
+        ...mockPtyInstance,
+        kill: mockKill,
+        onData: vi.fn(),
+        onExit: vi.fn((cb: (evt: { exitCode: number }) => void) => {
+          onExitCb = cb
+        })
+      })
 
-    await dispatcher.callRequest('pty.spawn', {})
-    await dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: false })
-    vi.advanceTimersByTime(5000)
-    expect(mockKill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL']])
-    expect(vi.getTimerCount()).toBe(1)
+      await dispatcher.callRequest('pty.spawn', {})
+      await dispatcher.callRequest('pty.shutdown', { id: 'pty-1', immediate: false })
+      vi.advanceTimersByTime(5000)
+      expectPtyKillCalls(mockKill, ['SIGTERM', 'SIGKILL'])
+      expect(vi.getTimerCount()).toBe(1)
 
-    const dispose = handler.dispose()
-    await Promise.resolve()
-    expect(mockKill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL'], ['SIGKILL']])
-    expect(vi.getTimerCount()).toBe(1)
-    await vi.advanceTimersByTimeAsync(250)
-    expect(mockKill.mock.calls).toEqual([['SIGTERM'], ['SIGKILL'], ['SIGKILL'], ['SIGKILL']])
-    expect(handler.activePtyCount).toBe(1)
+      const dispose = handler.dispose()
+      await Promise.resolve()
+      expectPtyKillCalls(mockKill, ['SIGTERM', 'SIGKILL', 'SIGKILL'])
+      expect(vi.getTimerCount()).toBe(1)
+      await vi.advanceTimersByTimeAsync(250)
+      expectPtyKillCalls(mockKill, ['SIGTERM', 'SIGKILL', 'SIGKILL', 'SIGKILL'])
+      expect(handler.activePtyCount).toBe(1)
 
-    onExitCb!({ exitCode: 137 })
-    await dispose
-    expect(handler.activePtyCount).toBe(0)
-    expect(vi.getTimerCount()).toBe(0)
-  })
+      onExitCb!({ exitCode: 137 })
+      await dispose
+      expect(handler.activePtyCount).toBe(0)
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
 
   it('dispose kills all PTYs with SIGKILL and invokes exit listeners', async () => {
     const mockKill = vi.fn()
@@ -2532,7 +2558,7 @@ describe('PtyHandler', () => {
     // exiting. A SIGTERM-ignoring remote shell (editor with unsaved buffers,
     // wedged process, uninterruptible sleep) would survive SIGTERM + immediate
     // destroy() as an orphan on the remote host. SIGKILL is not ignorable.
-    expect(mockKill).toHaveBeenCalledWith('SIGKILL')
+    expectPtyKillWith(mockKill, 'SIGKILL')
     expect(handler.activePtyCount).toBe(2)
     for (const onExit of onExitCallbacks) {
       onExit({ exitCode: 137 })

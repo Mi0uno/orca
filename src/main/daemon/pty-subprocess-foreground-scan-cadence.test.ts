@@ -39,6 +39,13 @@ vi.mock('../providers/windows-powershell-executable', () => ({
   getWindowsCmdPath: () => CMD_ABS
 }))
 
+vi.mock('../providers/local-pty-utils', () => ({
+  ensureNodePtySpawnHelperExecutable: vi.fn(),
+  getNodePtySpawnHelperCandidates: vi.fn(() => []),
+  resolveUnixShellPath: (shellPath: string) => shellPath,
+  validateWorkingDirectory: vi.fn()
+}))
+
 vi.mock('../providers/agent-foreground-process', () => ({
   resolveAgentForegroundProcessWithAvailability: async (...args: unknown[]) => ({
     available: true,
@@ -117,7 +124,7 @@ describe('daemon pty foreground scan cadence', () => {
     rmSync(userDataPath, { recursive: true, force: true })
   })
 
-  function spawnShellSubprocess(shellProcessName: string, targetPlatform: 'win32' | 'darwin') {
+  function spawnShellSubprocess(shellProcessName: string, targetPlatform: 'win32' | 'linux') {
     Object.defineProperty(process, 'platform', { configurable: true, value: targetPlatform })
     const proc = mockPtyProcess(shellProcessName)
     spawnMock.mockReturnValue(proc)
@@ -176,7 +183,7 @@ describe('daemon pty foreground scan cadence', () => {
 
   it('keeps the 5s retry for an idle POSIX shell with no output', async () => {
     resolveAgentForegroundProcessMock.mockResolvedValue('zsh')
-    const { handle } = spawnShellSubprocess('zsh', 'darwin')
+    const { handle } = spawnShellSubprocess('zsh', 'linux')
 
     for (let atMs = 0; atMs <= 30_000; atMs += 2_000) {
       expect(await readForegroundAt(handle, atMs)).toBe('zsh')

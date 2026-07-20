@@ -87,10 +87,7 @@ function nodeCommand(scriptPath: string): string {
 }
 
 describe('registerEphemeralVmHandlers', () => {
-  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
-
   beforeEach(() => {
-    Object.defineProperty(process, 'platform', { configurable: true, value: 'linux' })
     handlers.clear()
     handleMock.mockReset()
     removeHandlerMock.mockReset()
@@ -114,13 +111,6 @@ describe('registerEphemeralVmHandlers', () => {
       handlers.set(channel, handler)
     })
   })
-
-  afterEach(() => {
-    if (originalPlatform) {
-      Object.defineProperty(process, 'platform', originalPlatform)
-    }
-  })
-
   it('lists recipes from local repo orca.yaml', async () => {
     const repoPath = makeDir('orca-ephemeral-vm-ipc-repo-')
     writeFileSync(

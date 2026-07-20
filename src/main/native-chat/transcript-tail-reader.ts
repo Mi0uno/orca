@@ -50,7 +50,11 @@ export async function readNativeChatTranscriptTailFile(
   hasMore: boolean
   beforeOffset: number
 }> {
-  const end = Math.min((await stat(filePath)).size, endOffset ?? Number.MAX_SAFE_INTEGER)
+  const fileStats = await stat(filePath)
+  if (!fileStats.isFile()) {
+    throw new Error('Transcript path is not a file')
+  }
+  const end = Math.min(fileStats.size, endOffset ?? Number.MAX_SAFE_INTEGER)
   if (end === 0) {
     return { messages: [], consumedTo: 0, hasMore: false, beforeOffset: 0 }
   }

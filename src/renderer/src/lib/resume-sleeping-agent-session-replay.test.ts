@@ -50,7 +50,10 @@ describe('resumeSleepingAgentSessionsForWorktree replay protection', () => {
     expect(state.automaticAgentResumeClaimsByTabId[resumedTab.id]).toEqual({
       worktreeId: record.worktreeId,
       launchAgent: record.agent,
-      providerSession: record.providerSession
+      providerSession: record.providerSession,
+      prompt: record.prompt,
+      capturedAt: record.capturedAt,
+      updatedAt: record.updatedAt
     })
   })
 

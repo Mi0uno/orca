@@ -111,7 +111,24 @@ const JSON_INSTALLERS = [
   }
 ] as const
 
-const MANAGED_HOOKS_DIR_NEEDLE = '/.orca/agent-hooks/'
+const MANAGED_HOOKS_DIR_NEEDLES = ['/.orca/agent-hooks/', '\\.orca\\agent-hooks\\'] as const
+
+function decodePowerShellEncodedCommand(command: string): string | null {
+  const match = command.match(/\s-EncodedCommand\s+(\S+)/i)
+  if (!match) {
+    return null
+  }
+  try {
+    return Buffer.from(match[1], 'base64').toString('utf16le')
+  } catch {
+    return null
+  }
+}
+
+function managedHookCommandSearchText(command: string): string {
+  const decoded = decodePowerShellEncodedCommand(command)
+  return decoded ? `${command}\n${decoded}` : command
+}
 
 // Walk the parsed config and assert every Orca-managed command carrier (a node
 // with a `command`/`bash`/`powershell` string pointing at the managed script
@@ -132,7 +149,10 @@ function countManagedCarriersWithTimeout(node: unknown, expectedTimeout: number)
   let found = 0
   const carrier = [record.command, record.bash, record.powershell].find(
     (value): value is string =>
-      typeof value === 'string' && value.includes(MANAGED_HOOKS_DIR_NEEDLE)
+      typeof value === 'string' &&
+      MANAGED_HOOKS_DIR_NEEDLES.some((needle) =>
+        managedHookCommandSearchText(value).includes(needle)
+      )
   )
   if (carrier !== undefined) {
     const timeout = typeof record.timeout === 'number' ? record.timeout : record.timeoutSec

@@ -17,6 +17,17 @@ export type ClipboardFileDeps = {
   runCommand: (command: string, args: string[], stdin?: string) => Promise<void>
 }
 
+function toClipboardFileUrl(filePath: string, platform: NodeJS.Platform): string {
+  if (platform === 'win32' || !filePath.startsWith('/')) {
+    return pathToFileURL(filePath).href
+  }
+  const encodedPath = filePath
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+  return `file://${encodedPath}`
+}
+
 // Put a real OS-level file reference on the clipboard so pasting in Finder /
 // Explorer / a file manager drops the actual file (not its path as text). Only
 // local files work — remote/SSH files don't exist on this machine. Always
@@ -38,7 +49,10 @@ export async function writeFileToClipboard(
     // macOS reads `public.file-url` and synthesizes the legacy file types Finder
     // needs, so a single buffer is enough.
     try {
-      deps.writeBuffer('public.file-url', Buffer.from(pathToFileURL(clipboardPath).href, 'utf8'))
+      deps.writeBuffer(
+        'public.file-url',
+        Buffer.from(toClipboardFileUrl(clipboardPath, deps.platform), 'utf8')
+      )
       return { ok: true }
     } catch {
       return { ok: false, reason: 'clipboard-write-failed' }
@@ -66,7 +80,7 @@ export async function writeFileToClipboard(
   // Linux: best-effort and desktop-dependent. GNOME-family managers
   // (Nautilus/Nemo/Caja) read the "copied-files" payload that carries the
   // explicit copy verb; KDE/Qt managers (Dolphin) read text/uri-list instead.
-  const fileUrl = pathToFileURL(clipboardPath).href
+  const fileUrl = toClipboardFileUrl(clipboardPath, deps.platform)
   const [mime, payload] = /kde/i.test(deps.desktop ?? '')
     ? ['text/uri-list', `${fileUrl}\r\n`]
     : ['x-special/gnome-copied-files', `copy\n${fileUrl}`]

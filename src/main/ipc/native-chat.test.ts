@@ -86,8 +86,9 @@ describe('nativeChat:readSession handler', () => {
     const projectsDir = join(root, '.claude', 'projects')
     const projectDir = join(projectsDir, '-repo')
     await mkdir(projectDir, { recursive: true })
+    const filePath = join(projectDir, 'sess-ipc.jsonl')
     await writeFile(
-      join(projectDir, 'sess-ipc.jsonl'),
+      filePath,
       jsonLines([
         {
           type: 'user',
@@ -109,10 +110,11 @@ describe('nativeChat:readSession handler', () => {
     const previousHome = process.env.HOME
     process.env.HOME = root
     try {
-      const result = (await invokeReadSession({ agent: 'claude', sessionId: 'sess-ipc' })) as {
-        messages?: unknown[]
-        error?: string
-      }
+      const result = (await invokeReadSession({
+        agent: 'claude',
+        sessionId: 'sess-ipc',
+        transcriptPath: filePath
+      })) as { messages?: unknown[]; error?: string }
       expect(result.error).toBeUndefined()
       expect(result.messages).toHaveLength(2)
     } finally {
@@ -137,7 +139,8 @@ describe('nativeChat:readSession handler', () => {
       timestamp: `2026-06-01T10:00:0${n}.000Z`,
       message: { role: 'user', content: `m${n}` }
     }))
-    await writeFile(join(projectDir, 'sess-limit.jsonl'), jsonLines(records))
+    const filePath = join(projectDir, 'sess-limit.jsonl')
+    await writeFile(filePath, jsonLines(records))
 
     const previousHome = process.env.HOME
     process.env.HOME = root
@@ -145,6 +148,7 @@ describe('nativeChat:readSession handler', () => {
       const windowed = (await invokeReadSession({
         agent: 'claude',
         sessionId: 'sess-limit',
+        transcriptPath: filePath,
         limit: 2
       })) as { messages: { id: string }[] }
       expect(windowed.messages.map((m) => m.id)).toEqual(['u-4', 'u-5'])
@@ -152,6 +156,7 @@ describe('nativeChat:readSession handler', () => {
       const wider = (await invokeReadSession({
         agent: 'claude',
         sessionId: 'sess-limit',
+        transcriptPath: filePath,
         limit: 4
       })) as { messages: { id: string }[] }
       expect(wider.messages.map((m) => m.id)).toEqual(['u-2', 'u-3', 'u-4', 'u-5'])
@@ -208,7 +213,8 @@ describe('nativeChat:readSession handler', () => {
         {
           subscriptionId: 'sub-1',
           agent: 'claude',
-          sessionId: 'sess-sub'
+          sessionId: 'sess-sub',
+          transcriptPath: filePath
         }
       )
 

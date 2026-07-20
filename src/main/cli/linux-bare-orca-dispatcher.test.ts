@@ -45,8 +45,10 @@ describe('installLinuxBareOrcaDispatcher', () => {
     // Single-quoted so a resources path with shell metacharacters can't break out.
     expect(content).toContain(`exec '${expectedTarget}' "$@"`)
 
-    const mode = (await stat(result.dispatcherPath)).mode & 0o777
-    expect(mode & 0o111).not.toBe(0)
+    if (process.platform !== 'win32') {
+      const mode = (await stat(result.dispatcherPath)).mode & 0o777
+      expect(mode & 0o111).not.toBe(0)
+    }
   })
 
   it('is idempotent — a second install rewrites its own dispatcher without throwing', async () => {

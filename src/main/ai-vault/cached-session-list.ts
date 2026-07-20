@@ -1,8 +1,8 @@
-import { join } from 'node:path'
 import { scanAiVaultSessions } from './session-scanner'
 import { getWslHomeAsync, listWslDistrosAsync } from '../wsl'
 import type { AiVaultListArgs, AiVaultListResult } from '../../shared/ai-vault-types'
 import { LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
+import { resolveRuntimePath } from '../../shared/cross-platform-path'
 
 // Why: ONE module owns the scan cache so the desktop IPC handler AND the runtime
 // RPC method share a single cache instance — opening the desktop panel and the
@@ -50,7 +50,9 @@ export async function listAiVaultSessions(args?: AiVaultListArgs): Promise<AiVau
 
   inflightKey = key
   const additionalCodexSessionsDirs =
-    sources.getAdditionalCodexHomePaths?.().map((homePath) => join(homePath, 'sessions')) ?? []
+    sources
+      .getAdditionalCodexHomePaths?.()
+      .map((homePath) => resolveRuntimePath(homePath, 'sessions')) ?? []
   inflightList = (async () =>
     scanAiVaultSessions({
       limit: args?.limit,

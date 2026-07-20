@@ -60,6 +60,8 @@ describe('terminal tab retirement store boundary', () => {
   it('retires split, relay, deferred, and pending sessions for a parked tab', async () => {
     const store = createTestStore()
     const dispose = vi.fn()
+    const closedRecord = sleepingRecord('tab-1:leaf-1', 'tab-1')
+    const legacyRecord = sleepingRecord('legacy-key', 'tab-1')
     const siblingRecord = sleepingRecord('tab-2:leaf-2', 'tab-2')
     seedStore(store, {
       tabsByWorktree: {
@@ -78,8 +80,8 @@ describe('terminal tab retirement store boundary', () => {
       deferredSshSessionIdsByTabId: { 'tab-1': 'pty-deferred' },
       pendingReconnectPtyIdByTabId: { 'tab-1': 'pty-pending' },
       sleepingAgentSessionsByPaneKey: {
-        'tab-1:leaf-1': sleepingRecord('tab-1:leaf-1', 'tab-1'),
-        'legacy-key': sleepingRecord('legacy-key', 'tab-1'),
+        'tab-1:leaf-1': closedRecord,
+        'legacy-key': legacyRecord,
         'tab-2:leaf-2': siblingRecord
       }
     })
@@ -100,10 +102,32 @@ describe('terminal tab retirement store boundary', () => {
     expect(store.getState().tabsByWorktree['wt-1']).toEqual([])
     expect(store.getState().deferredSshSessionIdsByTabId['tab-1']).toBeUndefined()
     expect(store.getState().pendingReconnectPtyIdByTabId['tab-1']).toBeUndefined()
-    expect(store.getState().sleepingAgentSessionsByPaneKey).toEqual({
-      'tab-2:leaf-2': siblingRecord
+    const sleeping = store.getState().sleepingAgentSessionsByPaneKey
+    expect(sleeping['tab-1:leaf-1']).toMatchObject({
+      paneKey: closedRecord.paneKey,
+      tabId: closedRecord.tabId,
+      worktreeId: closedRecord.worktreeId,
+      agent: closedRecord.agent,
+      providerSession: closedRecord.providerSession,
+      prompt: closedRecord.prompt,
+      state: closedRecord.state,
+      updatedAt: closedRecord.updatedAt,
+      origin: 'terminal-close'
     })
-    expect(store.getState().sleepingAgentSessionsByPaneKey['tab-2:leaf-2']).toBe(siblingRecord)
+    expect(sleeping['tab-1:leaf-1']?.capturedAt).toEqual(expect.any(Number))
+    expect(sleeping['legacy-key']).toMatchObject({
+      paneKey: legacyRecord.paneKey,
+      tabId: legacyRecord.tabId,
+      worktreeId: legacyRecord.worktreeId,
+      agent: legacyRecord.agent,
+      providerSession: legacyRecord.providerSession,
+      prompt: legacyRecord.prompt,
+      state: legacyRecord.state,
+      updatedAt: legacyRecord.updatedAt,
+      origin: 'terminal-close'
+    })
+    expect(sleeping['legacy-key']?.capturedAt).toEqual(expect.any(Number))
+    expect(sleeping['tab-2:leaf-2']).toBe(siblingRecord)
     expect(dispose).toHaveBeenCalledOnce()
     expect(parkedWatchersByTabId.has('tab-1')).toBe(false)
     expect(capturedPanesByTabId.has('tab-1')).toBe(false)

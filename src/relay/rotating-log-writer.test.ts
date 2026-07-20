@@ -142,11 +142,11 @@ describe('RotatingLogWriter', () => {
   })
 
   it('leaves the original streams active when the log cannot be opened', () => {
-    mkdirSync(logPath)
+    const missingParentLogPath = path.join(dir, 'missing-parent', 'relay.log')
     const stdout = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
     const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
     try {
-      const { writer, restore } = installRelayLogRotation(logPath)
+      const { writer, restore } = installRelayLogRotation(missingParentLogPath)
       expect(writer.active).toBe(false)
       process.stdout.write('stdout fallback\n')
       process.stderr.write('stderr fallback\n')

@@ -41,6 +41,7 @@ export type AutomationCronScheduleClassification =
   | { kind: 'invalid'; label: string }
 
 const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'] as const
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const WEEKDAY_CODES = ['MO', 'TU', 'WE', 'TH', 'FR'] as const
 const MONTH_NAMES = new Map([
   ['JAN', 1],
@@ -368,9 +369,7 @@ function formatParsedRruleSchedule(schedule: ReturnType<typeof parseAutomationRr
   if (schedule.preset === 'weekdays') {
     return `Weekdays at ${time}`
   }
-  const day = new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(
-    new Date(2026, 0, 4 + schedule.dayOfWeek)
-  )
+  const day = DAY_LABELS[schedule.dayOfWeek]
   return `${day}s at ${time}`
 }
 
@@ -406,9 +405,7 @@ function classifyParsedCronSchedule(rule: ParsedCron): AutomationCronScheduleCla
     }
     const dayOfWeek = getSingleSetValue(rule.daysOfWeek)
     if (dayOfWeek !== null) {
-      const day = new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(
-        new Date(2026, 0, 4 + dayOfWeek)
-      )
+      const day = DAY_LABELS[dayOfWeek]
       return {
         kind: 'weekly',
         hour,
