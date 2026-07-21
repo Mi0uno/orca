@@ -1788,7 +1788,9 @@
         "jiraSortDescending": "降序",
         "jiraSortBy": "排序方式",
         "jiraToggleSortDirection": "按{{value0}}排序",
-        "75a38d7df8": "GitHub data is temporarily unavailable. Its API may be down, rate-limited, or unreachable. Please try again shortly."
+        "75a38d7df8": "GitHub data is temporarily unavailable. Its API may be down, rate-limited, or unreachable. Please try again shortly.",
+        "noGithubSourceDetected": "No GitHub source detected for",
+        "noGithubSourceDetectedHint": "it may have no GitHub remote, or the source could not be resolved."
       },
       "Terminal": {
         "73768427cf": "关闭",
@@ -2744,7 +2746,8 @@
             "sessionQueued": "会话已排队",
             "openSupportedWorkspace": "在恢复会话之前，请先打开一个工作区。",
             "localSessionSshWorkspaceUnsupported": "此会话的历史记录存储在本机上，因此无法在 SSH 工作区中恢复。请改为将其拖放到本地工作区。",
-            "sessionHostMismatchUnsupported": "此会话属于其他主机。请将其拖放到同一主机上的工作区。"
+            "sessionHostMismatchUnsupported": "此会话属于其他主机。请将其拖放到同一主机上的工作区。",
+            "prepareSessionResumeFailed": "无法准备恢复此会话。"
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "新建拆分"
@@ -4605,7 +4608,6 @@
           "modalDescription": "从终端安装 Linear 技能。",
           "modalPrompt": "允许智能体读取和编辑已附加的 Linear ticket。",
           "dontShowAgain": "不再显示",
-          "notNow": "暂不",
           "missingBoth": "缺少 Orca CLI 和 Linear 智能体技能。",
           "missingCli": "缺少 Orca CLI。",
           "missingSkill": "缺少 Linear 智能体技能。",
@@ -7007,7 +7009,6 @@
           "cf4437a2f7": "ANSI 黑色",
           "adfdee23cb": "黑色的",
           "68e9f07de0": "ANSI 标准",
-          "fb8c6f1967": "粗体文本的颜色。如果未设置，则返回正常颜色。",
           "862e463f7f": "粗体文字",
           "b2c0857c49": "所选文本的文本颜色",
           "8b450b5305": "选择前景",
@@ -7023,7 +7024,8 @@
           "79f6bfb76e": "前景",
           "cf37ff69f6": "根据",
           "8abdab9f7c": "立即重启",
-          "907131d741": "正在重新启动..."
+          "907131d741": "正在重新启动...",
+          "605a35d600": "Not applied by the terminal renderer yet — xterm.js has no bold color slot. A saved value is preserved."
         },
         "UIZoomControl": {
           "c2c64b24d0": "重置"
@@ -7840,7 +7842,9 @@
             "d2d2d929c0": "Rich Markdown Spellcheck",
             "4497e2e2bb": "在编辑富 Markdown 时显示浏览器拼写下划线和建议。",
             "e61157e926": "编辑器自动换行",
-            "005be5c699": "在文件编辑器中自动换行长行，而无需水平滚动。"
+            "005be5c699": "在文件编辑器中自动换行长行，而无需水平滚动。",
+            "editorFontFamily": "Editor Font Family",
+            "editorFontFamilyDesc": "Font used by file editors and diff views. Leave empty to follow the terminal font."
           }
         },
         "git": {
@@ -9294,6 +9298,11 @@
         },
         "MobileRelayBetaNotice": {
           "notice": "Orca Relay is in beta."
+        },
+        "EditorFontFamilySetting": {
+          "title": "Editor Font Family",
+          "description": "Font used by file editors and diff views. Leave empty to follow the terminal font.",
+          "placeholder": "Same as terminal font"
         }
       },
       "right": {
@@ -10294,13 +10303,6 @@
                   "cfafa92509": "没有未解决的冲突需要发送。"
                 }
               }
-            },
-            "hosted": {
-              "review": {
-                "actions": {
-                  "e475c29b17": "This will merge the {{value0}}."
-                }
-              }
             }
           },
           "fileExplorerOperationOwner": {
@@ -10370,7 +10372,8 @@
             "worktreeUnavailable": "工作树不再可用。",
             "openSupportedWorkspace": "在恢复会话之前，请先打开一个工作区。",
             "localSessionSshWorkspaceUnsupported": "此会话的历史记录存储在本机上，因此无法在 SSH 工作区中恢复。请改为打开一个本地工作区。",
-            "sessionHostMismatchUnsupported": "此会话属于其他主机。请打开同一主机上的工作区以恢复它。"
+            "sessionHostMismatchUnsupported": "此会话属于其他主机。请打开同一主机上的工作区以恢复它。",
+            "prepareSessionResumeFailed": "无法准备恢复此会话。"
           },
           "AiVaultPanelControls": {
             "scanningSessions": "正在扫描会话",
@@ -12375,6 +12378,15 @@
         },
         "richMarkdownSourceOwningCutFeedback": {
           "selectLessContent": "请选择较少的内容，或使用代码模式剪切保留的 HTML 引用。"
+        },
+        "editor": {
+          "save": {
+            "failure": {
+              "notice": {
+                "8c59ce5075": "Failed to save the file. Please try again."
+              }
+            }
+          }
         }
       },
       "diff": {
@@ -13655,7 +13667,6 @@
     },
     "terminal": {
       "closed": "No live terminal — this agent's pane has closed.",
-      "close": "Close",
       "focusWorktree": "Focus worktree"
     }
   },

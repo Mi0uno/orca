@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import os from 'node:os'
 import path from 'node:path'
 import { _electron as electron, type ElectronApplication } from '@stablyai/playwright-test'
-import { test, expect } from './helpers/orca-app'
+import { test, expect, forwardElectronProcessLogs } from './helpers/orca-app'
 import { TEST_REPO_PATH_FILE } from './global-setup'
 import { getE2ECompletedOnboardingProfile } from './helpers/e2e-completed-onboarding-profile'
 import { getOrcaElectronLaunchArgs } from './helpers/electron-launch-args'
@@ -101,11 +101,7 @@ async function removeUserDataDir(userDataDir: string): Promise<void> {
 test.describe.configure({ mode: 'serial' })
 
 test('promotes the headless owner without replacing its daemon terminal', async (// oxlint-disable-next-line no-empty-pattern -- This lifecycle test owns both launches and intentionally opts out of the default app fixture.
-{}) => {
-  test.skip(
-    process.platform !== 'darwin',
-    'live single-instance promotion is currently covered on macOS'
-  )
+{}, testInfo) => {
   test.setTimeout(180_000)
 
   const repoPath = readFileSync(TEST_REPO_PATH_FILE, 'utf8').trim()
@@ -133,6 +129,8 @@ test('promotes the headless owner without replacing its daemon terminal', async 
     })
     const resolvedHome = await serveApp.evaluate(({ app }) => app.getPath('home'))
     assertElectronResolvedIsolatedHome(resolvedHome, homeIsolation)
+    // Why: this spec bypasses the app fixture, so opt into its gated Electron log capture for CI failures.
+    forwardElectronProcessLogs(serveApp, testInfo)
     const ownerPid = serveApp.process().pid
     const client = new RuntimeClient(userDataDir, 5_000)
 
@@ -174,13 +172,26 @@ test('promotes the headless owner without replacing its daemon terminal', async 
       )
       .toContain(beforeMarker)
 
+    const forwardAppLogs = process.env.ORCA_E2E_FORWARD_APP_LOGS === '1'
     activatingProcess = spawn(electronPath, getOrcaElectronLaunchArgs(mainPath, false), {
       env,
-      stdio: 'ignore'
+      stdio: forwardAppLogs ? 'pipe' : 'ignore'
     })
     activatingProcess.on('error', (error) => {
       console.error('[e2e] activating process failed to spawn:', error)
     })
+    if (forwardAppLogs) {
+      const prefix = '[e2e] activating process'
+      activatingProcess.stdout?.on('data', (chunk: Buffer) => {
+        console.log(`${prefix} stdout: ${chunk.toString().trimEnd()}`)
+      })
+      activatingProcess.stderr?.on('data', (chunk: Buffer) => {
+        console.error(`${prefix} stderr: ${chunk.toString().trimEnd()}`)
+      })
+      activatingProcess.on('exit', (code, signal) => {
+        console.log(`${prefix} exit: code=${code ?? 'null'} signal=${signal ?? 'null'}`)
+      })
+    }
 
     const page = await serveApp.firstWindow({ timeout: 120_000 })
     await page.waitForLoadState('domcontentloaded')

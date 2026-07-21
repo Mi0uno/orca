@@ -111,7 +111,9 @@ const JSON_INSTALLERS = [
   }
 ] as const
 
-const MANAGED_HOOKS_DIR_NEEDLES = ['/.orca/agent-hooks/', '\\.orca\\agent-hooks\\'] as const
+const MANAGED_HOOKS_DIR_NEEDLE = '/.orca/agent-hooks/'
+// Why: statusLine is not a hook; Claude's schema has no timeout field, and slow statuslines can't block agent turns.
+const STATUSLINE_SCRIPT_NEEDLE = '-statusline.'
 
 function decodePowerShellEncodedCommand(command: string): string | null {
   const match = command.match(/\s-EncodedCommand\s+(\S+)/i)
@@ -131,8 +133,9 @@ function managedHookCommandSearchText(command: string): string {
 }
 
 function isManagedHookCarrier(command: string): boolean {
-  return MANAGED_HOOKS_DIR_NEEDLES.some((needle) =>
-    managedHookCommandSearchText(command).includes(needle)
+  const normalized = managedHookCommandSearchText(command).replaceAll('\\', '/')
+  return (
+    normalized.includes(MANAGED_HOOKS_DIR_NEEDLE) && !normalized.includes(STATUSLINE_SCRIPT_NEEDLE)
   )
 }
 

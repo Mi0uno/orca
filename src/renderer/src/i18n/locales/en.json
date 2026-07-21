@@ -1811,7 +1811,9 @@
         "jiraSortDescending": "descending",
         "jiraSortBy": "Sort by",
         "jiraToggleSortDirection": "Sort {{value0}}",
-        "75a38d7df8": "GitHub data is temporarily unavailable. Its API may be down, rate-limited, or unreachable. Please try again shortly."
+        "75a38d7df8": "GitHub data is temporarily unavailable. Its API may be down, rate-limited, or unreachable. Please try again shortly.",
+        "noGithubSourceDetected": "No GitHub source detected for",
+        "noGithubSourceDetectedHint": "it may have no GitHub remote, or the source could not be resolved."
       },
       "Terminal": {
         "73768427cf": "Close",
@@ -2767,7 +2769,8 @@
             "sessionQueued": "Session queued",
             "openSupportedWorkspace": "Open a workspace before resuming a session.",
             "sessionHostMismatchUnsupported": "This session belongs to a different host. Drop it onto a workspace on the same host.",
-            "localSessionSshWorkspaceUnsupported": "This session's history is stored on this machine, so it can't resume in an SSH workspace. Drop it onto a local workspace instead."
+            "localSessionSshWorkspaceUnsupported": "This session's history is stored on this machine, so it can't resume in an SSH workspace. Drop it onto a local workspace instead.",
+            "prepareSessionResumeFailed": "Could not prepare this session for resume."
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "New split"
@@ -4693,7 +4696,6 @@
           "modalDescription": "Install the Linear skill from a terminal.",
           "modalPrompt": "Enable agents to read and edit the attached Linear ticket.",
           "dontShowAgain": "Don't show again",
-          "notNow": "Not now",
           "missingBoth": "Orca CLI and Linear agent skill are missing.",
           "missingCli": "Orca CLI is missing.",
           "missingSkill": "Linear agent skill is missing.",
@@ -7082,7 +7084,6 @@
           "cf4437a2f7": "ANSI black color",
           "adfdee23cb": "Black",
           "68e9f07de0": "ANSI Normal",
-          "fb8c6f1967": "Color for bold text. Falls back to the normal color if not set.",
           "862e463f7f": "Bold Text",
           "b2c0857c49": "Text color of selected text",
           "8b450b5305": "Selection Foreground",
@@ -7098,7 +7099,8 @@
           "79f6bfb76e": "Foreground",
           "cf37ff69f6": "Base",
           "8abdab9f7c": "Restart now",
-          "907131d741": "Restarting…"
+          "907131d741": "Restarting…",
+          "605a35d600": "Not applied by the terminal renderer yet — xterm.js has no bold color slot. A saved value is preserved."
         },
         "UIZoomControl": {
           "c2c64b24d0": "Reset"
@@ -7915,7 +7917,9 @@
             "d2d2d929c0": "Rich Markdown Spellcheck",
             "4497e2e2bb": "Show browser spelling underlines and suggestions while editing rich Markdown.",
             "e61157e926": "Editor Word Wrap",
-            "005be5c699": "Wrap long lines in file editors instead of requiring horizontal scrolling."
+            "005be5c699": "Wrap long lines in file editors instead of requiring horizontal scrolling.",
+            "editorFontFamily": "Editor Font Family",
+            "editorFontFamilyDesc": "Font used by file editors and diff views. Leave empty to follow the terminal font."
           }
         },
         "git": {
@@ -9317,6 +9321,11 @@
         },
         "MobileRelayBetaNotice": {
           "notice": "Orca Relay is in beta."
+        },
+        "EditorFontFamilySetting": {
+          "title": "Editor Font Family",
+          "description": "Font used by file editors and diff views. Leave empty to follow the terminal font.",
+          "placeholder": "Same as terminal font"
         }
       },
       "right": {
@@ -10317,13 +10326,6 @@
                   "cfafa92509": "No unresolved conflicts to send."
                 }
               }
-            },
-            "hosted": {
-              "review": {
-                "actions": {
-                  "e475c29b17": "This will merge the {{value0}}."
-                }
-              }
             }
           },
           "fileExplorerOperationOwner": {
@@ -10393,7 +10395,8 @@
             "worktreeUnavailable": "Worktree is no longer available.",
             "openSupportedWorkspace": "Open a workspace before resuming a session.",
             "sessionHostMismatchUnsupported": "This session belongs to a different host. Open a workspace on the same host to resume it.",
-            "localSessionSshWorkspaceUnsupported": "This session's history is stored on this machine, so it can't resume in an SSH workspace. Open a local workspace instead."
+            "localSessionSshWorkspaceUnsupported": "This session's history is stored on this machine, so it can't resume in an SSH workspace. Open a local workspace instead.",
+            "prepareSessionResumeFailed": "Could not prepare this session for resume."
           },
           "AiVaultPanelControls": {
             "scanningSessions": "Scanning sessions",
@@ -12398,6 +12401,15 @@
         },
         "richMarkdownSourceOwningCutFeedback": {
           "selectLessContent": "Select less content or use code mode to cut preserved HTML citations."
+        },
+        "editor": {
+          "save": {
+            "failure": {
+              "notice": {
+                "8c59ce5075": "Failed to save the file. Please try again."
+              }
+            }
+          }
         }
       },
       "diff": {
@@ -13678,8 +13690,7 @@
     },
     "terminal": {
       "closed": "No live terminal — this agent's pane has closed.",
-      "close": "Close",
-      "focusWorktree": "Focus worktree"
+      "focusWorktree": "Open worktree"
     }
   },
   "dashboard": {
