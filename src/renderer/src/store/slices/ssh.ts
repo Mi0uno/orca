@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type {
   SshConnectionState,
+  SshCredentialRequestEvent,
   PortForwardEntry,
   EnrichedDetectedPort,
   SshTarget
@@ -21,12 +22,7 @@ export type RemoteWorkspaceSyncStatus = {
   message?: string
 }
 
-export type SshCredentialRequest = {
-  requestId: string
-  targetId: string
-  kind: 'passphrase' | 'password'
-  detail: string
-}
+export type SshCredentialRequest = SshCredentialRequestEvent
 
 export type SshSlice = {
   sshConnectionStates: Map<string, SshConnectionState>

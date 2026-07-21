@@ -7,6 +7,27 @@ export const DEFAULT_BOUNDED_SSH_RELAY_GRACE_PERIOD_SECONDS = 24 * 60 * 60
 export const DEFAULT_SSH_RELAY_GRACE_PERIOD_SECONDS = 0
 export const SSH_RELAY_CONFIGURE_GRACE_TIME_METHOD = 'relay.configureGraceTime'
 
+export type SshCredentialKind = 'passphrase' | 'password' | 'keyboard-interactive'
+
+export type SshKeyboardInteractivePromptMetadata = {
+  interactionName: string
+  instructions: string
+  echo: boolean
+  promptIndex: number
+  promptCount: number
+}
+
+type SshCredentialRequestBase = {
+  requestId: string
+  targetId: string
+  detail: string
+}
+
+export type SshCredentialRequestEvent =
+  | (SshCredentialRequestBase & { kind: 'passphrase' | 'password' })
+  | (SshCredentialRequestBase &
+      SshKeyboardInteractivePromptMetadata & { kind: 'keyboard-interactive' })
+
 export type SshTarget = {
   id: string
   label: string
@@ -43,7 +64,7 @@ export type SshTarget = {
    *  0 disables expiry. Default: 0 (until reset). Max: 604800 (7 days). */
   relayGracePeriodSeconds?: number
   /** Set to true after a successful connection that triggered a credential
-   *  prompt (passphrase or password). Persisted so startup reconnect can
+   *  prompt (passphrase, password, or interactive verification). Persisted so startup reconnect can
    *  partition targets into eager (no passphrase) vs deferred (passphrase)
    *  without attempting a connection first. */
   lastRequiredPassphrase?: boolean

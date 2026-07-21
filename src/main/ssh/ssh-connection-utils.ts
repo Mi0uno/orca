@@ -1,5 +1,10 @@
 import type { ConnectConfig } from 'ssh2'
-import type { SshTarget, SshConnectionState } from '../../shared/ssh-types'
+import type {
+  SshTarget,
+  SshConnectionState,
+  SshCredentialKind,
+  SshKeyboardInteractivePromptMetadata
+} from '../../shared/ssh-types'
 import type { SshResolvedConfig } from './ssh-config-parser'
 import {
   findEncryptedPrivateKeyPath,
@@ -13,14 +18,14 @@ import { isOpenSshConfigBackedTarget } from './system-ssh-args'
 
 export { findDefaultKeyFile, resolveAgentSocket } from './ssh-auth-resolution'
 
-export type SshCredentialKind = 'passphrase' | 'password'
-
 export type SshConnectionCallbacks = {
   onStateChange: (targetId: string, state: SshConnectionState) => void
   onCredentialRequest?: (
     targetId: string,
     kind: SshCredentialKind,
-    detail: string
+    detail: string,
+    keyboardInteractive?: SshKeyboardInteractivePromptMetadata,
+    signal?: AbortSignal
   ) => Promise<string | null>
 }
 
@@ -189,7 +194,8 @@ export function buildConnectConfig(
     port: effectivePort,
     username: effectiveUser,
     readyTimeout: CONNECT_TIMEOUT_MS,
-    keepaliveInterval: 15_000
+    keepaliveInterval: 15_000,
+    tryKeyboard: true
   }
 
   const shouldIncludeAgent = options.includeAgent ?? true

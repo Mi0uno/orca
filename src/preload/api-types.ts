@@ -480,6 +480,15 @@ import type {
 } from '../shared/workspace-ports'
 import type { GhAuthDiagnostic } from '../shared/github-auth-types'
 import type {
+  SshConnectionState,
+  SshCredentialRequestEvent,
+  SshConfigImportResult,
+  SshTargetAddResult,
+  SshTarget,
+  PortForwardEntry,
+  EnrichedDetectedPort
+} from '../shared/ssh-types'
+import type {
   CodexUsageBreakdownKind,
   CodexUsageBreakdownRow,
   CodexUsageDailyPoint,
@@ -3535,14 +3544,7 @@ export type PreloadApi = {
       resolvedPath: string
       pathFlavor: FilesystemPathFlavor
     }>
-    onCredentialRequest: (
-      callback: (data: {
-        requestId: string
-        targetId: string
-        kind: 'passphrase' | 'password'
-        detail: string
-      }) => void
-    ) => () => void
+    onCredentialRequest: (callback: (data: SshCredentialRequestEvent) => void) => () => void
     onCredentialResolved: (callback: (data: { requestId: string }) => void) => () => void
     submitCredential: (args: { requestId: string; value: string | null }) => Promise<void>
   }
