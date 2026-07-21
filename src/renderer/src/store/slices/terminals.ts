@@ -493,6 +493,7 @@ export type TerminalSlice = {
       delivery?: 'terminal-paste'
       startupCommandDelivery?: StartupCommandDelivery
       env?: Record<string, string>
+      envToDelete?: string[]
       launchConfig?: SleepingAgentLaunchConfig
       resumeProviderSession?: AgentProviderSessionMetadata
       launchToken?: string
@@ -643,6 +644,7 @@ export type TerminalSlice = {
       delivery?: 'terminal-paste'
       startupCommandDelivery?: StartupCommandDelivery
       env?: Record<string, string>
+      envToDelete?: string[]
       launchConfig?: SleepingAgentLaunchConfig
       resumeProviderSession?: AgentProviderSessionMetadata
       launchToken?: string
@@ -660,6 +662,7 @@ export type TerminalSlice = {
     delivery?: 'terminal-paste'
     startupCommandDelivery?: StartupCommandDelivery
     env?: Record<string, string>
+    envToDelete?: string[]
     launchConfig?: SleepingAgentLaunchConfig
     resumeProviderSession?: AgentProviderSessionMetadata
     launchToken?: string
