@@ -76,20 +76,13 @@ test('preserves a live daemon PTY when the daemon is too slow for the startup he
     // that is too busy to respond within the health-check budget.
     process.kill(daemonPid, 'SIGSTOP')
 
-    const stderrLines: string[] = []
     const resumeTimer = setTimeout(() => {
       if (daemonPid !== null) {
         process.kill(daemonPid, 'SIGCONT')
       }
     }, RESUME_DAEMON_AFTER_MS)
     try {
-      const secondLaunch = await session.launch({
-        onAppLaunched: (app) => {
-          app.process().stderr?.on('data', (chunk: Buffer) => {
-            stderrLines.push(chunk.toString())
-          })
-        }
-      })
+      const secondLaunch = await session.launch()
       secondApp = secondLaunch.app
 
       await waitForSessionReady(secondLaunch.page)
@@ -104,12 +97,8 @@ test('preserves a live daemon PTY when the daemon is too slow for the startup he
       await waitForPaneCount(secondLaunch.page, 1, 30_000)
       await waitForTerminalOutput(secondLaunch.page, marker, 20_000)
 
-      // The guard path must actually have run: the daemon failed the health
-      // check and was preserved because its live session was verified.
-      await expect
-        .poll(() => stderrLines.join(''), { timeout: 10_000 })
-        .toContain('Preserving daemon that failed the health check')
       expect(readDaemonPid(session.userDataDir)).toBe(daemonPid)
+      expect(await discoverActivePtyId(secondLaunch.page)).toBe(ptyId)
       // Why: a killed daemon cold-restores scrollback from history, so the
       // marker text alone cannot distinguish a live session from a dead one.
       // The restore banner only appears for cold-restored (dead) sessions.

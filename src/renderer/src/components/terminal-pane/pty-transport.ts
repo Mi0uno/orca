@@ -465,6 +465,7 @@ export function createIpcPtyTransport(opts: IpcPtyTransportOptions = {}): PtyTra
     cwd,
     cwdFallback,
     env,
+    envToDelete,
     command,
     launchConfig,
     launchToken,
@@ -678,6 +679,9 @@ export function createIpcPtyTransport(opts: IpcPtyTransportOptions = {}): PtyTra
           cwd,
           ...(shouldSendLocalCwdFallback ? { cwdFallback } : {}),
           env: options.env ?? env,
+          ...((options.envToDelete ?? envToDelete)
+            ? { envToDelete: options.envToDelete ?? envToDelete }
+            : {}),
           command: options.command ?? command,
           ...((options.launchConfig ?? launchConfig)
             ? { launchConfig: options.launchConfig ?? launchConfig }
@@ -872,8 +876,8 @@ export function createIpcPtyTransport(opts: IpcPtyTransportOptions = {}): PtyTra
       clearAccumulatedState()
       inputWriteQueue.clear()
       if (ptyId) {
-        // Why: on remount keep the exit observer alive so a shell dying in the gap still clears stale tab/leaf bindings before reattach.
-        unregisterPtyDataAndStatusHandlers(ptyId)
+        // Why: the detached pane's exit callback owns a destroyed PaneManager; buffer gap exits for the parked watcher or remounted pane instead.
+        unregisterPtyHandlers(ptyId)
       }
       connected = false
       ptyId = null

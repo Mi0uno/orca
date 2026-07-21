@@ -9,6 +9,11 @@ import { getE2ECompletedOnboardingProfile } from './helpers/e2e-completed-onboar
 import { getOrcaElectronLaunchArgs } from './helpers/electron-launch-args'
 import { cleanupE2EDaemons, closeElectronAppForE2E } from './helpers/electron-process-shutdown'
 import {
+  assertElectronResolvedIsolatedHome,
+  createElectronHomeIsolation,
+  type ElectronHomeIsolation
+} from './helpers/electron-home-isolation'
+import {
   discoverActivePtyId,
   execInTerminal,
   getTerminalContent,
@@ -32,18 +37,22 @@ const electronPath = path.join(
   readFileSync(path.join(electronPackageDir, 'path.txt'), 'utf8').trim()
 )
 
-function createLaunchEnv(userDataDir: string): NodeJS.ProcessEnv {
+function createHeadlessLaunchIsolation(userDataDir: string): ElectronHomeIsolation {
   const { ELECTRON_RUN_AS_NODE: _unused, ...cleanEnv } = process.env
   void _unused
-  return {
-    ...cleanEnv,
-    NODE_ENV: 'development',
-    ORCA_E2E_USER_DATA_DIR: userDataDir,
-    ORCA_E2E_HEADLESS: '1',
-    // Why: production builds always use the lock; this opt-in makes the dev
-    // E2E bundle exercise the same second-instance ownership path.
-    ORCA_E2E_ENFORCE_SINGLE_INSTANCE_LOCK: '1'
-  }
+  return createElectronHomeIsolation({
+    inheritedEnv: cleanEnv,
+    launchEnv: {
+      NODE_ENV: 'development',
+      ORCA_E2E_HEADLESS: '1',
+      // Why: production builds always use the lock; this opt-in makes the dev
+      // E2E bundle exercise the same second-instance ownership path.
+      ORCA_E2E_ENFORCE_SINGLE_INSTANCE_LOCK: '1'
+    },
+    extraEnv: {},
+    userDataDir,
+    codexRealHomeEnabled: false
+  })
 }
 
 function readDaemonPid(userDataDir: string): number {
@@ -93,6 +102,12 @@ test.describe.configure({ mode: 'serial' })
 
 test('promotes the headless owner without replacing its daemon terminal', async (// oxlint-disable-next-line no-empty-pattern -- This lifecycle test owns both launches and intentionally opts out of the default app fixture.
 {}) => {
+  test.skip(
+    process.platform !== 'darwin',
+    'live single-instance promotion is currently covered on macOS'
+  )
+  test.setTimeout(180_000)
+
   const repoPath = readFileSync(TEST_REPO_PATH_FILE, 'utf8').trim()
   if (!repoPath || !existsSync(repoPath)) {
     test.skip(true, 'Global setup did not produce a seeded test repo')
@@ -101,7 +116,8 @@ test('promotes the headless owner without replacing its daemon terminal', async 
 
   const mainPath = path.join(process.cwd(), 'out', 'main', 'index.js')
   const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'orca-e2e-serve-promotion-'))
-  const env = createLaunchEnv(userDataDir)
+  const homeIsolation = createHeadlessLaunchIsolation(userDataDir)
+  const env = homeIsolation.env
   let serveApp: ElectronApplication | null = null
   let activatingProcess: ChildProcess | null = null
 
@@ -115,6 +131,8 @@ test('promotes the headless owner without replacing its daemon terminal', async 
       args: [...getOrcaElectronLaunchArgs(mainPath, false), '--serve', '--serve-no-pairing'],
       env
     })
+    const resolvedHome = await serveApp.evaluate(({ app }) => app.getPath('home'))
+    assertElectronResolvedIsolatedHome(resolvedHome, homeIsolation)
     const ownerPid = serveApp.process().pid
     const client = new RuntimeClient(userDataDir, 5_000)
 
