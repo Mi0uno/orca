@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 let eventHandlers: Map<string, Set<(...args: unknown[]) => void>>
-let connectBehavior: 'ready' | 'error' = 'ready'
+let connectBehavior: 'ready' | 'error' | 'pending' = 'ready'
 let connectErrorMessage = ''
 let connectErrorCode = ''
 let destroyErrorMessage = ''
@@ -68,6 +68,9 @@ vi.mock('ssh2', () => {
         }
         if (next === 'ready') {
           emitSshEvent('ready')
+          return
+        }
+        if (connectBehavior === 'pending') {
           return
         }
         if (connectBehavior === 'error') {
@@ -391,6 +394,162 @@ describe('SshConnection', () => {
 
     expect(states).toContain('connecting')
     expect(states).toContain('connected')
+  })
+
+  it('answers every keyboard-interactive prompt in order', async () => {
+    connectBehavior = 'pending'
+    const onCredentialRequest = vi.fn().mockResolvedValueOnce('654321').mockResolvedValueOnce('')
+    const conn = new SshConnection(createTarget(), createCallbacks({ onCredentialRequest }))
+
+    const connectPromise = conn.connect()
+    await vi.waitFor(() => expect(eventHandlers.has('keyboard-interactive')).toBe(true))
+    const finish = vi.fn()
+    emitSshEvent(
+      'keyboard-interactive',
+      'Duo Security',
+      'Complete the verification request.',
+      'en',
+      [
+        { prompt: 'Verification code: ', echo: false },
+        { prompt: 'Optional device name: ', echo: true }
+      ],
+      finish
+    )
+
+    await vi.waitFor(() => {
+      expect(finish).toHaveBeenCalledWith(['654321', ''])
+    })
+    expect(onCredentialRequest).toHaveBeenNthCalledWith(
+      1,
+      'target-1',
+      'keyboard-interactive',
+      'Verification code: ',
+      {
+        interactionName: 'Duo Security',
+        instructions: 'Complete the verification request.',
+        echo: false,
+        promptIndex: 1,
+        promptCount: 2
+      },
+      expect.any(AbortSignal)
+    )
+    expect(onCredentialRequest).toHaveBeenNthCalledWith(
+      2,
+      'target-1',
+      'keyboard-interactive',
+      'Optional device name: ',
+      {
+        interactionName: 'Duo Security',
+        instructions: 'Complete the verification request.',
+        echo: true,
+        promptIndex: 2,
+        promptCount: 2
+      },
+      expect.any(AbortSignal)
+    )
+
+    emitSshEvent('ready')
+    await connectPromise
+  })
+
+  it('stops a keyboard-interactive round when the user cancels', async () => {
+    connectBehavior = 'pending'
+    const onCredentialRequest = vi.fn().mockResolvedValue(null)
+    const conn = new SshConnection(createTarget(), createCallbacks({ onCredentialRequest }))
+
+    const connectPromise = conn.connect()
+    await vi.waitFor(() => expect(eventHandlers.has('keyboard-interactive')).toBe(true))
+    const finish = vi.fn()
+    emitSshEvent(
+      'keyboard-interactive',
+      '',
+      '',
+      '',
+      [
+        { prompt: 'First: ', echo: false },
+        { prompt: 'Second: ', echo: false }
+      ],
+      finish
+    )
+
+    await expect(connectPromise).rejects.toThrow('SSH authentication was cancelled')
+    expect(onCredentialRequest).toHaveBeenCalledTimes(1)
+    expect(finish).not.toHaveBeenCalled()
+  })
+
+  it('rejects prompt floods spread across multiple keyboard-interactive rounds', async () => {
+    connectBehavior = 'pending'
+    const onCredentialRequest = vi.fn().mockResolvedValue('answer')
+    const conn = new SshConnection(createTarget(), createCallbacks({ onCredentialRequest }))
+
+    const connectPromise = conn.connect()
+    await vi.waitFor(() => expect(eventHandlers.has('keyboard-interactive')).toBe(true))
+    const firstFinish = vi.fn()
+    emitSshEvent(
+      'keyboard-interactive',
+      '',
+      '',
+      '',
+      Array.from({ length: 16 }, (_, index) => ({
+        prompt: `First round ${index}: `,
+        echo: false
+      })),
+      firstFinish
+    )
+    await vi.waitFor(() => expect(firstFinish).toHaveBeenCalled())
+
+    const secondFinish = vi.fn()
+    emitSshEvent(
+      'keyboard-interactive',
+      '',
+      '',
+      '',
+      Array.from({ length: 17 }, (_, index) => ({
+        prompt: `Second round ${index}: `,
+        echo: false
+      })),
+      secondFinish
+    )
+
+    await expect(connectPromise).rejects.toThrow('SSH keyboard-interactive prompt limit exceeded')
+    expect(onCredentialRequest).toHaveBeenCalledTimes(16)
+    expect(secondFinish).not.toHaveBeenCalled()
+  })
+
+  it('aborts a pending keyboard-interactive request when disconnected', async () => {
+    connectBehavior = 'pending'
+    let requestSignal: AbortSignal | undefined
+    const onCredentialRequest = vi.fn(
+      (
+        _targetId: string,
+        _kind: string,
+        _detail: string,
+        _metadata: unknown,
+        signal?: AbortSignal
+      ) =>
+        new Promise<string | null>((resolve) => {
+          requestSignal = signal
+          signal?.addEventListener('abort', () => resolve(null), { once: true })
+        })
+    )
+    const conn = new SshConnection(createTarget(), createCallbacks({ onCredentialRequest }))
+
+    const connectPromise = conn.connect()
+    await vi.waitFor(() => expect(eventHandlers.has('keyboard-interactive')).toBe(true))
+    emitSshEvent(
+      'keyboard-interactive',
+      'Verification',
+      '',
+      '',
+      [{ prompt: 'Code: ', echo: false }],
+      vi.fn()
+    )
+    await vi.waitFor(() => expect(requestSignal).toBeInstanceOf(AbortSignal))
+
+    await conn.disconnect()
+
+    expect(requestSignal?.aborted).toBe(true)
+    await expect(connectPromise).rejects.toThrow('SSH connection attempt was cancelled')
   })
 
   it('reports error state on connection failure', async () => {

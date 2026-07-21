@@ -61,7 +61,7 @@ export function SshPassphraseDialog(): React.JSX.Element | null {
   )
 
   const handleSubmit = useCallback(async () => {
-    if (!request || !value) {
+    if (!request || (request.kind !== 'keyboard-interactive' && !value)) {
       return
     }
     setSubmitting(true)
@@ -107,6 +107,7 @@ export function SshPassphraseDialog(): React.JSX.Element | null {
 
   const label = targetLabels.get(request.targetId) ?? request.targetId
   const isPassword = request.kind === 'password'
+  const isKeyboardInteractive = request.kind === 'keyboard-interactive'
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && void handleCancel()}>
@@ -120,15 +121,43 @@ export function SshPassphraseDialog(): React.JSX.Element | null {
       >
         <DialogHeader>
           <DialogTitle className="text-sm">
-            {isPassword
-              ? translate('auto.components.settings.SshPassphraseDialog.106bd57f4a', 'SSH Password')
-              : translate(
-                  'auto.components.settings.SshPassphraseDialog.1f3dde805d',
-                  'SSH Key Passphrase'
-                )}
+            {isKeyboardInteractive
+              ? translate(
+                  'auto.components.settings.SshPassphraseDialog.keyboardInteractiveTitle',
+                  'SSH Verification'
+                )
+              : isPassword
+                ? translate(
+                    'auto.components.settings.SshPassphraseDialog.106bd57f4a',
+                    'SSH Password'
+                  )
+                : translate(
+                    'auto.components.settings.SshPassphraseDialog.1f3dde805d',
+                    'SSH Key Passphrase'
+                  )}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            {isPassword ? (
+            {isKeyboardInteractive ? (
+              <span className="block space-y-1">
+                <span className="block">
+                  {translate(
+                    'auto.components.settings.SshPassphraseDialog.keyboardInteractiveDescription',
+                    'Complete the verification request for'
+                  )}{' '}
+                  <span className="font-medium text-foreground">{label}</span>
+                </span>
+                {request.interactionName ? (
+                  <span className="block font-medium text-foreground break-words">
+                    {request.interactionName}
+                  </span>
+                ) : null}
+                {request.instructions ? (
+                  <span className="scrollbar-sleek block max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+                    {request.instructions}
+                  </span>
+                ) : null}
+              </span>
+            ) : isPassword ? (
               <>
                 {translate(
                   'auto.components.settings.SshPassphraseDialog.dbf9b6f2d0',
@@ -152,22 +181,39 @@ export function SshPassphraseDialog(): React.JSX.Element | null {
             htmlFor="ssh-credential-input"
             className="text-[11px] font-medium text-muted-foreground mb-1 block"
           >
-            {isPassword
-              ? translate(
-                  'auto.components.settings.SshPassphraseDialog.cab3d5f5a5',
-                  'Password for {{value0}}',
-                  { value0: request.detail }
+            {isKeyboardInteractive
+              ? request.detail.trim() ||
+                translate(
+                  'auto.components.settings.SshPassphraseDialog.keyboardInteractiveResponse',
+                  'Response'
                 )
-              : translate(
-                  'auto.components.settings.SshPassphraseDialog.8a349e3fac',
-                  'Passphrase for {{value0}}',
-                  { value0: request.detail }
-                )}
+              : isPassword
+                ? translate(
+                    'auto.components.settings.SshPassphraseDialog.cab3d5f5a5',
+                    'Password for {{value0}}',
+                    { value0: request.detail }
+                  )
+                : translate(
+                    'auto.components.settings.SshPassphraseDialog.8a349e3fac',
+                    'Passphrase for {{value0}}',
+                    { value0: request.detail }
+                  )}
           </label>
+          {isKeyboardInteractive && request.promptCount > 1 ? (
+            <p className="mb-1 text-[11px] text-muted-foreground">
+              {translate(
+                'auto.components.settings.SshPassphraseDialog.keyboardInteractiveProgress',
+                'Prompt {{value0}} of {{value1}}',
+                { value0: request.promptIndex, value1: request.promptCount }
+              )}
+            </p>
+          ) : null}
           <Input
             id="ssh-credential-input"
             ref={setInputRef}
-            type="password"
+            type={isKeyboardInteractive && request.echo ? 'text' : 'password'}
+            autoComplete="off"
+            maxLength={16_384}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -177,15 +223,20 @@ export function SshPassphraseDialog(): React.JSX.Element | null {
               }
             }}
             placeholder={
-              isPassword
+              isKeyboardInteractive
                 ? translate(
-                    'auto.components.settings.SshPassphraseDialog.abaa0dc653',
-                    'Enter password'
+                    'auto.components.settings.SshPassphraseDialog.keyboardInteractivePlaceholder',
+                    'Enter response'
                   )
-                : translate(
-                    'auto.components.settings.SshPassphraseDialog.c3ce71aad6',
-                    'Enter passphrase'
-                  )
+                : isPassword
+                  ? translate(
+                      'auto.components.settings.SshPassphraseDialog.abaa0dc653',
+                      'Enter password'
+                    )
+                  : translate(
+                      'auto.components.settings.SshPassphraseDialog.c3ce71aad6',
+                      'Enter passphrase'
+                    )
             }
             className="h-8 text-sm"
             disabled={submitting}
@@ -200,10 +251,19 @@ export function SshPassphraseDialog(): React.JSX.Element | null {
           >
             {translate('auto.components.settings.SshPassphraseDialog.d5a234456f', 'Cancel')}
           </Button>
-          <Button size="sm" onClick={() => void handleSubmit()} disabled={!value || submitting}>
-            {isPassword
-              ? translate('auto.components.settings.SshPassphraseDialog.bec2c1318f', 'Connect')
-              : translate('auto.components.settings.SshPassphraseDialog.405066423c', 'Unlock')}
+          <Button
+            size="sm"
+            onClick={() => void handleSubmit()}
+            disabled={(!isKeyboardInteractive && !value) || submitting}
+          >
+            {isKeyboardInteractive
+              ? translate(
+                  'auto.components.settings.SshPassphraseDialog.keyboardInteractiveContinue',
+                  'Continue'
+                )
+              : isPassword
+                ? translate('auto.components.settings.SshPassphraseDialog.bec2c1318f', 'Connect')
+                : translate('auto.components.settings.SshPassphraseDialog.405066423c', 'Unlock')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -6749,7 +6749,13 @@
           "8a349e3fac": "Passphrase for {{value0}}",
           "cab3d5f5a5": "Password for {{value0}}",
           "1f3dde805d": "SSH Key Passphrase",
-          "106bd57f4a": "SSH Password"
+          "106bd57f4a": "SSH Password",
+          "keyboardInteractiveTitle": "SSH Verification",
+          "keyboardInteractiveDescription": "Complete the verification request for",
+          "keyboardInteractiveResponse": "Response",
+          "keyboardInteractiveProgress": "Prompt {{value0}} of {{value1}}",
+          "keyboardInteractivePlaceholder": "Enter response",
+          "keyboardInteractiveContinue": "Continue"
         },
         "SshTargetCard": {
           "a883f5a00f": "terminal timeout: {{value0}}",

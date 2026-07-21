@@ -448,6 +448,11 @@ describe('buildConnectConfig', () => {
     expect(config.keepaliveInterval).toBe(15_000)
   })
 
+  it('enables keyboard-interactive authentication', () => {
+    const config = buildConnectConfig(makeTarget(), null)
+    expect(config.tryKeyboard).toBe(true)
+  })
+
   it('uses agent auth when no explicit key and SSH_AUTH_SOCK is set', () => {
     const config = buildConnectConfig(makeTarget(), null)
     expect(config.agent).toBe('/tmp/agent.sock')

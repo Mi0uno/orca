@@ -6689,7 +6689,13 @@
           "8a349e3fac": "Frase de contraseña para {{value0}}",
           "cab3d5f5a5": "Contraseña para {{value0}}",
           "1f3dde805d": "Frase de contraseña de clave SSH",
-          "106bd57f4a": "Contraseña SSH"
+          "106bd57f4a": "Contraseña SSH",
+          "keyboardInteractiveTitle": "Verificación SSH",
+          "keyboardInteractiveDescription": "Completa la solicitud de verificación para",
+          "keyboardInteractiveResponse": "Respuesta",
+          "keyboardInteractiveProgress": "Solicitud {{value0}} de {{value1}}",
+          "keyboardInteractivePlaceholder": "Introduce la respuesta",
+          "keyboardInteractiveContinue": "Continuar"
         },
         "SshTargetCard": {
           "ec6543cee9": "Conectar",
