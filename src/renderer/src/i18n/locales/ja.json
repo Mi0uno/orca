@@ -6731,7 +6731,13 @@
           "8a349e3fac": "{{value0}} のパスフレーズ",
           "cab3d5f5a5": "{{value0}} のパスワード",
           "1f3dde805d": "SSH キーのパスフレーズ",
-          "106bd57f4a": "SSH パスワード"
+          "106bd57f4a": "SSH パスワード",
+          "keyboardInteractiveTitle": "SSH 認証",
+          "keyboardInteractiveDescription": "次のホストの認証要求を完了してください:",
+          "keyboardInteractiveResponse": "応答",
+          "keyboardInteractiveProgress": "プロンプト {{value0}} / {{value1}}",
+          "keyboardInteractivePlaceholder": "応答を入力",
+          "keyboardInteractiveContinue": "続行"
         },
         "SshTargetCard": {
           "ec6543cee9": "接続",

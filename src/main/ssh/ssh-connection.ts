@@ -3,7 +3,13 @@ import * as net from 'node:net'
 import { createHash } from 'node:crypto'
 import { Client as SshClient } from 'ssh2'
 import type { ChildProcess } from 'node:child_process'
-import type { ClientChannel, ConnectConfig, SFTPWrapper } from 'ssh2'
+import type {
+  ClientChannel,
+  ConnectConfig,
+  KeyboardInteractiveCallback,
+  Prompt,
+  SFTPWrapper
+} from 'ssh2'
 import type { SshTarget, SshConnectionState, SshConnectionStatus } from '../../shared/ssh-types'
 import {
   getOrcaControlSocketPath,
@@ -42,6 +48,10 @@ import {
 import type { RemoteHostPlatform } from './ssh-remote-platform'
 import type { FileUploadSession } from '../providers/types'
 import { isSshSessionLimitError } from './ssh-session-limit-error'
+import {
+  MAX_KEYBOARD_INTERACTIVE_PROMPTS,
+  requestKeyboardInteractiveAnswers
+} from './ssh-keyboard-interactive'
 import {
   createLinkedSshFileTransferSignal,
   raceSftpFileTransferWithAbort
@@ -85,6 +95,7 @@ export class SshConnection {
   private cachedPassword: string | null = null
   private hostKeyFingerprint: string | undefined
   private connectGeneration = 0
+  private cancelSsh2Startup: (() => void) | null = null
 
   constructor(target: SshTarget, callbacks: SshConnectionCallbacks) {
     this.target = target
@@ -1081,6 +1092,18 @@ export class SshConnection {
     return new Promise<void>((resolve, reject) => {
       const client = new SshClient()
       let settled = false
+      let startupTimer: ReturnType<typeof setTimeout> | null = null
+      let cancelStartup: (() => void) | null = null
+      let keyboardInteractivePromptCount = 0
+      const credentialAbortController = new AbortController()
+      const startupTimeoutMs = config.readyTimeout ?? CONNECT_TIMEOUT_MS
+
+      const pauseStartupTimeout = (): void => {
+        if (startupTimer) {
+          clearTimeout(startupTimer)
+          startupTimer = null
+        }
+      }
 
       // Why: the relay uses the negotiated server key to isolate shared-home
       // install locks without comparing PIDs from an unrelated SSH host.
@@ -1093,8 +1116,14 @@ export class SshConnection {
       }
 
       const cleanupStartupListeners = (): void => {
+        pauseStartupTimeout()
+        credentialAbortController.abort()
         client.off('ready', onReady)
         client.off('error', onStartupError)
+        client.off('keyboard-interactive', onKeyboardInteractive)
+        if (this.cancelSsh2Startup === cancelStartup) {
+          this.cancelSsh2Startup = null
+        }
       }
       const swallowLateStartupError = (): void => {
         // Why: ssh2 can emit another socket error while destroying a settled pre-handshake client.
@@ -1145,9 +1174,85 @@ export class SshConnection {
         reject(err)
       }
 
+      const armStartupTimeout = (): void => {
+        pauseStartupTimeout()
+        if (startupTimeoutMs <= 0 || settled) {
+          return
+        }
+        startupTimer = setTimeout(() => {
+          const error = Object.assign(new Error('Timed out while waiting for handshake'), {
+            level: 'client-timeout'
+          })
+          onStartupError(error)
+        }, startupTimeoutMs)
+      }
+
+      const finishKeyboardInteractive = (
+        finish: KeyboardInteractiveCallback,
+        answers: string[]
+      ): void => {
+        if (settled) {
+          return
+        }
+        try {
+          finish(answers)
+          armStartupTimeout()
+        } catch (error) {
+          onStartupError(error instanceof Error ? error : new Error(String(error)))
+        }
+      }
+
+      const onKeyboardInteractive = (
+        interactionName: string,
+        instructions: string,
+        _language: string,
+        prompts: Prompt[],
+        finish: KeyboardInteractiveCallback
+      ): void => {
+        pauseStartupTimeout()
+        keyboardInteractivePromptCount += prompts.length
+        if (keyboardInteractivePromptCount > MAX_KEYBOARD_INTERACTIVE_PROMPTS) {
+          onStartupError(new Error('SSH keyboard-interactive prompt limit exceeded'))
+          return
+        }
+        void requestKeyboardInteractiveAnswers({
+          targetId: this.target.id,
+          interactionName,
+          instructions,
+          prompts,
+          callbacks: this.callbacks,
+          signal: credentialAbortController.signal
+        }).then(
+          (answers) => {
+            if (answers === undefined) {
+              finishKeyboardInteractive(finish, [])
+              return
+            }
+            if (answers === null) {
+              onStartupError(new Error('SSH authentication was cancelled'))
+              return
+            }
+            finishKeyboardInteractive(finish, answers)
+          },
+          (error) =>
+            onStartupError(error instanceof Error ? error : new Error('SSH verification failed'))
+        )
+      }
+
+      cancelStartup = () => onStartupError(this.createCancelledConnectAttemptError())
+      this.cancelSsh2Startup?.()
+      this.cancelSsh2Startup = cancelStartup
+
       client.on('ready', onReady)
       client.on('error', onStartupError)
-      client.connect(config)
+      client.on('keyboard-interactive', onKeyboardInteractive)
+      armStartupTimeout()
+      try {
+        // Why: our phase-aware timer pauses while the user answers MFA prompts; ssh2's timer cannot.
+        client.connect({ ...config, readyTimeout: 0 })
+      } catch (error) {
+        onStartupError(error instanceof Error ? error : new Error(String(error)))
+      }
     })
   }
 
@@ -1216,6 +1321,7 @@ export class SshConnection {
 
   private closeTransportsForReconnect(): void {
     this.connectGeneration += 1
+    this.cancelSsh2Startup?.()
     const client = this.client
     this.client = null
     try {
@@ -1298,6 +1404,7 @@ export class SshConnection {
   async disconnect(): Promise<void> {
     this.disposed = true
     this.connectGeneration += 1
+    this.cancelSsh2Startup?.()
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
     }

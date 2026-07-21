@@ -139,6 +139,7 @@ import {
 } from '../shared/rich-markdown-context-menu'
 import type {
   SshConnectionState,
+  SshCredentialRequestEvent,
   SshConfigImportResult,
   SshTargetAddResult,
   SshTarget,
@@ -4208,23 +4209,9 @@ const api = {
       resolvedPath: string
     }> => ipcRenderer.invoke('ssh:browseDir', args),
 
-    onCredentialRequest: (
-      callback: (data: {
-        requestId: string
-        targetId: string
-        kind: 'passphrase' | 'password'
-        detail: string
-      }) => void
-    ): (() => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        data: {
-          requestId: string
-          targetId: string
-          kind: 'passphrase' | 'password'
-          detail: string
-        }
-      ) => callback(data)
+    onCredentialRequest: (callback: (data: SshCredentialRequestEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: SshCredentialRequestEvent) =>
+        callback(data)
       ipcRenderer.on('ssh:credential-request', listener)
       return () => ipcRenderer.removeListener('ssh:credential-request', listener)
     },

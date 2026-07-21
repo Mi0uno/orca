@@ -406,6 +406,7 @@ import type {
 import type { GhAuthDiagnostic } from '../shared/github-auth-types'
 import type {
   SshConnectionState,
+  SshCredentialRequestEvent,
   SshConfigImportResult,
   SshTargetAddResult,
   SshTarget,
@@ -3146,14 +3147,7 @@ export type PreloadApi = {
       entries: { name: string; isDirectory: boolean }[]
       resolvedPath: string
     }>
-    onCredentialRequest: (
-      callback: (data: {
-        requestId: string
-        targetId: string
-        kind: 'passphrase' | 'password'
-        detail: string
-      }) => void
-    ) => () => void
+    onCredentialRequest: (callback: (data: SshCredentialRequestEvent) => void) => () => void
     onCredentialResolved: (callback: (data: { requestId: string }) => void) => () => void
     submitCredential: (args: { requestId: string; value: string | null }) => Promise<void>
   }

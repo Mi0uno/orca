@@ -493,9 +493,16 @@ function registerPowerMonitorReconnect(): void {
 
 function createSshConnectionCallbacks(): SshConnectionCallbacks {
   return {
-    onCredentialRequest: (targetId, kind, detail) => {
+    onCredentialRequest: (targetId, kind, detail, keyboardInteractive, signal) => {
       credentialRequestedForTarget.add(targetId)
-      return requestCredential(getCurrentMainWindow, targetId, kind, detail)
+      return requestCredential(
+        getCurrentMainWindow,
+        targetId,
+        kind,
+        detail,
+        keyboardInteractive,
+        signal
+      )
     },
     onStateChange: (targetId: string, state: SshConnectionState) => {
       if (testingTargets.has(targetId)) {
@@ -682,7 +689,7 @@ export function registerSshHandlers(
   persistedStore = store
   registerAdvertisedUrlRefresh(getCurrentMainWindow)
 
-  registerCredentialHandler(getCurrentMainWindow)
+  registerCredentialHandler()
 
   const callbacks = createSshConnectionCallbacks()
   if (connectionManager) {
