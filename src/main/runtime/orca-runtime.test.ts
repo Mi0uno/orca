@@ -8102,8 +8102,10 @@ describe('OrcaRuntimeService', () => {
     }
   })
 
-  it('preserves existing badgeColor on runtime cloneRepo folder->git dedupe upgrade', async () => {
+  it('upgrades an existing runtime folder repo when cloneRepo targets that path', async () => {
     const spawnSpy = vi.spyOn(gitRunner, 'gitSpawn')
+    const destination = await mkdtemp(join(tmpdir(), 'orca-runtime-folder-upgrade-'))
+    const clonePath = join(destination, 'repo-badge-color')
     spawnSpy.mockImplementation(() => {
       const proc = new EventEmitter() as EventEmitter & { stderr: EventEmitter }
       proc.stderr = new EventEmitter()
@@ -8112,33 +8114,46 @@ describe('OrcaRuntimeService', () => {
     })
     const existing = {
       id: 'runtime-folder-upgrade',
-      path: '/tmp/repo-badge-color',
+      path: clonePath,
       displayName: 'repo-badge-color',
       badgeColor: '#ec4899',
       addedAt: 1,
       kind: 'folder' as const
     }
     const updates: { id: string; updates: Record<string, unknown> }[] = []
-    const upgraded = { ...existing, kind: 'git' as const }
+    const repos: Record<string, unknown>[] = [existing]
     const colorStore = {
       ...store,
-      getRepos: () => [existing],
+      getRepos: () => [...repos] as never,
+      addRepo: (repo: Record<string, unknown>) => {
+        repos.push(repo)
+      },
+      getRepo: (id: string) => repos.find((repo) => repo.id === id) as never,
       updateRepo: (id: string, repoUpdates: Record<string, unknown>) => {
         updates.push({ id, updates: repoUpdates })
-        return upgraded as never
+        const index = repos.findIndex((repo) => repo.id === id)
+        if (index < 0) {
+          return null
+        }
+        const updated = { ...repos[index], ...repoUpdates }
+        repos[index] = updated
+        return updated as never
       }
     }
     const runtime = new OrcaRuntimeService(colorStore as never)
 
     try {
-      const repo = await runtime.cloneRepo('https://example.com/repo-badge-color.git', '/tmp')
+      const repo = await runtime.cloneRepo('https://example.com/repo-badge-color.git', destination)
       expect(updates).toEqual([{ id: existing.id, updates: { kind: 'git' } }])
-      expect(repo).toEqual(upgraded)
+      expect(repos).toHaveLength(1)
+      expect(repo.id).toBe(existing.id)
+      expect(repo.kind).toBe('git')
       expect(repo.badgeColor).toBe('#ec4899')
-      expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(colorStore, upgraded)
+      expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(colorStore, repo)
       expect(invalidateAuthorizedRootsCacheMock).toHaveBeenCalled()
     } finally {
       spawnSpy.mockRestore()
+      await rm(destination, { recursive: true, force: true })
     }
   })
 
