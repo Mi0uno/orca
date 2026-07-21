@@ -872,8 +872,8 @@ export function createIpcPtyTransport(opts: IpcPtyTransportOptions = {}): PtyTra
       clearAccumulatedState()
       inputWriteQueue.clear()
       if (ptyId) {
-        // Why: on remount keep the exit observer alive so a shell dying in the gap still clears stale tab/leaf bindings before reattach.
-        unregisterPtyDataAndStatusHandlers(ptyId)
+        // Why: the detached pane's exit callback owns a destroyed PaneManager; buffer gap exits for the parked watcher or remounted pane instead.
+        unregisterPtyHandlers(ptyId)
       }
       connected = false
       ptyId = null

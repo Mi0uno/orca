@@ -1817,10 +1817,11 @@ describe('createIpcPtyTransport', () => {
     expect(onError).toHaveBeenCalledWith(createTerminalSessionStateSaveFailureMessage())
   })
 
-  it('keeps the exit observer alive after detach so remounts do not reuse dead PTYs', async () => {
-    const { createIpcPtyTransport } = await import('./pty-transport')
+  it('buffers exits after detach for the next parked or remounted owner', async () => {
+    const { createIpcPtyTransport, subscribeToPtyExit } = await import('./pty-transport')
     const onPtyExit = vi.fn()
     const onTitleChange = vi.fn()
+    const parkedExit = vi.fn()
 
     const transport = createIpcPtyTransport({
       onPtyExit,
@@ -1841,8 +1842,11 @@ describe('createIpcPtyTransport', () => {
     expect(onTitleChange).not.toHaveBeenCalled()
 
     onExit?.({ id: 'pty-detached', code: 0 })
+    subscribeToPtyExit('pty-detached', parkedExit)
+    await Promise.resolve()
 
-    expect(onPtyExit).toHaveBeenCalledWith('pty-detached')
+    expect(onPtyExit).not.toHaveBeenCalled()
+    expect(parkedExit).toHaveBeenCalledWith(0, { hadPrimary: false })
     expect(transport.getPtyId()).toBeNull()
   })
 })

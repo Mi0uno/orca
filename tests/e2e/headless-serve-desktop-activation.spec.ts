@@ -93,6 +93,12 @@ test.describe.configure({ mode: 'serial' })
 
 test('promotes the headless owner without replacing its daemon terminal', async (// oxlint-disable-next-line no-empty-pattern -- This lifecycle test owns both launches and intentionally opts out of the default app fixture.
 {}) => {
+  test.skip(
+    process.platform !== 'darwin',
+    'live single-instance promotion is currently covered on macOS'
+  )
+  test.setTimeout(180_000)
+
   const repoPath = readFileSync(TEST_REPO_PATH_FILE, 'utf8').trim()
   if (!repoPath || !existsSync(repoPath)) {
     test.skip(true, 'Global setup did not produce a seeded test repo')

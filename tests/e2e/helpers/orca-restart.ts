@@ -28,13 +28,9 @@ type LaunchedOrca = {
   page: Page
 }
 
-type RestartLaunchOptions = {
-  onAppLaunched?: (app: ElectronApplication) => void | Promise<void>
-}
-
 type RestartSession = {
   userDataDir: string
-  launch: (options?: RestartLaunchOptions) => Promise<LaunchedOrca>
+  launch: () => Promise<LaunchedOrca>
   /** Gracefully close a launch, letting beforeunload flush session state. */
   close: (app: ElectronApplication) => Promise<void>
   /** Remove the shared userDataDir after the test is done. */
@@ -99,12 +95,11 @@ export function createRestartSession(testInfo: TestInfo): RestartSession {
     `${JSON.stringify(getE2ECompletedOnboardingProfile(), null, 2)}\n`
   )
 
-  const launch = async (options: RestartLaunchOptions = {}): Promise<LaunchedOrca> => {
+  const launch = async (): Promise<LaunchedOrca> => {
     const app = await electron.launch({
       args: getOrcaElectronLaunchArgs(mainPath, headful),
       env: launchEnv(userDataDir, headful)
     })
-    await options.onAppLaunched?.(app)
     const page = await app.firstWindow({ timeout: 120_000 })
     await page.waitForLoadState('domcontentloaded')
     await page.waitForFunction(() => Boolean(window.__store), null, { timeout: 30_000 })
