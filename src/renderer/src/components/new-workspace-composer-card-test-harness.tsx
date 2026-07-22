@@ -1,12 +1,25 @@
 import React from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { expect, vi } from 'vitest'
+import { expect, vi, type Mock } from 'vitest'
 import NewWorkspaceComposerCard from './NewWorkspaceComposerCard'
 import type { NewWorkspaceProjectOption } from '@/lib/new-workspace-project-options'
 import type { ProjectHostSetupOption } from '@/lib/project-host-setup-options'
 
-const hoistedMocks = vi.hoisted(() => ({
+type StoreMocks = {
+  closeModal: Mock
+  openModal: Mock
+  openSettingsPage: Mock
+  openSettingsTarget: Mock
+  setRuntimeEnvironmentStatus: Mock
+}
+
+type ApiMocks = {
+  runtimeGetStatus: Mock
+  sshConnect: Mock
+}
+
+const hoistedMocks = vi.hoisted((): { storeMocks: StoreMocks; apiMocks: ApiMocks } => ({
   storeMocks: {
     closeModal: vi.fn(),
     openModal: vi.fn(),
