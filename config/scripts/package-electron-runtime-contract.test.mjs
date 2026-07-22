@@ -6,7 +6,10 @@ import { parse } from 'yaml'
 
 const projectDir = resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)
-const { createPackagedRuntimeNodeModuleResources } = require('../packaged-runtime-node-modules.cjs')
+const {
+  createPackagedRuntimeNodeModuleResources,
+  isPackagedExternalSpecifier
+} = require('../packaged-runtime-node-modules.cjs')
 const packageJson = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
 
 describe('Electron runtime package contract', () => {
@@ -26,6 +29,10 @@ describe('Electron runtime package contract', () => {
   it('keeps root postinstall as the single Electron binary install owner', () => {
     expect(packageJson.scripts.postinstall).toBe('node config/scripts/rebuild-native-deps.mjs')
     expect(packageJson.pnpm.onlyBuiltDependencies).not.toContain('electron')
+  })
+
+  it('treats Electron-only Node builtins as packaged builtins', () => {
+    expect(isPackagedExternalSpecifier('node:sqlite')).toBe(false)
   })
 
   it('keeps the native Windows registry addon optional and platform-gated', () => {

@@ -46,10 +46,15 @@ const PARCEL_WATCHER_PLATFORM_PREFIX_BY_PLATFORM = {
 }
 const TYPE_DECLARATION_ARTIFACT_RE = /\.d\.(?:c|m)?ts(?:\.map)?$/
 const VERSIONED_ONNXRUNTIME_DYLIB_RE = /^libonnxruntime\.\d[\d.]*\.dylib$/
+const ELECTRON_BUILTINS = [
+  // Why: packaging can run under host Node 22 while Electron ships Node 24 builtins.
+  'node:sqlite'
+]
 
 const NODE_BUILTINS = new Set([
   ...builtinModules,
-  ...builtinModules.map((moduleName) => `node:${moduleName}`)
+  ...builtinModules.map((moduleName) => `node:${moduleName}`),
+  ...ELECTRON_BUILTINS
 ])
 
 function packageNameFromSpecifier(specifier) {

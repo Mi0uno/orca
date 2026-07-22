@@ -1372,7 +1372,8 @@ function Terminal(): React.JSX.Element | null {
         void closeWebRuntimeSessionTab({
           worktreeId: owningWorktreeId,
           tabId,
-          environmentId: runtimeEnvironmentId
+          environmentId: runtimeEnvironmentId,
+          reason: 'user'
         })
         return
       }
@@ -1426,7 +1427,7 @@ function Terminal(): React.JSX.Element | null {
       if (shouldDeferParkedPtyExitTabClose(tabId, ptyId)) {
         return
       }
-      closeTerminalTab(tabId, { reason: 'pty-exit' })
+      closeTerminalTab(tabId, { reason: 'pty-exit', lifecyclePtyId: ptyId })
     },
     [consumeSuppressedPtyExit]
   )
@@ -1463,7 +1464,8 @@ function Terminal(): React.JSX.Element | null {
             void closeWebRuntimeSessionTab({
               worktreeId: activeWorktreeId,
               tabId: unifiedTab.id,
-              environmentId: runtimeEnvironmentId
+              environmentId: runtimeEnvironmentId,
+              reason: 'user'
             })
           }
           continue
@@ -1527,7 +1529,8 @@ function Terminal(): React.JSX.Element | null {
             void closeWebRuntimeSessionTab({
               worktreeId: activeWorktreeId,
               tabId: unifiedTab.id,
-              environmentId: runtimeEnvironmentId
+              environmentId: runtimeEnvironmentId,
+              reason: 'user'
             })
           }
           continue

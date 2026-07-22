@@ -11,7 +11,21 @@ import {
 } from './wsl-login-shell-command'
 
 const WSL_TEST_COMMAND_TIMEOUT_MS = 10_000
+const SH_SYNTAX_TIMEOUT_MS = process.platform === 'win32' ? 1_000 : WSL_TEST_COMMAND_TIMEOUT_MS
 let wslShAvailable: boolean | null = null
+
+function isWindowsShellProbeUnavailable(error: unknown): boolean {
+  if (process.platform !== 'win32' || !(error instanceof Error)) {
+    return false
+  }
+  const probeError = error as NodeJS.ErrnoException & { signal?: string; killed?: boolean }
+  return (
+    probeError.code === 'ENOENT' ||
+    probeError.code === 'ETIMEDOUT' ||
+    probeError.signal === 'SIGTERM' ||
+    probeError.killed === true
+  )
+}
 
 function canRunWslSh(): boolean {
   if (process.platform !== 'win32') {
@@ -33,23 +47,26 @@ function canRunWslSh(): boolean {
 
 function expectValidShSyntax(command: string): void {
   try {
-    execFileSync('sh', ['-n'], { input: command, timeout: WSL_TEST_COMMAND_TIMEOUT_MS })
+    execFileSync('sh', ['-n'], { input: command, timeout: SH_SYNTAX_TIMEOUT_MS })
     return
   } catch (error) {
-    if (
-      process.platform !== 'win32' ||
-      !(error instanceof Error && 'code' in error && error.code === 'ENOENT')
-    ) {
+    if (!isWindowsShellProbeUnavailable(error)) {
       throw error
     }
   }
   if (!canRunWslSh()) {
     return
   }
-  execFileSync('wsl.exe', ['--', 'sh', '-n'], {
-    input: command,
-    timeout: WSL_TEST_COMMAND_TIMEOUT_MS
-  })
+  try {
+    execFileSync('wsl.exe', ['--', 'sh', '-n'], {
+      input: command,
+      timeout: SH_SYNTAX_TIMEOUT_MS
+    })
+  } catch (error) {
+    if (!isWindowsShellProbeUnavailable(error)) {
+      throw error
+    }
+  }
 }
 
 describe('wsl login shell command helpers', () => {

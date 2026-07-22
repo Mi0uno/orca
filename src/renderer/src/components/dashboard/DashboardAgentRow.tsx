@@ -176,6 +176,7 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   const customTitle = agent.customTitle?.trim() || agent.tab.customTitle?.trim() || ''
   // Why: unknown prompts are empty; prefer a custom title, then state, so every row remains labeled.
   const displayLabel = customTitle || prompt || agentStateLabel(asDotState(agent.state))
+  const model = agent.entry.model?.trim() ?? ''
   // Why: gate tool fields on 'working' — a stale tool line on a done row reads as still-running.
   const isWorking = agent.state === 'working'
   const toolName = isWorking ? (agent.entry.toolName?.trim() ?? '') : ''
@@ -192,7 +193,7 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
       ? `${formatAgentTypeLabel(agent.agentType)} - dispatched ${lineageChildCount} ${
           lineageChildCount === 1 ? 'agent' : 'agents'
         }`
-      : formatAgentTypeLabel(agent.agentType)
+      : [formatAgentTypeLabel(agent.agentType), model].filter(Boolean).join(' · ')
   // Why: active interrupted rows need a terminal state dot; sleeping history stays visually muted.
   const dotState: AgentDotState =
     isInterrupted && !isSleepingHistory ? 'interrupted' : asDotState(agent.state)
@@ -304,6 +305,14 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
         >
           {displayLabel}
         </span>
+        {model && (
+          <span
+            className="max-w-24 shrink-0 truncate font-mono text-[10px] text-muted-foreground/70"
+            title={model}
+          >
+            {model}
+          </span>
+        )}
         {/* Why: "+N" badge shows the hidden child count when collapsed; redundant once children are expanded below. */}
         {hasChildDisclosure && !childAgentsExpanded && (
           <span

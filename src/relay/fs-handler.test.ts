@@ -112,6 +112,15 @@ function statIdentity(stats: {
   return `${stats.dev}:${stats.ino}:${stats.nlink ?? 'unknown'}:${stats.size}:${stats.mtimeMs}`
 }
 
+async function terminalArtifactStatIdentity(filePath: string): Promise<string> {
+  const handle = await fs.open(filePath, 'r')
+  try {
+    return statIdentity(await handle.stat())
+  } finally {
+    await handle.close()
+  }
+}
+
 describe('FsHandler', () => {
   let dispatcher: ReturnType<typeof createMockDispatcher>
   let handler: FsHandler
@@ -273,12 +282,11 @@ describe('FsHandler', () => {
   it('readTerminalArtifact reads through a verified artifact handle', async () => {
     const filePath = path.join(tmpDir, 'artifact-read.json')
     writeFileSync(filePath, '{"ok":true}')
-    const stats = await fs.stat(filePath)
 
     const result = (await dispatcher.callRequest('fs.readTerminalArtifact', {
       filePath,
       expectedRealPath: await fs.realpath(filePath),
-      expectedStatIdentity: statIdentity(stats),
+      expectedStatIdentity: await terminalArtifactStatIdentity(filePath),
       maxBytes: 512 * 1024
     })) as { content: string; isBinary: boolean }
 
@@ -288,12 +296,11 @@ describe('FsHandler', () => {
   it('readTerminalArtifact treats SVG artifacts as editable text', async () => {
     const filePath = path.join(tmpDir, 'artifact.svg')
     writeFileSync(filePath, '<svg><text>ok</text></svg>')
-    const stats = await fs.stat(filePath)
 
     const result = (await dispatcher.callRequest('fs.readTerminalArtifact', {
       filePath,
       expectedRealPath: await fs.realpath(filePath),
-      expectedStatIdentity: statIdentity(stats),
+      expectedStatIdentity: await terminalArtifactStatIdentity(filePath),
       maxBytes: 512 * 1024
     })) as { content: string; isBinary: boolean; isImage?: boolean }
 
@@ -316,13 +323,12 @@ describe('FsHandler', () => {
   it('writeTerminalArtifact writes through a verified artifact handle', async () => {
     const filePath = path.join(tmpDir, 'artifact-write.json')
     writeFileSync(filePath, '{"ok":true}')
-    const stats = await fs.stat(filePath)
 
     const result = (await dispatcher.callRequest('fs.writeTerminalArtifact', {
       filePath,
       content: '{"ok":false}',
       expectedRealPath: await fs.realpath(filePath),
-      expectedStatIdentity: statIdentity(stats),
+      expectedStatIdentity: await terminalArtifactStatIdentity(filePath),
       maxBytes: 512 * 1024
     })) as { stat: { type: string; size: number } }
 
@@ -336,13 +342,12 @@ describe('FsHandler', () => {
       const filePath = path.join(tmpDir, 'artifact-executable.sh')
       writeFileSync(filePath, '#!/bin/sh\necho ok\n')
       await fs.chmod(filePath, 0o755)
-      const stats = await fs.stat(filePath)
 
       await dispatcher.callRequest('fs.writeTerminalArtifact', {
         filePath,
         content: '#!/bin/sh\necho changed\n',
         expectedRealPath: await fs.realpath(filePath),
-        expectedStatIdentity: statIdentity(stats),
+        expectedStatIdentity: await terminalArtifactStatIdentity(filePath),
         maxBytes: 512 * 1024
       })
 

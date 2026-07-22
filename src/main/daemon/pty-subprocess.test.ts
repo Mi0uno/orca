@@ -2043,8 +2043,13 @@ describe('createPtySubprocess', () => {
     spawnMock.mockReturnValue(proc)
     const previousCodexHome = process.env.CODEX_HOME
     const previousOrcaCodexHome = process.env.ORCA_CODEX_HOME
-    process.env.CODEX_HOME = '/daemon/user/codex-home'
-    process.env.ORCA_CODEX_HOME = '/daemon/stale/managed-home'
+    const customCodexHome =
+      process.platform === 'win32' ? 'C:\\daemon\\user\\codex-home' : '/daemon/user/codex-home'
+    process.env.CODEX_HOME = customCodexHome
+    process.env.ORCA_CODEX_HOME =
+      process.platform === 'win32'
+        ? 'C:\\daemon\\stale\\managed-home'
+        : '/daemon/stale/managed-home'
 
     try {
       createPtySubprocess({
@@ -2068,7 +2073,7 @@ describe('createPtySubprocess', () => {
     }
 
     const env = spawnMock.mock.calls.at(-1)![2].env
-    expect(env.CODEX_HOME).toBe('/daemon/user/codex-home')
+    expect(env.CODEX_HOME).toBe(customCodexHome)
     expect(env.ORCA_CODEX_HOME).toBeUndefined()
   })
 

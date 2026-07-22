@@ -21,10 +21,14 @@ function isEEXIST(error: unknown): boolean {
 
 function hasSameIdentity(current: BigIntStats, published: PublishedEntry): boolean {
   const { identity } = published
-  const hasStableInode = identity.dev !== 0n || identity.ino !== 0n
-  if (hasStableInode) {
-    return current.dev === identity.dev && current.ino === identity.ino
+  if (current.dev === identity.dev && current.ino !== 0n && identity.ino !== 0n) {
+    return current.ino === identity.ino
   }
+  if (current.dev !== 0n && identity.dev !== 0n && current.ino !== 0n && identity.ino !== 0n) {
+    return false
+  }
+  // Why: Windows/Node can report inode-like values from fstat while path lstat
+  // reports zeros for the same entry; birthtime keeps rollback ownership intact.
   return identity.birthtimeNs !== 0n && current.birthtimeNs === identity.birthtimeNs
 }
 

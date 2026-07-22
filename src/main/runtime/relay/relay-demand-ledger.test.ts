@@ -1,10 +1,27 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DeviceRegistry } from '../device-registry'
 import { RelayDemandLedger } from './relay-demand-ledger'
 import { RelayRevokeOutbox, type RelayDeviceBinding } from './relay-revoke-outbox'
+
+vi.mock('../../../shared/secure-file', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const { dirname } = await import('node:path')
+  const writeSecureFile = vi.fn((targetPath: string, contents: string) => {
+    mkdirSync(dirname(targetPath), { recursive: true, mode: 0o700 })
+    writeFileSync(targetPath, contents, { encoding: 'utf-8', mode: 0o600 })
+  })
+  return {
+    hardenExistingSecureFile: vi.fn(),
+    hardenSecurePath: vi.fn(),
+    writeSecureFile,
+    writeSecureJsonFile: vi.fn((targetPath: string, value: unknown) => {
+      writeSecureFile(targetPath, JSON.stringify(value, null, 2))
+    })
+  }
+})
 
 const ownerIdentityKey = 'user-1\0profile-1\0org-1'
 const relayHostId = 'relay-host-1'

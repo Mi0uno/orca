@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getDefaultRepoHookSettings } from '../../shared/constants'
 import type { Repo } from '../../shared/types'
 import { parsePairingCode } from '../../shared/pairing'
@@ -15,6 +15,23 @@ import type {
 import type { OrcaRuntimeService } from './orca-runtime'
 import { OrcaRuntimeRpcServer } from './runtime-rpc'
 import { REMOTE_RUNTIME_SHARED_CONTROL_CAPABILITY } from '../../shared/protocol-version'
+
+vi.mock('../../shared/secure-file', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const { dirname } = await import('node:path')
+  const writeSecureFile = vi.fn((targetPath: string, contents: string) => {
+    mkdirSync(dirname(targetPath), { recursive: true, mode: 0o700 })
+    writeFileSync(targetPath, contents, { encoding: 'utf-8', mode: 0o600 })
+  })
+  return {
+    hardenExistingSecureFile: vi.fn(),
+    hardenSecurePath: vi.fn(),
+    writeSecureFile,
+    writeSecureJsonFile: vi.fn((targetPath: string, value: unknown) => {
+      writeSecureFile(targetPath, JSON.stringify(value, null, 2))
+    })
+  }
+})
 
 const REMOTE_RUNTIME_TEST_TIMEOUT_MS = 30_000
 const REMOTE_RUNTIME_REQUEST_TIMEOUT_MS = 5_000

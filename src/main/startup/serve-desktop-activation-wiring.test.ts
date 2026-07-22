@@ -43,4 +43,8 @@ describe('serve desktop activation wiring', () => {
     expect(settleIndex).toBeGreaterThan(rpcIndex)
     expect(source).not.toContain('runtime.syncWindowGraph(0,')
   })
+
+  it('keeps the headless install policy after desktop promotion', () => {
+    expect(source).toContain('updateInstallMode: resolveUpdateInstallMode(isServeMode)')
+  })
 })

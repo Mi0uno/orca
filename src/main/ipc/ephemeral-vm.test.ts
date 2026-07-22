@@ -22,6 +22,23 @@ const {
   removeRuntimeOwnedSshTargetMock: vi.fn()
 }))
 
+vi.mock('../../shared/secure-file', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const { dirname } = await import('node:path')
+  const writeSecureFile = vi.fn((targetPath: string, contents: string) => {
+    mkdirSync(dirname(targetPath), { recursive: true, mode: 0o700 })
+    writeFileSync(targetPath, contents, { encoding: 'utf-8', mode: 0o600 })
+  })
+  return {
+    hardenExistingSecureFile: vi.fn(),
+    hardenSecurePath: vi.fn(),
+    writeSecureFile,
+    writeSecureJsonFile: vi.fn((targetPath: string, value: unknown) => {
+      writeSecureFile(targetPath, JSON.stringify(value, null, 2))
+    })
+  }
+})
+
 vi.mock('electron', () => ({
   app: {
     getPath: getPathMock

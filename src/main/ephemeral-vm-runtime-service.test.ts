@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { encodePairingOffer, PAIRING_OFFER_VERSION } from '../shared/pairing'
 import { listEphemeralVmRuntimes } from '../shared/ephemeral-vm-runtime-store'
 import {
@@ -9,6 +9,23 @@ import {
   provisionEphemeralVmRuntime
 } from './ephemeral-vm-runtime-service'
 import type { OrcaVmRecipe } from '../shared/types'
+
+vi.mock('../shared/secure-file', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const { dirname } = await import('node:path')
+  const writeSecureFile = vi.fn((targetPath: string, contents: string) => {
+    mkdirSync(dirname(targetPath), { recursive: true, mode: 0o700 })
+    writeFileSync(targetPath, contents, { encoding: 'utf-8', mode: 0o600 })
+  })
+  return {
+    hardenExistingSecureFile: vi.fn(),
+    hardenSecurePath: vi.fn(),
+    writeSecureFile,
+    writeSecureJsonFile: vi.fn((targetPath: string, value: unknown) => {
+      writeSecureFile(targetPath, JSON.stringify(value, null, 2))
+    })
+  }
+})
 
 const tempDirs: string[] = []
 

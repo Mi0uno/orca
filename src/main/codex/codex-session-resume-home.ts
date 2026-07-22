@@ -1,9 +1,9 @@
 import { existsSync, lstatSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   getRuntimePathBasename,
   normalizeRuntimePathForComparison,
-  relativePathInsideRoot
+  relativePathInsideRoot,
+  resolveRuntimePath
 } from '../../shared/cross-platform-path'
 import { listCodexSessionRolloutFilesIncrementally } from './codex-session-file-listing'
 
@@ -53,7 +53,7 @@ function resolveTrustedCodexSessionResume(args: {
   }
 
   for (const homePath of args.trustedCodexHomes) {
-    const sessionsRoot = join(homePath, 'sessions')
+    const sessionsRoot = resolveRuntimePath(homePath, 'sessions')
     if (!isCodexRolloutInsideSessionsRoot(sessionsRoot, persistedPath)) {
       continue
     }
@@ -107,7 +107,7 @@ export async function findTrustedCodexSessionResume(args: {
       continue
     }
     seenHomes.add(comparisonHome)
-    const sessionsRoot = join(homePath, 'sessions')
+    const sessionsRoot = resolveRuntimePath(homePath, 'sessions')
     if (!args.listSessionFiles && !existsSync(sessionsRoot)) {
       continue
     }

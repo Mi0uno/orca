@@ -9,6 +9,23 @@ import { OrcaRuntimeService } from './orca-runtime'
 import { decrypt, deriveSharedKey, encrypt, generateKeyPair } from './rpc/e2ee-crypto'
 import { OrcaRuntimeRpcServer } from './runtime-rpc'
 
+vi.mock('../../shared/secure-file', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const { dirname } = await import('node:path')
+  const writeSecureFile = vi.fn((targetPath: string, contents: string) => {
+    mkdirSync(dirname(targetPath), { recursive: true, mode: 0o700 })
+    writeFileSync(targetPath, contents, { encoding: 'utf-8', mode: 0o600 })
+  })
+  return {
+    hardenExistingSecureFile: vi.fn(),
+    hardenSecurePath: vi.fn(),
+    writeSecureFile,
+    writeSecureJsonFile: vi.fn((targetPath: string, value: unknown) => {
+      writeSecureFile(targetPath, JSON.stringify(value, null, 2))
+    })
+  }
+})
+
 const REPO_ID = 'repo-1'
 const worktreeId = (name: string): string => `${REPO_ID}::/tmp/${name}`
 const HOST_WORKTREE_ID = worktreeId('host')
@@ -187,6 +204,17 @@ function resultType(response: Record<string, unknown>): string | undefined {
 
 function activeTabId(response: Record<string, unknown>): string | null {
   return (response.result as RuntimeMobileSessionTabsResult | undefined)?.activeTabId ?? null
+}
+
+function sessionTabsUpdatedTo(tabId: string, navigationIntent?: string) {
+  return (response: Record<string, unknown>): boolean => {
+    const result = response.result as RuntimeMobileSessionTabsResult | undefined
+    return (
+      resultType(response) === 'updated' &&
+      result?.activeTabId === tabId &&
+      (navigationIntent === undefined || result.navigationIntent === navigationIntent)
+    )
+  }
 }
 
 function seedSessionTabs(runtime: OrcaRuntimeService): void {
@@ -500,9 +528,7 @@ describe('paired runtime navigation isolation', () => {
     })
     expect(activeTabId(await harness.readerA.next('tabs-host-follow'))).toBe('client-a-tab')
     expect(
-      activeTabId(
-        await harness.readerA.next('tabs-a', (response) => resultType(response) === 'updated')
-      )
+      activeTabId(await harness.readerA.next('tabs-a', sessionTabsUpdatedTo('client-a-tab')))
     ).toBe('client-a-tab')
     expect(harness.hostSelections.tabId).toBe('client-a-tab')
 
@@ -517,8 +543,8 @@ describe('paired runtime navigation isolation', () => {
     })
     await harness.readerB.next('tabs-clients-follow')
     const [tabsA, tabsB] = await Promise.all([
-      harness.readerA.next('tabs-a', (response) => resultType(response) === 'updated'),
-      harness.readerB.next('tabs-b', (response) => resultType(response) === 'updated')
+      harness.readerA.next('tabs-a', sessionTabsUpdatedTo('client-b-tab', 'follow')),
+      harness.readerB.next('tabs-b', sessionTabsUpdatedTo('client-b-tab', 'follow'))
     ])
     expect([activeTabId(tabsA), activeTabId(tabsB)]).toEqual(['client-b-tab', 'client-b-tab'])
     expect(
