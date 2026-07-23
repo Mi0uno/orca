@@ -44,6 +44,12 @@ import {
 import { parseWslUncPath } from '../../../../shared/wsl-paths'
 import { isWindowsAbsolutePathLike } from '../../../../shared/cross-platform-path'
 import { isFolderRepo } from '../../../../shared/repo-kind'
+import {
+  getCyclicProjectedWorktreeLineageIds,
+  getLineageRenderInfo
+} from './worktree-lineage-projection'
+
+export { getLineageRenderInfo } from './worktree-lineage-projection'
 
 export { branchName }
 
@@ -407,30 +413,6 @@ export function getLineageGroupKey(worktreeId: string): string {
   return `${LINEAGE_GROUP_PREFIX}${worktreeId}`
 }
 
-export type LineageRenderInfo =
-  | { state: 'none' }
-  | { state: 'valid'; lineage: WorktreeLineage; parent: Worktree }
-  | { state: 'missing'; lineage: WorktreeLineage }
-
-export function getLineageRenderInfo(
-  worktree: Worktree,
-  lineageById: Record<string, WorktreeLineage>,
-  worktreeMap: Map<string, Worktree>
-): LineageRenderInfo {
-  const lineage = lineageById[worktree.id]
-  if (!lineage) {
-    return { state: 'none' }
-  }
-  const parent = worktreeMap.get(lineage.parentWorktreeId)
-  if (
-    !parent ||
-    worktree.instanceId !== lineage.worktreeInstanceId ||
-    parent.instanceId !== lineage.parentWorktreeInstanceId
-  ) {
-    return { state: 'missing', lineage }
-  }
-  return { state: 'valid', lineage, parent }
-}
 export function getPRGroupKey(
   worktree: Worktree,
   repoMap: Map<string, Repo>,
@@ -637,9 +619,17 @@ function appendWorktreeRows(
     groupDepth: number
     sectionKey: string
     hostContextLabelByRepoId?: ReadonlyMap<string, string>
+    cyclicLineageIds: ReadonlySet<string>
   }
 ): void {
-  const { nestLineage, collapsedGroups, groupDepth, sectionKey, hostContextLabelByRepoId } = options
+  const {
+    nestLineage,
+    collapsedGroups,
+    groupDepth,
+    sectionKey,
+    hostContextLabelByRepoId,
+    cyclicLineageIds
+  } = options
   if (!nestLineage) {
     for (const worktree of worktrees) {
       result.push(
@@ -663,7 +653,7 @@ function appendWorktreeRows(
   const childrenByParentId = new Map<string, Worktree[]>()
   const childIds = new Set<string>()
   for (const worktree of worktrees) {
-    const lineage = getLineageRenderInfo(worktree, lineageById, worktreeMap)
+    const lineage = getLineageRenderInfo(worktree, lineageById, worktreeMap, cyclicLineageIds)
     if (lineage.state !== 'valid' || !visibleIds.has(lineage.parent.id)) {
       continue
     }
@@ -1054,6 +1044,9 @@ export function buildRows(
 ): Row[] {
   const result: Row[] = []
   const projectIndex = buildProjectGroupingIndex(projectGrouping)
+  const cyclicLineageIds = nestLineage
+    ? getCyclicProjectedWorktreeLineageIds(lineageById, worktreeMap)
+    : new Set<string>()
 
   const pendingByRepo = new Map<string, PendingCreationRef[]>()
   for (const creation of pendingCreations) {
@@ -1113,7 +1106,8 @@ export function buildRows(
           nestLineage,
           collapsedGroups,
           groupDepth: 0,
-          sectionKey: ALL_GROUP_KEY
+          sectionKey: ALL_GROUP_KEY,
+          cyclicLineageIds
         })
       }
     }
@@ -1358,7 +1352,8 @@ export function buildRows(
             collapsedGroups,
             groupDepth: projectGroupDepth,
             sectionKey: key,
-            hostContextLabelByRepoId
+            hostContextLabelByRepoId,
+            cyclicLineageIds
           })
         } else {
           appendWorktreeRows(result, items, repoMap, lineageById, worktreeMap, {
@@ -1366,7 +1361,8 @@ export function buildRows(
             collapsedGroups,
             groupDepth: projectGroupDepth,
             sectionKey: key,
-            hostContextLabelByRepoId
+            hostContextLabelByRepoId,
+            cyclicLineageIds
           })
         }
       }
