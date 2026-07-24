@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { getAgentDotState } from './worktree-card-agent-summary'
 import { translate } from '@/i18n/i18n'
 import { getAgentRowPrimaryText } from '@/lib/agent-row-primary-text'
+import { useAgentRowConversationName } from '@/components/dashboard/use-agent-row-conversation-name'
 import { lastEnteredDoneAt } from '@/components/dashboard/agent-finished-timestamp'
 import CacheTimer, { usePromptCacheCountdownForPane } from './CacheTimer'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -28,12 +29,15 @@ function formatShortTimeAgo(ts: number, now: number): string {
   return `${Math.floor(hours / 24)}d`
 }
 
-function getCompactAgentPrimary(agent: DashboardAgentRowData): string {
-  const customTitle = agent.customTitle?.trim() || agent.tab.customTitle?.trim() || ''
-  if (customTitle) {
-    return customTitle
+function getCompactAgentPrimary(
+  agent: DashboardAgentRowData,
+  conversationName: string | null
+): string {
+  const agentCustomTitle = agent.customTitle?.trim()
+  if (agentCustomTitle) {
+    return agentCustomTitle
   }
-  const prompt = getAgentRowPrimaryText(agent.entry)
+  const prompt = conversationName ?? getAgentRowPrimaryText(agent.entry)
   return prompt || agentStateLabel(getAgentDotState(agent))
 }
 
@@ -125,7 +129,8 @@ export const CompactAgentRow = React.memo(function CompactAgentRow({
   // "?" glyph. Nesting under the parent already conveys identity.
   const hideIcon = hideIdentityIcon || agent.rowSource === 'subagent'
   const dotState = getAgentDotState(agent)
-  const primary = getCompactAgentPrimary(agent)
+  const conversationName = useAgentRowConversationName(agent)
+  const primary = getCompactAgentPrimary(agent, conversationName)
   const isLineageChild = agent.lineage?.depth === 1
   const secondary = getCompactAgentSecondary(agent)
   const model = agent.entry.model?.trim() ?? ''

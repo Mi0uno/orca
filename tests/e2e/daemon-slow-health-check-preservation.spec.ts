@@ -76,13 +76,19 @@ test('preserves a live daemon PTY when the daemon is too slow for the startup he
     // that is too busy to respond within the health-check budget.
     process.kill(daemonPid, 'SIGSTOP')
 
+    const stderrLines: string[] = []
     const resumeTimer = setTimeout(() => {
       if (daemonPid !== null) {
         process.kill(daemonPid, 'SIGCONT')
       }
     }, RESUME_DAEMON_AFTER_MS)
     try {
-      const secondLaunch = await session.launch()
+      // Why: capture stderr from process start — the daemon guard logs its
+      // preservation decision during main-process startup, which can complete
+      // before firstWindow resolves, so a post-launch listener would miss it.
+      const secondLaunch = await session.launch({
+        onStderr: (chunk) => stderrLines.push(chunk)
+      })
       secondApp = secondLaunch.app
 
       await waitForSessionReady(secondLaunch.page)
@@ -97,6 +103,15 @@ test('preserves a live daemon PTY when the daemon is too slow for the startup he
       await waitForPaneCount(secondLaunch.page, 1, 30_000)
       await waitForTerminalOutput(secondLaunch.page, marker, 20_000)
 
+      // The guard path must actually have run and chosen preserve over replace:
+      // the daemon failed the health check yet was kept because its live session
+      // was verified. Match the stable "preserve…daemon…health check" concepts
+      // (not the exact wording) so a benign log reword doesn't flake, and
+      // confirm the replace path stayed off.
+      await expect
+        .poll(() => stderrLines.join(''), { timeout: 10_000 })
+        .toMatch(/preserv\w*\s+daemon[^\n]*health check/i)
+      expect(stderrLines.join('')).not.toMatch(/\breplacing daemon\b/i)
       expect(readDaemonPid(session.userDataDir)).toBe(daemonPid)
       expect(await discoverActivePtyId(secondLaunch.page)).toBe(ptyId)
       // Why: a killed daemon cold-restores scrollback from history, so the

@@ -72,6 +72,9 @@ import { TOGGLE_QUICK_COMMANDS_MENU_EVENT } from '@/lib/quick-commands-menu-even
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
 import { activateTabAndFocusPane } from '@/lib/activate-tab-and-focus-pane'
 import { focusRuntimeTerminalSurface } from '@/runtime/sync-runtime-graph'
+import { getRuntimeEnvironmentConnectionGeneration } from '@/store/slices/runtime-status'
+import { getEnvironmentSshStateGeneration } from '@/store/slices/runtime-environment-ssh'
+import { getRuntimeEnvironmentRevision } from '@/runtime/runtime-environment-revision'
 import { setFitOverride, hydrateOverrides } from '@/lib/pane-manager/mobile-fit-overrides'
 import { setDriverForPty, hydrateDrivers } from '@/lib/pane-manager/mobile-driver-state'
 import {
@@ -92,7 +95,6 @@ import {
   applyRuntimeEnvironmentSshStateChanged,
   hydrateRuntimeEnvironmentSshState
 } from '@/runtime/runtime-environment-ssh-state'
-import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
 import { createRuntimeProjectRefreshScheduler } from './runtime-project-refresh-scheduler'
 import { createRuntimeClientEventsSync } from './runtime-client-events-sync'
 import { detectLanguage } from '@/lib/language-detect'
@@ -131,6 +133,7 @@ import { showTerminalShortcutCaptureNotification } from '@/lib/terminal-shortcut
 import { resolveAgentStatusTerminalTitle } from '@/lib/agent-status-terminal-title'
 import { titleHasAgentName } from '../../../shared/agent-detection'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { resolveTerminalWorktreeRoute } from '@/lib/terminal-worktree-route'
 import { resolveAgentPaneAuthorityKey } from '@/store/slices/agent-pane-authority'
 import { translate } from '@/i18n/i18n'
 import { closeTerminalTab } from '@/components/terminal/terminal-tab-actions'
@@ -759,7 +762,13 @@ function getReachableRuntimeEnvironmentIds(): string[] {
 }
 
 export function buildRuntimeClientEventEnvironmentKey(environmentIds: string[]): string {
-  return [...new Set(environmentIds)].sort().join('\u0000')
+  return [...new Set(environmentIds)]
+    .sort()
+    .map(
+      (environmentId) =>
+        `${environmentId}:${getRuntimeEnvironmentConnectionGeneration(environmentId)}:${getEnvironmentSshStateGeneration(environmentId)}:${getRuntimeEnvironmentRevision(environmentId) ?? 'unknown'}`
+    )
+    .join('\u0000')
 }
 
 /** Ids in `next` not in `previous` — environments that just became connected (exported to unit-test on-connect discovery). */
@@ -967,10 +976,8 @@ export function useIpcEvents(): void {
 
     const runtimeProjectRefreshScheduler = createRuntimeProjectRefreshScheduler({
       refresh: async (environmentId) => {
-        if (!isPairedWebClientWindow()) {
-          // Why: refresh the env's SSH bucket on (re)connect so a pre-drop snapshot can't keep a reconnect overlay stale.
-          void hydrateRuntimeEnvironmentSshState(environmentId, { force: true }).catch(() => {})
-        }
+        // Why: refresh the env's SSH bucket on (re)connect so a pre-drop snapshot can't keep a reconnect overlay stale.
+        void hydrateRuntimeEnvironmentSshState(environmentId, { force: true }).catch(() => {})
         const repos = await useAppStore.getState().fetchRuntimeEnvironmentRepos(environmentId)
         await refreshRuntimeProjectWorktrees(repos)
         await useAppStore.getState().fetchWorktreeLineage()
@@ -984,7 +991,11 @@ export function useIpcEvents(): void {
     let handleSshStateChangedEvent: ((data: { targetId: string; state: unknown }) => void) | null =
       null
 
-    const handleRuntimeClientEvent = (environmentId: string, event: RuntimeClientEvent): void => {
+    const handleRuntimeClientEvent = (
+      environmentId: string,
+      event: RuntimeClientEvent,
+      generation = getEnvironmentSshStateGeneration(environmentId)
+    ): void => {
       if (event.type === 'worktreeTerminalSleepState') {
         applyHostWorktreeTerminalSleepState(environmentId, event)
         return
@@ -994,12 +1005,12 @@ export function useIpcEvents(): void {
         return
       }
       if (event.type === 'sshStateChanged') {
-        // Why: a paired web client mirrors host SSH state globally (STA-1468); desktop routes it to the env's own bucket.
-        if (isPairedWebClientWindow()) {
-          handleSshStateChangedEvent?.({ targetId: event.targetId, state: event.state })
-        } else {
-          applyRuntimeEnvironmentSshStateChanged(environmentId, event.targetId, event.state)
-        }
+        applyRuntimeEnvironmentSshStateChanged(
+          environmentId,
+          event.targetId,
+          event.state,
+          generation
+        )
         return
       }
       if (event.type === 'worktreesChanged') {
@@ -1026,17 +1037,32 @@ export function useIpcEvents(): void {
 
     const runtimeClientEventsSync = createRuntimeClientEventsSync({
       getDesiredEnvironmentIds: getRuntimeClientEventEnvironmentIds,
-      subscribe: (environmentId, onEvent, onError) =>
-        subscribeRuntimeClientEvents(environmentId, onEvent, onError, () => {
-          // Why: events during a transport gap are lost; a quick reconnect won't flip unreachable, so refetch (#7970).
-          runtimeProjectRefreshScheduler.request(environmentId)
-          if (isPairedWebClientWindow()) {
-            return
+      getSubscriptionKey: (environmentId) => buildRuntimeClientEventEnvironmentKey([environmentId]),
+      subscribe: (environmentId, onEvent, onError) => {
+        const sshGeneration = getEnvironmentSshStateGeneration(environmentId)
+        const runtimeGeneration = getRuntimeEnvironmentConnectionGeneration(environmentId)
+        const runtimeRevision = getRuntimeEnvironmentRevision(environmentId)
+        return subscribeRuntimeClientEvents(
+          environmentId,
+          (event) => {
+            if (
+              sshGeneration === getEnvironmentSshStateGeneration(environmentId) &&
+              runtimeGeneration === getRuntimeEnvironmentConnectionGeneration(environmentId) &&
+              runtimeRevision === getRuntimeEnvironmentRevision(environmentId)
+            ) {
+              onEvent(event)
+            }
+          },
+          onError,
+          () => {
+            // Why: events during a transport gap are lost; a quick reconnect won't flip unreachable, so refetch (#7970).
+            runtimeProjectRefreshScheduler.request(environmentId)
+            // Why: sshStateChanged events during the transport gap are lost, so downgrade the possibly-stale bucket, then refetch.
+            useAppStore.getState().markEnvironmentSshStateStale(environmentId)
+            void hydrateRuntimeEnvironmentSshState(environmentId, { force: true }).catch(() => {})
           }
-          // Why: sshStateChanged events during the transport gap are lost, so downgrade the possibly-stale bucket, then refetch.
-          useAppStore.getState().markEnvironmentSshStateStale(environmentId)
-          void hydrateRuntimeEnvironmentSshState(environmentId, { force: true }).catch(() => {})
-        }),
+        )
+      },
       onEvent: handleRuntimeClientEvent
     })
 
@@ -1461,18 +1487,6 @@ export function useIpcEvents(): void {
           splitTelemetrySource
         }) => {
           try {
-            if (isRuntimeEnvironmentActive()) {
-              if (requestId) {
-                window.api.ui.replyTerminalCreate({
-                  requestId,
-                  error: translate(
-                    'auto.hooks.useIpcEvents.60428567b4',
-                    'Local terminal reveal is unavailable while a remote runtime is active'
-                  )
-                })
-              }
-              return
-            }
             const store = useAppStore.getState()
             const terminalPresentation = resolveTerminalPresentation({ presentation, activate })
             const shouldActivate = terminalPresentation === 'focused'
@@ -1685,23 +1699,34 @@ export function useIpcEvents(): void {
     unsubs.push(
       window.api.ui.onRequestTerminalCreate((data) => {
         try {
-          // Why: runtime-session requests are host-owned tabs materialized by this renderer, not ordinary local creates.
-          if (isRuntimeEnvironmentActive() && data.source !== 'runtime-session') {
-            window.api.ui.replyTerminalCreate({
-              requestId: data.requestId,
-              error: translate(
-                'auto.hooks.useIpcEvents.7a64b31991',
-                'Local terminal creation is unavailable while a remote runtime is active'
-              )
-            })
-            return
-          }
           const store = useAppStore.getState()
           const worktreeId = data.worktreeId ?? store.activeWorktreeId
           if (!worktreeId) {
             window.api.ui.replyTerminalCreate({
               requestId: data.requestId,
               error: translate('auto.hooks.useIpcEvents.f000b2ff76', 'No active worktree')
+            })
+            return
+          }
+          const worktreeRoute = resolveTerminalWorktreeRoute(store, worktreeId)
+          if (!worktreeRoute) {
+            window.api.ui.replyTerminalCreate({
+              requestId: data.requestId,
+              error: translate(
+                'auto.hooks.useIpcEvents.unresolvedTerminalWorktreeOwner',
+                'Terminal creation is unavailable because the worktree owner could not be resolved'
+              )
+            })
+            return
+          }
+          // Why: runtime-session requests are host-owned tabs materialized by this renderer, not ordinary local creates.
+          if (worktreeRoute.runtimeEnvironmentId && data.source !== 'runtime-session') {
+            window.api.ui.replyTerminalCreate({
+              requestId: data.requestId,
+              error: translate(
+                'auto.hooks.useIpcEvents.7a64b31991',
+                'Local terminal creation is unavailable while a remote runtime is active'
+              )
             })
             return
           }

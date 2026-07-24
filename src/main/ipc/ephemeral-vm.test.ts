@@ -12,14 +12,16 @@ const {
   getPathMock,
   connectRuntimeOwnedSshTargetMock,
   disconnectRuntimeOwnedSshTargetMock,
-  removeRuntimeOwnedSshTargetMock
+  removeRuntimeOwnedSshTargetMock,
+  invalidateRuntimeEnvironmentTransportMock
 } = vi.hoisted(() => ({
   handleMock: vi.fn(),
   removeHandlerMock: vi.fn(),
   getPathMock: vi.fn(),
   connectRuntimeOwnedSshTargetMock: vi.fn(),
   disconnectRuntimeOwnedSshTargetMock: vi.fn(),
-  removeRuntimeOwnedSshTargetMock: vi.fn()
+  removeRuntimeOwnedSshTargetMock: vi.fn(),
+  invalidateRuntimeEnvironmentTransportMock: vi.fn()
 }))
 
 vi.mock('../../shared/secure-file', async () => {
@@ -53,6 +55,10 @@ vi.mock('../ephemeral-vm-runtime-ssh', () => ({
   connectRuntimeOwnedSshTarget: connectRuntimeOwnedSshTargetMock,
   disconnectRuntimeOwnedSshTarget: disconnectRuntimeOwnedSshTargetMock,
   removeRuntimeOwnedSshTarget: removeRuntimeOwnedSshTargetMock
+}))
+
+vi.mock('./runtime-environments', () => ({
+  invalidateRuntimeEnvironmentTransport: invalidateRuntimeEnvironmentTransportMock
 }))
 
 import { registerEphemeralVmHandlers } from './ephemeral-vm'
@@ -112,6 +118,7 @@ describe('registerEphemeralVmHandlers', () => {
     connectRuntimeOwnedSshTargetMock.mockReset()
     disconnectRuntimeOwnedSshTargetMock.mockReset()
     removeRuntimeOwnedSshTargetMock.mockReset()
+    invalidateRuntimeEnvironmentTransportMock.mockReset()
     connectRuntimeOwnedSshTargetMock.mockResolvedValue({
       targetId: 'runtime-ssh-orca-instance-1',
       target: {
@@ -275,10 +282,8 @@ describe('registerEphemeralVmHandlers', () => {
     } as never)
     expect(cleaned).toEqual(expect.objectContaining({ status: 'cleaned' }))
     expect(listEnvironments(userDataPath)).toEqual([])
-    expect(store.updateSettings).toHaveBeenLastCalledWith(
-      { activeRuntimeEnvironmentId: null },
-      { notifyListeners: true }
-    )
+    expect(store.getSettings().activeRuntimeEnvironmentId).toBe(result.environment!.id)
+    expect(store.updateSettings).toHaveBeenCalledTimes(1)
   })
 
   it('provisions an ssh recipe without creating a runtime environment', async () => {
@@ -500,6 +505,10 @@ describe('registerEphemeralVmHandlers', () => {
     expect(suspended).toEqual(expect.objectContaining({ status: 'suspended' }))
     expect(readFileSync(join(repoPath, 'suspend-mode.txt'), 'utf8')).toBe('suspend')
 
+    invalidateRuntimeEnvironmentTransportMock.mockImplementationOnce((environmentId: string) => {
+      const environment = listEnvironments(userDataPath).find((entry) => entry.id === environmentId)
+      expect(environment?.endpoints[0]?.endpoint).toBe('wss://resumed.example.com')
+    })
     const resumed = await handlers.get('ephemeralVm:resumeWorkspace')?.(null, {
       workspaceId: 'workspace-1'
     } as never)
@@ -514,6 +523,9 @@ describe('registerEphemeralVmHandlers', () => {
       (entry) => entry.id === provisioned.environment.id
     )
     expect(environment?.endpoints[0]?.endpoint).toBe('wss://resumed.example.com')
+    expect(invalidateRuntimeEnvironmentTransportMock).toHaveBeenCalledWith(
+      provisioned.environment.id
+    )
   })
 
   it('returns a copyable cleanup command for a persisted runtime', async () => {

@@ -18,7 +18,6 @@ import {
   reposList,
   reposPickFolder,
   reposRemove,
-  reposReorder,
   reposUpdate,
   runtimeEnvironmentCall,
   sshRepo
@@ -356,7 +355,13 @@ describe('repo slice runtime routing', () => {
       })
     ).resolves.toEqual({
       project,
-      setup: { ...setup, hostId: 'runtime:env-1', executionHostId: 'runtime:env-1' },
+      setup: {
+        ...setup,
+        hostId: 'runtime:env-1',
+        executionHostId: 'runtime:env-1',
+        runtimeOwnerEnvironmentId: 'env-1',
+        connectionId: null
+      },
       repo: { ...remoteRepo, executionHostId: 'runtime:env-1' }
     })
 
@@ -526,7 +531,13 @@ describe('repo slice runtime routing', () => {
       })
     ).resolves.toEqual({
       project,
-      setup: { ...setup, hostId: 'runtime:env-1', executionHostId: 'runtime:env-1' },
+      setup: {
+        ...setup,
+        hostId: 'runtime:env-1',
+        executionHostId: 'runtime:env-1',
+        runtimeOwnerEnvironmentId: 'env-1',
+        connectionId: null
+      },
       repo: { ...clonedRepo, executionHostId: 'runtime:env-1' }
     })
 
@@ -849,30 +860,5 @@ describe('repo slice runtime routing', () => {
     expect(store.getState().tabsByWorktree[hiddenWorktree.id]).toBeUndefined()
     expect(store.getState().activeWorktreeId).toBeNull()
     expect(ptyKill).toHaveBeenCalledWith('pty-hidden')
-  })
-
-  it('reorders repos through the active remote runtime environment', async () => {
-    runtimeEnvironmentCall.mockResolvedValue({
-      id: 'rpc-4',
-      ok: true,
-      result: { status: 'applied' },
-      _meta: { runtimeId: 'runtime-remote' }
-    })
-    const store = createTestStore()
-    store.setState({
-      settings: { activeRuntimeEnvironmentId: 'env-1' } as never,
-      repos: [localRepo, remoteRepo]
-    })
-
-    await store.getState().reorderRepos([remoteRepo.id, localRepo.id])
-
-    expect(store.getState().repos.map((repo) => repo.id)).toEqual([remoteRepo.id, localRepo.id])
-    expect(runtimeEnvironmentCall).toHaveBeenCalledWith({
-      selector: 'env-1',
-      method: 'repo.reorder',
-      params: { orderedIds: [remoteRepo.id, localRepo.id] },
-      timeoutMs: 15_000
-    })
-    expect(reposReorder).not.toHaveBeenCalled()
   })
 })

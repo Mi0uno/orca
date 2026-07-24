@@ -15,6 +15,7 @@ export { getBashShellReadyRcfileContent } from '../providers/local-pty-shell-rea
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import type { Store } from '../persistence'
 import type { GlobalSettings, TuiAgent } from '../../shared/types'
+import { toSshExecutionHostId } from '../../shared/execution-host'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import { terminalOutputBacklogCapChars } from '../../shared/terminal-scrollback-policy'
 import type {
@@ -57,6 +58,11 @@ import { detectPiAgentKindFromCommand, type PiAgentKind } from '../../shared/pi-
 import { isPwshAvailable } from '../pwsh'
 import { LocalPtyProvider } from '../providers/local-pty-provider'
 import type { IPtyProvider, PtySpawnOptions, PtySpawnResult } from '../providers/types'
+import { inspectPtyProviderProcess } from '../providers/pty-process-inspection'
+import {
+  PtyProcessListAdmission,
+  visitPtyProcessListingsInBatches
+} from '../providers/pty-process-list-admission'
 import type { StartupCommandDelivery } from '../../shared/codex-startup-delivery'
 import {
   SSH_SESSION_EXPIRED_ERROR,
@@ -176,6 +182,19 @@ type FreshLocalFallbackProvider = IPtyProvider & {
   routesFreshSpawnsToLocalProvider?: true
 }
 const sshProviders = new Map<string, IPtyProvider>()
+
+type RegisteredPtyProvider = {
+  provider: IPtyProvider
+  connectionId: string | null
+}
+
+function registeredPtyProviders(): RegisteredPtyProvider[] {
+  return [
+    { provider: localProvider, connectionId: null },
+    ...Array.from(sshProviders, ([connectionId, provider]) => ({ provider, connectionId }))
+  ]
+}
+
 const SYNTHETIC_KILL_EXIT_DUPLICATE_WINDOW_MS = 30_000
 // Why: kill switch — flip to disable producer flow control (pause/resume) without untangling the wiring.
 const PRODUCER_FLOW_CONTROL_ENABLED = true
@@ -462,6 +481,11 @@ function getProvider(connectionId: string | null | undefined): IPtyProvider {
 function getProviderForPty(ptyId: string): IPtyProvider {
   const connectionId = ptyOwnership.get(ptyId)
   if (connectionId === undefined) {
+    const parsedSshId = parseAppSshPtyId(ptyId)
+    if (parsedSshId) {
+      // Why: disconnected SSH PTYs retain their encoded owner and must never fall through to the HUB-local provider.
+      return getProvider(parsedSshId.connectionId)
+    }
     return localProvider
   }
   return getProvider(connectionId)
@@ -1580,6 +1604,7 @@ export function registerPtyHandlers(
   ipcMain.removeHandler('pty:hasPty')
   ipcMain.removeHandler('pty:hasChildProcesses')
   ipcMain.removeHandler('pty:getForegroundProcess')
+  ipcMain.removeHandler('pty:inspectProcess')
   ipcMain.removeHandler('pty:confirmForegroundProcess')
   ipcMain.removeHandler('pty:getCwd')
   ipcMain.removeHandler('pty:getSize')
@@ -2530,6 +2555,12 @@ export function registerPtyHandlers(
     })
   }
 
+  function sendPtySpawnedToRenderer(id: string): void {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('pty:spawned', { id })
+    }
+  }
+
   async function shutdownProviderAndDetectExit(
     provider: IPtyProvider,
     id: string,
@@ -3441,14 +3472,22 @@ export function registerPtyHandlers(
         }
         if (hostSessionBinding) {
           try {
-            hostSessionBinding.store.persistPtyBinding({
+            const binding = {
               worktreeId: hostSessionBinding.worktreeId,
               tabId: hostSessionBinding.tabId,
               leafId: hostSessionBinding.leafId,
               ptyId: result.id,
               ...(result.incarnationId ? { incarnationId: result.incarnationId } : {}),
               ...(cwd ? { startupCwd: cwd } : {})
-            })
+            }
+            if (args.connectionId) {
+              hostSessionBinding.store.persistPtyBinding(
+                binding,
+                toSshExecutionHostId(args.connectionId)
+              )
+            } else {
+              hostSessionBinding.store.persistPtyBinding(binding)
+            }
           } catch (err) {
             console.error('[pty] failed to persist runtime PTY binding after spawn:', err)
             deletePtyOwnership(result.id)
@@ -3534,6 +3573,8 @@ export function registerPtyHandlers(
                 : null
           })
         }
+        // Why: runtime-owned/background spawns bypass mounted-pane state, so inventory consumers need an explicit signal.
+        sendPtySpawnedToRenderer(result.id)
         const response = {
           id: result.id,
           ...(result.incarnationId ? { incarnationId: result.incarnationId } : {}),
@@ -3562,9 +3603,8 @@ export function registerPtyHandlers(
       }
     },
     write: (ptyId, data) => {
-      const provider = getProviderForPty(ptyId)
       try {
-        provider.write(ptyId, data)
+        getProviderForPty(ptyId).write(ptyId, data)
         return true
       } catch {
         return false
@@ -3739,6 +3779,7 @@ export function registerPtyHandlers(
         return null
       }
     },
+    inspectProcess: async (ptyId) => inspectPtyProviderProcess(getProviderForPty(ptyId), ptyId),
     confirmForegroundProcess: async (ptyId) => {
       try {
         const provider = getProviderForPty(ptyId)
@@ -4507,14 +4548,19 @@ export function registerPtyHandlers(
           validatedLeafId !== null
         ) {
           try {
-            store.persistPtyBinding({
+            const binding = {
               worktreeId: args.worktreeId,
               tabId: args.tabId,
               leafId: validatedLeafId,
               ptyId: result.id,
               ...(result.incarnationId ? { incarnationId: result.incarnationId } : {}),
               ...(cwd ? { startupCwd: cwd } : {})
-            })
+            }
+            if (args.connectionId) {
+              store.persistPtyBinding(binding, toSshExecutionHostId(args.connectionId))
+            } else {
+              store.persistPtyBinding(binding)
+            }
           } catch (err) {
             console.error('[pty] failed to persist PTY binding after spawn:', err)
             if (!result.isReattach) {
@@ -4694,6 +4740,8 @@ export function registerPtyHandlers(
           // Why: a daemon-retry race can surface isReattach even for a minted session id, and a reattach must never claim its cwd was remapped.
           ...(startupCwdFallback && !result.isReattach ? { startupCwdFallback } : {})
         }
+        // Why: renderer tab state cannot reliably infer background and reattached PTYs in the daemon inventory.
+        sendPtySpawnedToRenderer(result.id)
         return resolvePaneSpawnReservation(reservationPaneKey, paneSpawnReservation, response)
       } catch (err) {
         if (pendingRegistrationPtyId) {
@@ -5228,24 +5276,27 @@ export function registerPtyHandlers(
   ipcMain.handle(
     'pty:listSessions',
     async (): Promise<{ id: string; cwd: string; title: string }[]> => {
-      const providerSessions = await Promise.all([
-        Promise.resolve({
-          connectionId: null as string | null,
-          sessions: await localProvider.listProcesses()
-        }),
-        ...Array.from(sshProviders.entries(), async ([connectionId, provider]) => ({
-          connectionId,
-          sessions: await provider.listProcesses().catch(() => [])
-        }))
-      ])
       const deduped = new Map<string, { id: string; cwd: string; title: string }>()
-      for (const { connectionId, sessions } of providerSessions) {
-        for (const session of sessions) {
-          // Why: kill actions only send back the PTY id, so rebuild ownership while listing to keep reconnect-discovered remote sessions routed to their provider.
-          ptyOwnership.set(session.id, connectionId)
-          deduped.set(session.id, session)
+      const admission = new PtyProcessListAdmission()
+      await visitPtyProcessListingsInBatches(
+        registeredPtyProviders(),
+        ({ provider, connectionId }) =>
+          connectionId === null
+            ? provider.listProcesses()
+            : provider.listProcesses().catch(() => []),
+        ({ connectionId }, sessions) => {
+          for (const rawSession of sessions) {
+            const session = admission.admit(rawSession)
+            // Why: kill actions only send back the PTY id, so rebuild ownership while listing to keep reconnect-discovered remote sessions routed to their provider.
+            ptyOwnership.set(session.id, connectionId)
+            deduped.set(session.id, {
+              id: session.id,
+              cwd: session.cwd,
+              title: session.title
+            })
+          }
         }
-      }
+      )
       return Array.from(deduped.values())
     }
   )
@@ -5317,6 +5368,10 @@ export function registerPtyHandlers(
       }
       return getProviderForPty(args.id).getForegroundProcess(args.id)
     }
+  )
+
+  ipcMain.handle('pty:inspectProcess', async (_event, args: { id: string }) =>
+    inspectPtyProviderProcess(getProviderForPty(args.id), args.id)
   )
 
   ipcMain.handle(

@@ -68,6 +68,16 @@ export type SshSlice = {
   setDetectedPorts: (targetId: string, ports: EnrichedDetectedPort[]) => void
 }
 
+const targetConnectionGeneration = new Map<string, number>()
+
+export function getLocalSshTargetConnectionGeneration(targetId: string): number {
+  return targetConnectionGeneration.get(targetId) ?? 0
+}
+
+function advanceLocalSshTargetConnectionGeneration(targetId: string): void {
+  targetConnectionGeneration.set(targetId, getLocalSshTargetConnectionGeneration(targetId) + 1)
+}
+
 export const createSshSlice: StateCreator<AppState, [], [], SshSlice> = (set) => ({
   sshConnectionStates: new Map(),
   sshTargetLabels: new Map(),
@@ -87,6 +97,7 @@ export const createSshSlice: StateCreator<AppState, [], [], SshSlice> = (set) =>
       if (sshConnectionStatesEqual(previous, state)) {
         return s
       }
+      advanceLocalSshTargetConnectionGeneration(targetId)
       next.set(targetId, state)
       const didReconnect = previous?.status !== 'connected' && state.status === 'connected'
       let blockedConnections = s.transientClearedAgentStatusConnectionIds

@@ -11,6 +11,7 @@ import { DashboardAgentRowToolStep } from './DashboardAgentRowToolStep'
 import type { AgentStatusState } from '../../../../shared/agent-status-types'
 import type { DashboardAgentRow as DashboardAgentRowData } from './useDashboardData'
 import { getAgentRowPrimaryText } from '@/lib/agent-row-primary-text'
+import { useAgentRowConversationName } from './use-agent-row-conversation-name'
 
 // Why: narrow the dashboard's rollup states to shared dot states, defaulting unknowns to 'idle' so a row never crashes.
 function asDotState(state: AgentStatusState | 'idle'): AgentDotState {
@@ -172,10 +173,12 @@ const DashboardAgentRow = React.memo(function DashboardAgentRow({
   )
   const startedAt = agent.startedAt > 0 ? agent.startedAt : null
   const doneAt = lastEnteredDoneAt(agent)
+  const conversationName = useAgentRowConversationName(agent)
   const prompt = getAgentRowPrimaryText(agent.entry)
-  const customTitle = agent.customTitle?.trim() || agent.tab.customTitle?.trim() || ''
-  // Why: unknown prompts are empty; prefer a custom title, then state, so every row remains labeled.
-  const displayLabel = customTitle || prompt || agentStateLabel(asDotState(agent.state))
+  const agentCustomTitle = agent.customTitle?.trim() ?? ''
+  // Why: unknown prompts are empty; prefer explicit/conversation names, then state, so every row remains labeled.
+  const displayLabel =
+    agentCustomTitle || conversationName || prompt || agentStateLabel(asDotState(agent.state))
   const model = agent.entry.model?.trim() ?? ''
   // Why: gate tool fields on 'working' — a stale tool line on a done row reads as still-running.
   const isWorking = agent.state === 'working'
