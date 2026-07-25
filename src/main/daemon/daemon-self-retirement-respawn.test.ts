@@ -10,7 +10,7 @@ import type { SubprocessHandle } from './session'
 function fixtureSubprocess(): SubprocessHandle {
   let onExit: ((code: number) => void) | null = null
   return {
-    pid: process.pid,
+    pid: 9345,
     getForegroundProcess: () => null,
     write: () => {},
     resize: () => {},

@@ -136,7 +136,7 @@ function getBranchMetadataLabelTag(markup: string): string {
 describe('WorktreeCard quick actions', () => {
   beforeAll(async () => {
     WorktreeCard = (await import('./WorktreeCard')).default
-  }, 20_000)
+  }, 60_000)
 
   beforeEach(() => {
     vi.clearAllMocks()

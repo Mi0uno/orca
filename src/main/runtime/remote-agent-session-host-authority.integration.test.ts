@@ -15,6 +15,23 @@ import { TerminalHost } from '../daemon/terminal-host'
 import { OrcaRuntimeService } from './orca-runtime'
 import { OrcaRuntimeRpcServer } from './runtime-rpc'
 
+vi.mock('../../shared/secure-file', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const { dirname } = await import('node:path')
+  const writeSecureFile = vi.fn((targetPath: string, contents: string) => {
+    mkdirSync(dirname(targetPath), { recursive: true, mode: 0o700 })
+    writeFileSync(targetPath, contents, { encoding: 'utf-8', mode: 0o600 })
+  })
+  return {
+    hardenExistingSecureFile: vi.fn(),
+    hardenSecurePath: vi.fn(),
+    writeSecureFile,
+    writeSecureJsonFile: vi.fn((targetPath: string, value: unknown) => {
+      writeSecureFile(targetPath, JSON.stringify(value, null, 2))
+    })
+  }
+})
+
 const TEST_TIMEOUT_MS = 15_000
 const REQUEST_TIMEOUT_MS = 5_000
 
@@ -48,7 +65,11 @@ function createControlledSubprocess(): ControlledSubprocess {
 }
 
 function requirePairing(server: OrcaRuntimeRpcServer, name: string) {
-  const offer = server.createPairingOffer({ name, scope: 'runtime' })
+  const offer = server.createPairingOffer({
+    address: '127.0.0.1',
+    name,
+    scope: 'runtime'
+  })
   if (!offer.available) {
     throw new Error('pairing unavailable')
   }

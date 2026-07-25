@@ -57,8 +57,7 @@ function isProviderSnapshotPending(provider: UsageProviderSnapshot): boolean {
 export function isProviderConfigured(
   provider: UsageProviderSnapshot
 ): provider is ProviderRateLimits {
-  // Why: restored or partially migrated rate-limit state can miss newly added
-  // provider keys; treat that the same as a not-yet-loaded null snapshot.
+  // Why: restored or mixed-version rate-limit state can miss newly added provider keys.
   if (provider == null || provider.status === 'unavailable') {
     return false
   }

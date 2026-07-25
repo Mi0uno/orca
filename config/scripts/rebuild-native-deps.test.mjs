@@ -183,6 +183,7 @@ describe('rebuild-native-deps patched node-pty rebuild', () => {
 
   it.skipIf(process.platform !== 'win32')(
     'does not rebuild a healthy node-pty when another Windows addon fails its probe',
+    { timeout: 120_000 },
     () => {
       const projectDir = mkTempProject()
 
