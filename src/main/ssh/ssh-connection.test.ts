@@ -157,10 +157,10 @@ vi.mock('./ssh-config-parser', () => ({
 
 import {
   SshConnection,
-  SshConnectionManager,
   shouldUseSystemSshTransport,
   type SshConnectionCallbacks
 } from './ssh-connection'
+import { SshConnectionManager } from './ssh-connection-manager'
 import { resolveWithSshG, type SshResolvedConfig } from './ssh-config-parser'
 import {
   downloadFileViaSystemSsh,

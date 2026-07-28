@@ -14,7 +14,8 @@ import type {
   GitHubPRRefreshEnqueueResult,
   GitHubPRRefreshReason,
   IssueSourcePreference,
-  PRRefreshOutcome
+  PRRefreshOutcome,
+  GitHubPRFile
 } from '../../shared/types'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
 import type { TaskSourceContext } from '../../shared/task-source-context'
@@ -69,7 +70,6 @@ import {
   type PRRefreshValidationDenialReason
 } from '../github/pr-refresh-validation-backoff'
 import { getLocalProjectWorktreeGitOptions } from '../project-runtime-git-options'
-import type { GitHubPRFile } from '../../shared/types'
 import { dispatchWorkItem, type WorkItemArgs } from './github-work-item-args'
 import {
   getProjectViewTable,

@@ -89,11 +89,10 @@ import {
   getTaskSourceCacheScope,
   type TaskSourceContext
 } from '../../../../shared/task-source-context'
-import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
 import { resolveRepositoryOriginLive } from '@/components/settings/repository-icon-github'
 import { parseExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
 import { githubRepoIdentityKey } from '../../../../shared/github-repository-identity-key'
-import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 import {
   getGitHubRuntimeRepoId,
   getGitHubSourceRuntimeTarget

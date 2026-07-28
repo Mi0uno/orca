@@ -1,5 +1,4 @@
-import React from 'react'
-import { act } from 'react'
+import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { expect, vi, type Mock } from 'vitest'
 import NewWorkspaceComposerCard from './NewWorkspaceComposerCard'

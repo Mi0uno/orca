@@ -27,6 +27,7 @@ jobs:
           # Why: verify:skill-bundle-manifest now checks working-tree bytes
           # against the committed skill ledger (advanced only at release cut) and
           # this fork compares official release tags explicitly in the next step.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Fetch official release tags
@@ -41,8 +42,20 @@ jobs:
       - name: Lint
         run: pnpm exec oxlint --format github
 
+      - name: Enforce full code-quality baseline
+        run: pnpm run audit:code-quality:native && pnpm run audit:code-quality:type-aware
+
       - name: Check switch exhaustiveness
         run: pnpm run lint:switch-exhaustiveness
+
+      - name: Enforce changed-code quality
+        run: pnpm run check:code-quality:changed -- "${{ github.event.pull_request.base.sha }}"
+
+      - name: Enforce React Doctor on changed lines
+        run: pnpm run check:react-doctor:changed -- "${{ github.event.pull_request.base.sha }}"
+
+      - name: Check Zustand selector fan-out budget
+        run: pnpm run check:zustand-selector-fanout
 
       - name: Check styled scrollbars
         run: pnpm check:styled-scrollbars

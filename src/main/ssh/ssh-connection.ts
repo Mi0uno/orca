@@ -1478,5 +1478,3 @@ export function shouldUseSystemSshTransport(
     resolved?.proxyJump != null
   )
 }
-
-export { SshConnectionManager } from './ssh-connection-manager'
