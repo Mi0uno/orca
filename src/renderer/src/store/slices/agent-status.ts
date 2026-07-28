@@ -32,6 +32,7 @@ import {
   getWorktreeExecutionHostId
 } from '../../../../shared/execution-host'
 import { formatAgentTypeLabel, isExplicitAgentStatusFresh } from '@/lib/agent-status'
+import { readLastTerminalInputAt } from '@/lib/terminal-input-activity-coalescing'
 import {
   getAgentRowGeneratedTitleText,
   getOrcaDispatchTaskId,
@@ -721,7 +722,7 @@ function isValidManualSleepLiveAgentEntry(
   if (entry.interrupted === true || entry.state === 'done') {
     return false
   }
-  const lastInputAt = state.lastTerminalInputAtByPaneKey[entry.paneKey]
+  const lastInputAt = readLastTerminalInputAt(state.lastTerminalInputAtByPaneKey, entry.paneKey)
   if (
     typeof lastInputAt === 'number' &&
     Number.isFinite(lastInputAt) &&

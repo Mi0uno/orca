@@ -28,7 +28,8 @@ function isAbsolutePathLike(value: string): boolean {
 }
 
 function normalizeDisplayName(item: RepoDisplayLabelItem): string {
-  const displayName = item.displayName.trim()
+  // Why: displayName is typed non-optional but can be absent in persisted/discovered runtime data.
+  const displayName = (item.displayName ?? '').trim()
   if (!displayName) {
     return getRuntimePathBasename(item.path) || item.path
   }

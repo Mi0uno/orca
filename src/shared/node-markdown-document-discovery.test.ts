@@ -15,7 +15,7 @@ function entry(name: string, kind: 'directory' | 'file' | 'symlink' = 'file'): D
 function reader(entriesByPath: Record<string, Dirent[]>) {
   return async (path: string): Promise<AsyncIterable<Dirent>> => ({
     async *[Symbol.asyncIterator]() {
-      yield* entriesByPath[path] ?? []
+      yield* entriesByPath[path.replace(/\\/g, '/')] ?? []
     }
   })
 }

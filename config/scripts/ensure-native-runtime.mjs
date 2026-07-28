@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { existsSync, readFileSync } from 'node:fs'
 import { release } from 'node:os'
-import { basename, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
 
 const require = createRequire(import.meta.url)
 const scriptPath = import.meta.filename
@@ -75,7 +75,25 @@ function ensureNodeRuntime() {
   )
   printCheckError(initial)
   runPnpm(['rebuild', ...failedModules])
+  rebuildWindowsRegistryWithNodeGypIfNeeded(failedModules)
   verifyNodeRuntimeAfterRebuild()
+}
+
+function rebuildWindowsRegistryWithNodeGypIfNeeded(failedModules) {
+  if (process.platform !== 'win32' || !failedModules.includes('windows-native-registry')) {
+    return
+  }
+
+  const afterPnpm = runNodeCheck()
+  if (!afterPnpm.failures.some((failure) => failure.moduleName === 'windows-native-registry')) {
+    return
+  }
+
+  console.warn(
+    '[native-runtime] windows-native-registry did not rebuild via pnpm; running node-gyp directly.'
+  )
+  printCheckError(afterPnpm)
+  runNodeGypRebuild('windows-native-registry')
 }
 
 function verifyNodeRuntimeAfterRebuild() {
@@ -364,6 +382,23 @@ function runNodeScript(args) {
 
   if (result.error || result.status !== 0) {
     console.error(`[native-runtime] ${basename(process.execPath)} ${args.join(' ')} failed.`)
+    if (result.error) {
+      console.error(formatError(result.error))
+    }
+    process.exit(result.status ?? 1)
+  }
+}
+
+function runNodeGypRebuild(moduleName) {
+  const moduleDir = dirname(require.resolve(`${moduleName}/package.json`))
+  const nodeGypScript = require.resolve('node-gyp/bin/node-gyp.js')
+  const result = spawnSync(process.execPath, [nodeGypScript, 'rebuild'], {
+    cwd: moduleDir,
+    stdio: 'inherit'
+  })
+
+  if (result.error || result.status !== 0) {
+    console.error(`[native-runtime] node-gyp rebuild failed for ${moduleName}.`)
     if (result.error) {
       console.error(formatError(result.error))
     }

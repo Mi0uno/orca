@@ -151,6 +151,52 @@ describe('ensure-native-runtime', () => {
       }
     }
   )
+
+  it.skipIf(process.platform !== 'win32')(
+    'falls back to node-gyp when pnpm cannot rebuild windows-native-registry',
+    () => {
+      const projectDir = mkTempProject()
+
+      try {
+        const scriptPath = join(projectDir, 'config', 'scripts', 'ensure-native-runtime.mjs')
+        const logPath = join(projectDir, 'native-runtime.log')
+        const markerPath = join(projectDir, 'rebuilt.marker')
+        const nodeGypMarkerPath = join(projectDir, 'node-gyp-rebuilt.marker')
+        const binDir = join(projectDir, 'bin')
+        copyFileSync(sourceScriptPath, scriptPath)
+        writeLoadableNativeModules(projectDir, { nativeDir: '../prebuilds/win32-x64/' })
+        writeWindowsRegistryPendingNodeGyp(projectDir)
+        writeFakePnpm(binDir)
+        writeFakeNodeGyp(projectDir)
+
+        const result = spawnSync(process.execPath, [scriptPath, '--runtime=node'], {
+          cwd: projectDir,
+          encoding: 'utf8',
+          env: envWithPrependedPath(binDir, {
+            ORCA_NATIVE_TEST_LOG: logPath,
+            ORCA_NATIVE_TEST_MARKER: markerPath,
+            ORCA_NATIVE_TEST_NODE_GYP_MARKER: nodeGypMarkerPath
+          })
+        })
+
+        expect(result.status, result.stderr).toBe(0)
+        const log = readFileSync(logPath, 'utf8')
+        expect(log).toContain('pnpm rebuild windows-native-registry\n')
+        expect(log).toContain(
+          `node-gyp rebuild cwd=${join(projectDir, 'node_modules', 'windows-native-registry')}\n`
+        )
+        expect(
+          log.split('\n').filter((line) => line.startsWith('windows-native-registry child '))
+        ).toEqual([
+          'windows-native-registry child nodeGyp=false',
+          'windows-native-registry child nodeGyp=false',
+          'windows-native-registry child nodeGyp=true'
+        ])
+      } finally {
+        rmSync(projectDir, { recursive: true, force: true })
+      }
+    }
+  )
 })
 
 function mkTempProject() {
@@ -230,6 +276,31 @@ function writeFakeWindowsRegistry(projectDir) {
   )
 }
 
+function writeWindowsRegistryPendingNodeGyp(projectDir) {
+  const registryDir = join(projectDir, 'node_modules', 'windows-native-registry')
+  mkdirSync(registryDir, { recursive: true })
+  writeFileSync(join(registryDir, 'package.json'), '{"name":"windows-native-registry"}\n')
+  writeFileSync(
+    join(registryDir, 'index.js'),
+    `
+const { appendFileSync, existsSync } = require('node:fs')
+
+exports.HK = { CU: 0x80000001 }
+exports.getRegistryKey = () => {
+  const rebuilt = existsSync(process.env.ORCA_NATIVE_TEST_NODE_GYP_MARKER)
+  appendFileSync(
+    process.env.ORCA_NATIVE_TEST_LOG,
+    \`windows-native-registry child nodeGyp=\${rebuilt}\\n\`
+  )
+  if (!rebuilt) {
+    throw new Error('missing native.node')
+  }
+  return {}
+}
+`
+  )
+}
+
 function writeNodePtyPatchFile(projectDir) {
   mkdirSync(join(projectDir, 'config', 'patches'), { recursive: true })
   writeFileSync(join(projectDir, 'config', 'patches', 'node-pty@1.1.0.patch'), 'patch marker\n')
@@ -263,5 +334,24 @@ writeFileSync(process.env.ORCA_NATIVE_TEST_MARKER, 'rebuilt')
   writeFileSync(
     join(binDir, 'pnpm.cmd'),
     `@echo off\r\n"${process.execPath}" "%~dp0\\pnpm-shim.cjs" %*\r\n`
+  )
+}
+
+function writeFakeNodeGyp(projectDir) {
+  const nodeGypDir = join(projectDir, 'node_modules', 'node-gyp')
+  const nodeGypBinDir = join(nodeGypDir, 'bin')
+  mkdirSync(nodeGypBinDir, { recursive: true })
+  writeFileSync(join(nodeGypDir, 'package.json'), '{"name":"node-gyp"}\n')
+  writeFileSync(
+    join(nodeGypBinDir, 'node-gyp.js'),
+    `
+const { appendFileSync, writeFileSync } = require('node:fs')
+
+appendFileSync(
+  process.env.ORCA_NATIVE_TEST_LOG,
+  \`node-gyp \${process.argv.slice(2).join(' ')} cwd=\${process.cwd()}\\n\`
+)
+writeFileSync(process.env.ORCA_NATIVE_TEST_NODE_GYP_MARKER, 'rebuilt')
+`
   )
 }
