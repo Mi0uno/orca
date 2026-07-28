@@ -298,15 +298,17 @@ export function changeInputValue(input: HTMLInputElement, value: string): void {
 }
 
 export function openRunTargetPicker(container: HTMLElement): void {
-  const runTargetButton = container.querySelector<HTMLButtonElement>('button[role="combobox"]')
-  expect(runTargetButton).toBeTruthy()
-  act(() => runTargetButton?.click())
+  const runTargetShell = container.querySelector<HTMLElement>(
+    'div[data-run-target-combobox-root="true"]'
+  )
+  expect(runTargetShell).toBeTruthy()
+  act(() => runTargetShell?.click())
 }
 
 export function findRunTargetItem(label: string): HTMLElement | undefined {
-  // Why: "Add host" is a pinned footer button (mirrors the Project combobox), not a cmdk row.
+  // Why: "Add host" is a pinned footer row, outside the normal listbox options.
   return [
-    ...document.body.querySelectorAll<HTMLElement>('[cmdk-item], [data-run-target-add-host]')
+    ...document.body.querySelectorAll<HTMLElement>('[role="option"], [data-run-target-add-host]')
   ].find((item) => item.textContent?.includes(label))
 }
 
