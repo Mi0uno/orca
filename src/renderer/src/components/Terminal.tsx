@@ -1105,7 +1105,9 @@ function Terminal(): React.JSX.Element | null {
         const shouldMeasureHiddenWorktree =
           !isVisible && measurableBackgroundWorktreeIdsRef.current.has(workspace.id)
         const parked =
-          !shouldMeasureHiddenWorktree && effectiveParkedTerminalWorktreeIds.has(workspace.id)
+          !isVisible &&
+          !shouldMeasureHiddenWorktree &&
+          effectiveParkedTerminalWorktreeIds.has(workspace.id)
         if (parked) {
           for (const tab of tabs) {
             const activityTerminalPortal = findActivityTerminalPortal(activityTerminalPortals, {
@@ -2138,7 +2140,9 @@ function Terminal(): React.JSX.Element | null {
               const shouldMeasureHiddenWorktree =
                 !isVisible && measurableBackgroundWorktreeIdsRef.current.has(workspace.id)
               const shouldColdParkTerminalPanes =
-                !shouldMeasureHiddenWorktree && effectiveParkedTerminalWorktreeIds.has(workspace.id)
+                !isVisible &&
+                !shouldMeasureHiddenWorktree &&
+                effectiveParkedTerminalWorktreeIds.has(workspace.id)
               return (
                 <WorktreeSplitSurface
                   key={`tab-groups-${workspace.id}`}
@@ -2188,6 +2192,7 @@ function Terminal(): React.JSX.Element | null {
                 const shouldMeasureHiddenWorktree =
                   !isVisible && measurableBackgroundWorktreeIdsRef.current.has(workspace.id)
                 const shouldColdParkTerminalPanes =
+                  !isVisible &&
                   !shouldMeasureHiddenWorktree &&
                   effectiveParkedTerminalWorktreeIds.has(workspace.id)
                 return (
