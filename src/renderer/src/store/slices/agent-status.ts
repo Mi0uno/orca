@@ -2797,7 +2797,11 @@ export const createAgentStatusSlice: StateCreator<AppState, [], [], AgentStatusS
         for (const key of retainedKeys) {
           delete nextRetained[key]
         }
-        if (launchedRetained && !terminalCloseRecords.has(launchedRetained.entry.paneKey)) {
+        // Why: the launch placeholder (launching:${tabId}) is a fallback for a tab that closed
+        // before producing a real session. Every terminalCloseRecords entry belongs to this same
+        // tab, so if any exists a real resumable record already covers it — adding the placeholder
+        // would surface the same closed tab twice in the sidebar (issue #5 duplicate records).
+        if (launchedRetained && terminalCloseRecords.size === 0) {
           nextRetained[launchedRetained.entry.paneKey] = launchedRetained
         }
 
