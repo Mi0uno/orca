@@ -26,6 +26,7 @@ import { isDuplicateSshTargetAlias } from './ssh-target-duplicate'
 type SshApi = {
   listTargets: () => Promise<SshTarget[]>
   addTarget: (args: { target: Omit<SshTarget, 'id'> }) => Promise<SshTargetAddResult>
+  setPassword: (args: { targetId: string; password: string; remember: boolean }) => Promise<void>
   listConfigHosts: (args?: SshConfigHostListArgs) => Promise<SshConfigHostListResult>
   resolveConfigHost: (args: { alias: string }) => Promise<SshConfigHostResolution | null>
   importConfig: (args?: { reAdopt?: boolean }) => Promise<{
@@ -78,9 +79,21 @@ export async function saveNewSshHostFromForm({
     return 'validation-failed'
   }
 
-  const identityFile = form.identityFile.trim() || undefined
+  const usePassword = form.authMethod === 'password'
   const proxyCommand = form.proxyCommand.trim() || undefined
   const jumpHost = form.jumpHost.trim() || undefined
+  if (usePassword && (proxyCommand || jumpHost)) {
+    toast.error(
+      translate(
+        'auto.components.sidebar.AddRemoteHostDialog.sshPasswordProxyUnsupported',
+        "Password login can't be combined with a proxy command or jump host. Use an identity file for those hosts."
+      )
+    )
+    return 'validation-failed'
+  }
+  // Why: gssapi uses the system transport, which cannot consume this password store.
+  const gssapiAuthentication = !usePassword && form.gssapiAuthentication
+  const identityFile = usePassword ? undefined : form.identityFile.trim() || undefined
   const systemSshConnectionReuse = form.systemSshConnectionReuse ? undefined : false
   const target = {
     label: form.label.trim() || (username ? `${username}@${host}` : configHost || host),
@@ -88,8 +101,9 @@ export async function saveNewSshHostFromForm({
     host,
     port,
     username,
-    ...(form.gssapiAuthentication ? { gssapiAuthentication: true } : {}),
+    ...(gssapiAuthentication ? { gssapiAuthentication: true } : {}),
     relayGracePeriodSeconds: graceSeconds,
+    ...(usePassword ? { authMethod: 'password' as const, savePassword: form.savePassword } : {}),
     ...(identityFile ? { identityFile } : {}),
     ...(proxyCommand ? { proxyCommand } : {}),
     ...(jumpHost ? { jumpHost } : {}),
@@ -116,6 +130,14 @@ export async function saveNewSshHostFromForm({
     }
 
     const result = await ssh.addTarget({ target })
+    // Why: send secrets only after the secret-free target exists, through its dedicated IPC.
+    if (usePassword && form.password.length > 0) {
+      await ssh.setPassword({
+        targetId: result.target.id,
+        password: form.password,
+        remember: form.savePassword
+      })
+    }
     recordSshRepoReadoptions(result.repoReadoptions)
     setSshTargetsMetadata(await ssh.listTargets())
     recordFeatureInteraction('ssh')

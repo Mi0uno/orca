@@ -42,6 +42,14 @@ import {
 import { advertisedUrlWatcher } from '../ports/advertised-url-watcher'
 import { requestCredential, registerCredentialHandler } from './ssh-passphrase'
 import {
+  clearTransientSshPassword,
+  deleteSshPassword,
+  hasSavedSshPassword,
+  resolveStoredSshPassword,
+  saveSshPassword,
+  setTransientSshPassword
+} from '../ssh/ssh-password-store'
+import {
   clearProviderPtyState,
   deletePtyOwnership,
   getPtyIdsForConnection,
@@ -85,6 +93,9 @@ const SSH_IPC_CHANNELS = [
   'ssh:resetRelay',
   'ssh:getState',
   'ssh:needsPassphrasePrompt',
+  'ssh:setPassword',
+  'ssh:clearPassword',
+  'ssh:hasPassword',
   'ssh:testConnection',
   'ssh:addPortForward',
   'ssh:updatePortForward',
@@ -145,6 +156,15 @@ export async function removeRegisteredSshTarget(targetId: string): Promise<void>
       )
     }
     persistedStore?.removeSshRemotePtyLeases(targetId)
+    // Why: removal is a full teardown; do not let a re-added host reuse stale credentials.
+    clearTransientSshPassword(targetId)
+    try {
+      deleteSshPassword(targetId)
+    } catch (err) {
+      console.warn(
+        `[ssh] Failed to clear stored password for ${targetId}: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
     store.removeTarget(targetId)
   })
 }
@@ -670,6 +690,22 @@ function createSshConnectionCallbacks(): SshConnectionCallbacks {
         keyboardInteractive,
         signal
       )
+    },
+    resolveSavedPassword: (targetId) => resolveStoredSshPassword(targetId),
+    onPasswordAuthenticated: (targetId, password) => {
+      // Why: always keep the working password for this session so reconnects
+      // don't reprompt; persist to the encrypted store only when the target
+      // opted into saving. A freshly-typed password proves good here.
+      setTransientSshPassword(targetId, password)
+      if (sshStore?.getTarget(targetId)?.savePassword) {
+        try {
+          saveSshPassword(targetId, password)
+        } catch (err) {
+          console.warn(
+            `[ssh] Failed to persist password for ${targetId}: ${err instanceof Error ? err.message : String(err)}`
+          )
+        }
+      }
     },
     onStateChange: (targetId: string, state: SshConnectionState) => {
       if (testingTargets.has(targetId)) {
@@ -1436,6 +1472,47 @@ export function registerSshHandlers(
     }
     const conn = connectionManager!.getConnection(args.targetId)
     return !conn?.hasCachedCredential()
+  })
+
+  // ── Password credential storage ─────────────────────────────────────
+  // Why: the password is a secret handled only over these dedicated channels —
+  // it never travels through addTarget/updateTarget or persisted target state.
+
+  ipcMain.handle(
+    'ssh:setPassword',
+    (_event, args: { targetId: string; password: string; remember: boolean }) => {
+      if (
+        !args ||
+        typeof args.targetId !== 'string' ||
+        args.targetId.length === 0 ||
+        typeof args.password !== 'string'
+      ) {
+        throw new Error('Invalid SSH password request')
+      }
+      // Why: always keep it for this session so the next connect doesn't prompt.
+      setTransientSshPassword(args.targetId, args.password)
+      if (args.remember) {
+        saveSshPassword(args.targetId, args.password)
+      } else {
+        // Explicitly not-remembered: drop any previously persisted copy.
+        deleteSshPassword(args.targetId)
+      }
+    }
+  )
+
+  ipcMain.handle('ssh:clearPassword', (_event, args: { targetId: string }) => {
+    if (!args || typeof args.targetId !== 'string') {
+      throw new Error('Invalid SSH password request')
+    }
+    clearTransientSshPassword(args.targetId)
+    deleteSshPassword(args.targetId)
+  })
+
+  ipcMain.handle('ssh:hasPassword', (_event, args: { targetId: string }) => {
+    if (!args || typeof args.targetId !== 'string') {
+      return false
+    }
+    return hasSavedSshPassword(args.targetId)
   })
 
   ipcMain.handle('ssh:testConnection', async (_event, args: { targetId: string }) => {

@@ -3303,6 +3303,10 @@ function createSshApi(): NonNullable<Partial<PreloadApi>['ssh']> {
       return state
     },
     needsPassphrasePrompt: () => Promise.resolve(false),
+    // Password storage relies on the desktop OS credential store; unavailable in the web client.
+    setPassword: () => Promise.resolve(),
+    clearPassword: () => Promise.resolve(),
+    hasPassword: () => Promise.resolve(false),
     testConnection: () =>
       Promise.resolve({
         success: false,

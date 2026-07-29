@@ -5062,7 +5062,8 @@
           "linkDestination": "リンク先",
           "sshTunnel": "SSH トンネルを使用しています",
           "sshTunnelHelp": "それ以外の場合、このリンクはこのデバイス自身を指すため、もう一方のコンピューターを識別できません。",
-          "loopbackBlocked": "SSH トンネルの上書きを有効にするか、もう一方のホストの Tailscale または LAN アドレスを使って新しいリンクを作成してください。"
+          "loopbackBlocked": "SSH トンネルの上書きを有効にするか、もう一方のホストの Tailscale または LAN アドレスを使って新しいリンクを作成してください。",
+          "sshPasswordProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "再接続に失敗しました",
@@ -10103,6 +10104,17 @@
           "auto": "Auto",
           "upstream": "Upstream",
           "origin": "Origin"
+        },
+        "SshAuthMethodFields": {
+          "method": "Authentication",
+          "key": "SSH Key",
+          "password": "Password",
+          "passwordLabel": "Password",
+          "savedPlaceholder": "Password saved — leave blank to keep",
+          "enterPlaceholder": "Enter password",
+          "remember": "Remember password",
+          "rememberHelp": "Stored in your operating system’s secure credential store. Turn off to enter it each session.",
+          "clearSaved": "Clear saved password"
         }
       },
       "right": {

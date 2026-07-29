@@ -5074,7 +5074,8 @@
           "linkDestination": "链接目标",
           "sshTunnel": "我正在使用 SSH 隧道",
           "sshTunnelHelp": "否则，此链接会指回此设备，无法识别另一台计算机。",
-          "loopbackBlocked": "启用 SSH 隧道选项，或使用另一台主机的 Tailscale 或 LAN 地址创建新链接。"
+          "loopbackBlocked": "启用 SSH 隧道选项，或使用另一台主机的 Tailscale 或 LAN 地址创建新链接。",
+          "sshPasswordProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "重新连接失败",
@@ -10123,6 +10124,17 @@
           "auto": "Auto",
           "upstream": "Upstream",
           "origin": "Origin"
+        },
+        "SshAuthMethodFields": {
+          "method": "Authentication",
+          "key": "SSH Key",
+          "password": "Password",
+          "passwordLabel": "Password",
+          "savedPlaceholder": "Password saved — leave blank to keep",
+          "enterPlaceholder": "Enter password",
+          "remember": "Remember password",
+          "rememberHelp": "Stored in your operating system’s secure credential store. Turn off to enter it each session.",
+          "clearSaved": "Clear saved password"
         }
       },
       "right": {

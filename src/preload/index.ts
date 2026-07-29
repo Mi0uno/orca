@@ -4521,6 +4521,15 @@ const api = {
     needsPassphrasePrompt: (args: { targetId: string }): Promise<boolean> =>
       ipcRenderer.invoke('ssh:needsPassphrasePrompt', args),
 
+    setPassword: (args: { targetId: string; password: string; remember: boolean }): Promise<void> =>
+      ipcRenderer.invoke('ssh:setPassword', args),
+
+    clearPassword: (args: { targetId: string }): Promise<void> =>
+      ipcRenderer.invoke('ssh:clearPassword', args),
+
+    hasPassword: (args: { targetId: string }): Promise<boolean> =>
+      ipcRenderer.invoke('ssh:hasPassword', args),
+
     testConnection: async (args: {
       targetId: string
     }): Promise<{ success: boolean; error?: string; state?: SshConnectionState }> => {

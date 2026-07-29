@@ -5062,7 +5062,8 @@
           "linkDestination": "Destino del enlace",
           "sshTunnel": "Estoy usando un túnel SSH",
           "sshTunnelHelp": "De lo contrario, este enlace apunta a este dispositivo y no puede identificar el otro equipo.",
-          "loopbackBlocked": "Activa la opción de túnel SSH o crea un enlace nuevo con la dirección de Tailscale o LAN del otro host."
+          "loopbackBlocked": "Activa la opción de túnel SSH o crea un enlace nuevo con la dirección de Tailscale o LAN del otro host.",
+          "sshPasswordProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "Error de reconexión",
@@ -10103,6 +10104,17 @@
           "auto": "Auto",
           "upstream": "Upstream",
           "origin": "Origin"
+        },
+        "SshAuthMethodFields": {
+          "method": "Authentication",
+          "key": "SSH Key",
+          "password": "Password",
+          "passwordLabel": "Password",
+          "savedPlaceholder": "Password saved — leave blank to keep",
+          "enterPlaceholder": "Enter password",
+          "remember": "Remember password",
+          "rememberHelp": "Stored in your operating system’s secure credential store. Turn off to enter it each session.",
+          "clearSaved": "Clear saved password"
         }
       },
       "right": {
