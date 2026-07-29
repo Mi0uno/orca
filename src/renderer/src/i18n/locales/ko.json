@@ -4985,7 +4985,8 @@
           "importing": "가져오는 중...",
           "importSshConfig": "~/.ssh/config 가져오기",
           "sshPersistenceDefault": "이 호스트의 원격 터미널은 종료하거나 릴레이를 재설정할 때까지 계속 실행됩니다.",
-          "advanced": "Advanced"
+          "advanced": "Advanced",
+          "sshPasswordProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "재연결 실패",
@@ -6902,7 +6903,8 @@
           "4db9afce1c": "포트는 1에서 65535 사이여야 합니다.",
           "0e5aa04161": "호스트 또는 SSH 구성 별칭이 필요합니다.",
           "f1fc50dad2": "SSH 대상을 로드하지 못했습니다.",
-          "0cda732f43": "연결 테스트 실패"
+          "0cda732f43": "연결 테스트 실패",
+          "pwdProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "SshPassphraseDialog": {
           "d5a234456f": "취소",
@@ -6941,7 +6943,8 @@
           "f0871e6bfb": "연결",
           "47e94bd6ba": "연결됨",
           "a883f5a00f": "terminal 시간 초과: {{value0}}",
-          "8ce71262f4": "재설정될 때까지 terminals"
+          "8ce71262f4": "재설정될 때까지 terminals",
+          "authPassword": "Password"
         },
         "SshTargetDestructiveActions": {
           "7e66942808": "그러면 이 SSH 대상에서 활성 terminal 세션이 중지됩니다. 다시 연결해도 복원되지 않습니다.",
@@ -9827,6 +9830,17 @@
             "logs": "plugin logs",
             "development": "development plugins"
           }
+        },
+        "SshAuthMethodFields": {
+          "method": "Authentication",
+          "key": "SSH Key",
+          "password": "Password",
+          "passwordLabel": "Password",
+          "savedPlaceholder": "Password saved — leave blank to keep",
+          "enterPlaceholder": "Enter password",
+          "remember": "Remember password",
+          "rememberHelp": "Stored in your operating system’s secure credential store. Turn off to enter it each session.",
+          "clearSaved": "Clear saved password"
         }
       },
       "right": {

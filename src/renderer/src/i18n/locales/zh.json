@@ -4985,7 +4985,8 @@
           "importing": "正在导入...",
           "importSshConfig": "导入 ~/.ssh/config",
           "sshPersistenceDefault": "此主机上的远程终端会保持运行，直到你结束它们或重置中继。",
-          "advanced": "Advanced"
+          "advanced": "Advanced",
+          "sshPasswordProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "重新连接失败",
@@ -6902,7 +6903,8 @@
           "4db9afce1c": "端口必须介于 1 和 65535 之间",
           "0e5aa04161": "需要主机或 SSH 配置别名",
           "f1fc50dad2": "无法加载 SSH 目标",
-          "0cda732f43": "连接测试失败"
+          "0cda732f43": "连接测试失败",
+          "pwdProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "SshPassphraseDialog": {
           "d5a234456f": "取消",
@@ -6941,7 +6943,8 @@
           "f0871e6bfb": "连接",
           "47e94bd6ba": "已连接",
           "a883f5a00f": "终端超时：{{value0}}",
-          "8ce71262f4": "终端保持运行直到重置"
+          "8ce71262f4": "终端保持运行直到重置",
+          "authPassword": "Password"
         },
         "SshTargetDestructiveActions": {
           "7e66942808": "这将停止此 SSH 目标上的活动终端会话。重新连接不会恢复它们。",
@@ -9827,6 +9830,17 @@
             "logs": "plugin logs",
             "development": "development plugins"
           }
+        },
+        "SshAuthMethodFields": {
+          "method": "Authentication",
+          "key": "SSH Key",
+          "password": "Password",
+          "passwordLabel": "Password",
+          "savedPlaceholder": "Password saved — leave blank to keep",
+          "enterPlaceholder": "Enter password",
+          "remember": "Remember password",
+          "rememberHelp": "Stored in your operating system’s secure credential store. Turn off to enter it each session.",
+          "clearSaved": "Clear saved password"
         }
       },
       "right": {

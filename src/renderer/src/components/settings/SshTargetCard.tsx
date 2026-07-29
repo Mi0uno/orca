@@ -296,7 +296,11 @@ export function SshTargetCard({
         </div>
         <p className="truncate text-xs text-muted-foreground">
           {endpoint}
-          {target.identityFile ? ` \u2022 ${target.identityFile}` : ''}
+          {target.authMethod === 'password'
+            ? ` \u2022 ${translate('auto.components.settings.SshTargetCard.authPassword', 'Password')}`
+            : target.identityFile
+              ? ` \u2022 ${target.identityFile}`
+              : ''}
           {` \u2022 ${terminalPersistence}`}
         </p>
         {state?.error ? (

@@ -132,8 +132,7 @@ function createTarget(): SshTarget {
     label: 'Synology',
     host: 'nas.local',
     port: 22,
-    username: 'alice',
-    authMethod: 'agent'
+    username: 'alice'
   } as SshTarget
 }
 

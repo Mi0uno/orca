@@ -2174,6 +2174,70 @@ describe('SshConnection', () => {
     expect(spawnSystemSshMock).toHaveBeenCalledTimes(1)
     expect(conn.getState().status).toBe('disconnected')
   })
+
+  describe('password authentication', () => {
+    it('connects a saved password without offering agent or key auth', async () => {
+      const resolveSavedPassword = vi.fn(() => 'saved-secret')
+      const onCredentialRequest = vi.fn(async () => null)
+      const conn = new SshConnection(
+        createTarget({ authMethod: 'password' }),
+        createCallbacks({ resolveSavedPassword, onCredentialRequest })
+      )
+
+      await conn.connect()
+
+      const config = clientInstances[0].lastConnectConfig as {
+        agent?: unknown
+        privateKey?: unknown
+        password?: string
+      }
+      expect(config.agent).toBeUndefined()
+      expect(config.privateKey).toBeUndefined()
+      expect(config.password).toBe('saved-secret')
+      // A saved password must connect silently.
+      expect(onCredentialRequest).not.toHaveBeenCalled()
+      expect(conn.getState().status).toBe('connected')
+    })
+
+    it('prompts once for a password when none is saved, then persists on success', async () => {
+      const resolveSavedPassword = vi.fn(() => undefined)
+      const onCredentialRequest = vi.fn(async () => 'typed-secret')
+      const onPasswordAuthenticated = vi.fn()
+      const conn = new SshConnection(
+        createTarget({ authMethod: 'password' }),
+        createCallbacks({ resolveSavedPassword, onCredentialRequest, onPasswordAuthenticated })
+      )
+
+      await conn.connect()
+
+      expect(onCredentialRequest).toHaveBeenCalledTimes(1)
+      expect(onCredentialRequest).toHaveBeenCalledWith('target-1', 'password', 'example.com')
+      const config = clientInstances[0].lastConnectConfig as { password?: string }
+      expect(config.password).toBe('typed-secret')
+      // Persistence only fires once the handshake proves the password good.
+      expect(onPasswordAuthenticated).toHaveBeenCalledWith('target-1', 'typed-secret')
+      expect(conn.getState().status).toBe('connected')
+    })
+
+    it('surfaces auth-failed for a wrong saved password without persisting it', async () => {
+      connectSequence = [new Error('All configured authentication methods failed')]
+      const resolveSavedPassword = vi.fn(() => 'wrong-secret')
+      const onPasswordAuthenticated = vi.fn()
+      const conn = new SshConnection(
+        createTarget({ authMethod: 'password' }),
+        createCallbacks({
+          resolveSavedPassword,
+          onCredentialRequest: vi.fn(async () => null),
+          onPasswordAuthenticated
+        })
+      )
+
+      await expect(conn.connect()).rejects.toThrow()
+
+      expect(onPasswordAuthenticated).not.toHaveBeenCalled()
+      expect(conn.getState().status).toBe('auth-failed')
+    })
+  })
 })
 
 describe('shouldUseSystemSshTransport', () => {

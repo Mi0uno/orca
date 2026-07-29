@@ -101,9 +101,19 @@ export function AddRemoteHostDialog({
       return
     }
 
-    const identityFile = sshForm.identityFile.trim() || undefined
+    const usePassword = sshForm.authMethod === 'password'
     const proxyCommand = sshForm.proxyCommand.trim() || undefined
     const jumpHost = sshForm.jumpHost.trim() || undefined
+    if (usePassword && (proxyCommand || jumpHost)) {
+      toast.error(
+        translate(
+          'auto.components.sidebar.AddRemoteHostDialog.sshPasswordProxyUnsupported',
+          'Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts.'
+        )
+      )
+      return
+    }
+    const identityFile = usePassword ? undefined : sshForm.identityFile.trim() || undefined
     const systemSshConnectionReuse = sshForm.systemSshConnectionReuse ? undefined : false
     const target = {
       label: sshForm.label.trim() || (username ? `${username}@${host}` : configHost),
@@ -112,6 +122,9 @@ export function AddRemoteHostDialog({
       port,
       username,
       relayGracePeriodSeconds: graceSeconds,
+      ...(usePassword
+        ? { authMethod: 'password' as const, savePassword: sshForm.savePassword }
+        : {}),
       ...(identityFile ? { identityFile } : {}),
       ...(proxyCommand ? { proxyCommand } : {}),
       ...(jumpHost ? { jumpHost } : {}),
@@ -121,6 +134,15 @@ export function AddRemoteHostDialog({
     setIsSaving(true)
     try {
       const result = await window.api.ssh.addTarget({ target })
+      // Why: send the password over the dedicated secure channel after the
+      // secret-free target is created; never include it in addTarget.
+      if (usePassword && sshForm.password.length > 0) {
+        await window.api.ssh.setPassword({
+          targetId: result.target.id,
+          password: sshForm.password,
+          remember: sshForm.savePassword
+        })
+      }
       recordSshRepoReadoptions(result.repoReadoptions)
       await refreshSshTargetMetadata()
       recordFeatureInteraction('ssh')

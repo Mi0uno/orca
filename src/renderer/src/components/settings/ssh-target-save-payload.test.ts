@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_FORM } from './ssh-target-draft'
-import { buildSshTargetSavePayload } from './ssh-target-save-payload'
+import { buildSshTargetSavePayload, resolveSshPasswordSaveAction } from './ssh-target-save-payload'
 
 describe('buildSshTargetSavePayload', () => {
   it('rejects empty hosts', () => {
@@ -87,5 +87,88 @@ describe('buildSshTargetSavePayload', () => {
     if (!result.ok) {
       expect(result.error).toContain('Terminal timeout')
     }
+  })
+
+  it('records password auth flags without ever including the password', () => {
+    const result = buildSshTargetSavePayload({
+      ...EMPTY_FORM,
+      host: 'db.example.com',
+      username: 'root',
+      authMethod: 'password',
+      password: 'super-secret',
+      savePassword: true,
+      identityFile: '~/.ssh/ignored'
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      throw new Error(result.error)
+    }
+    expect(result.payload.target).toMatchObject({ authMethod: 'password', savePassword: true })
+    // Identity file is a key-auth concept and must be dropped in password mode.
+    expect(result.payload.target).not.toHaveProperty('identityFile')
+    // The secret must never appear in the persisted target payload.
+    expect(JSON.stringify(result.payload)).not.toContain('super-secret')
+    expect(result.payload.updates).toMatchObject({
+      authMethod: 'password',
+      savePassword: true,
+      identityFile: undefined
+    })
+  })
+
+  it('rejects password auth combined with a proxy command or jump host', () => {
+    const result = buildSshTargetSavePayload({
+      ...EMPTY_FORM,
+      host: 'db.example.com',
+      authMethod: 'password',
+      password: 'x',
+      jumpHost: 'bastion.example.com'
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain('Password login')
+    }
+  })
+})
+
+describe('resolveSshPasswordSaveAction', () => {
+  it('clears any stored password when the host uses key auth', () => {
+    expect(resolveSshPasswordSaveAction({ ...EMPTY_FORM, authMethod: 'key' })).toEqual({
+      kind: 'clear'
+    })
+  })
+
+  it('sets a freshly typed password with the remember flag', () => {
+    expect(
+      resolveSshPasswordSaveAction({
+        ...EMPTY_FORM,
+        authMethod: 'password',
+        password: 'pw',
+        savePassword: true
+      })
+    ).toEqual({ kind: 'set', password: 'pw', remember: true })
+  })
+
+  it('keeps an existing saved password when the field is left blank', () => {
+    expect(
+      resolveSshPasswordSaveAction({
+        ...EMPTY_FORM,
+        authMethod: 'password',
+        password: '',
+        savePassword: true
+      })
+    ).toEqual({ kind: 'none' })
+  })
+
+  it('clears a saved password when remember is turned off with no new value', () => {
+    expect(
+      resolveSshPasswordSaveAction({
+        ...EMPTY_FORM,
+        authMethod: 'password',
+        password: '',
+        savePassword: false
+      })
+    ).toEqual({ kind: 'clear' })
   })
 })

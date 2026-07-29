@@ -4985,7 +4985,8 @@
           "importing": "インポート中...",
           "importSshConfig": "~/.ssh/config をインポートします",
           "sshPersistenceDefault": "このホスト上のリモートターミナルは、終了するかリレーをリセットするまで動作し続けます。",
-          "advanced": "Advanced"
+          "advanced": "Advanced",
+          "sshPasswordProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "再接続に失敗しました",
@@ -6939,7 +6940,8 @@
           "4db9afce1c": "ポートは 1 ～ 65535 でなければなりません",
           "0e5aa04161": "ホストまたは SSH 構成エイリアスが必要です",
           "f1fc50dad2": "SSH ターゲットのロードに失敗しました",
-          "0cda732f43": "接続テストに失敗しました"
+          "0cda732f43": "接続テストに失敗しました",
+          "pwdProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "SshPassphraseDialog": {
           "d5a234456f": "キャンセル",
@@ -6978,7 +6980,8 @@
           "f0871e6bfb": "接続",
           "47e94bd6ba": "接続されています",
           "a883f5a00f": "terminal タイムアウト: {{value0}}",
-          "8ce71262f4": "リセットまでの terminals"
+          "8ce71262f4": "リセットまでの terminals",
+          "authPassword": "Password"
         },
         "SshTargetDestructiveActions": {
           "7e66942808": "これにより、この SSH ターゲット上のアクティブな terminal セッションが停止されます。再接続しても復元されません。",
@@ -9827,6 +9830,17 @@
             "logs": "plugin logs",
             "development": "development plugins"
           }
+        },
+        "SshAuthMethodFields": {
+          "method": "Authentication",
+          "key": "SSH Key",
+          "password": "Password",
+          "passwordLabel": "Password",
+          "savedPlaceholder": "Password saved — leave blank to keep",
+          "enterPlaceholder": "Enter password",
+          "remember": "Remember password",
+          "rememberHelp": "Stored in your operating system’s secure credential store. Turn off to enter it each session.",
+          "clearSaved": "Clear saved password"
         }
       },
       "right": {

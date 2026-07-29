@@ -4985,7 +4985,8 @@
           "importing": "Importando...",
           "importSshConfig": "Importar ~/.ssh/config",
           "sshPersistenceDefault": "Los terminales remotos en este host seguirán activos hasta que los cierres o restablezcas el relay.",
-          "advanced": "Advanced"
+          "advanced": "Advanced",
+          "sshPasswordProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "Error de reconexión",
@@ -6917,7 +6918,8 @@
           "4db9afce1c": "El puerto debe estar entre 1 y 65535",
           "0e5aa04161": "Se requiere un host o alias de configuración SSH",
           "f1fc50dad2": "No se pudieron cargar destinos SSH",
-          "0cda732f43": "La prueba de conexión falló"
+          "0cda732f43": "La prueba de conexión falló",
+          "pwdProxyUnsupported": "Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts."
         },
         "SshPassphraseDialog": {
           "d5a234456f": "Cancelar",
@@ -6956,7 +6958,8 @@
           "f0871e6bfb": "conectar",
           "47e94bd6ba": "conectado",
           "a883f5a00f": "tiempo de espera del terminal: {{value0}}",
-          "8ce71262f4": "terminales hasta el reinicio"
+          "8ce71262f4": "terminales hasta el reinicio",
+          "authPassword": "Password"
         },
         "SshTargetDestructiveActions": {
           "7e66942808": "Esto detendrá las sesiones de terminal activas en este destino SSH. Volver a conectarse no las restaurará.",
@@ -9827,6 +9830,17 @@
             "logs": "plugin logs",
             "development": "development plugins"
           }
+        },
+        "SshAuthMethodFields": {
+          "method": "Authentication",
+          "key": "SSH Key",
+          "password": "Password",
+          "passwordLabel": "Password",
+          "savedPlaceholder": "Password saved — leave blank to keep",
+          "enterPlaceholder": "Enter password",
+          "remember": "Remember password",
+          "rememberHelp": "Stored in your operating system’s secure credential store. Turn off to enter it each session.",
+          "clearSaved": "Clear saved password"
         }
       },
       "right": {
