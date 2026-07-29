@@ -297,6 +297,67 @@ describe('rebuild-native-deps patched node-pty rebuild', () => {
   )
 })
 
+describe('rebuild-native-deps transient rebuild retry', () => {
+  it('retries a failing native rebuild and succeeds once it stops flaking', () => {
+    const projectDir = mkTempProject()
+
+    try {
+      writeFakeUsableElectronPackage(projectDir, { platform: 'win32' })
+      writeFlakyElectronRebuild(projectDir, { failuresBeforeSuccess: 2 })
+      writeFakeNodePtyConptyPayload(projectDir, 'x64')
+
+      const result = runRebuildScript(
+        projectDir,
+        {
+          npm_config_platform: 'win32',
+          npm_config_arch: 'x64',
+          // Why: keep the unit test fast — retry immediately instead of waiting.
+          ORCA_NATIVE_REBUILD_RETRY_DELAYS_MS: '0,0'
+        },
+        ['--platform=win32', '--arch=x64', '--force']
+      )
+
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stderr).toContain('Native module rebuild failed')
+      expect(result.stderr).toContain('retrying in 0ms')
+      expect(readFileSync(join(projectDir, 'electron-rebuild-attempts.log'), 'utf8')).toBe(
+        'attempt\nattempt\nattempt\n'
+      )
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails after exhausting rebuild retries', () => {
+    const projectDir = mkTempProject()
+
+    try {
+      writeFakeUsableElectronPackage(projectDir, { platform: 'win32' })
+      writeFlakyElectronRebuild(projectDir, { failuresBeforeSuccess: 5 })
+      writeFakeNodePtyConptyPayload(projectDir, 'x64')
+
+      const result = runRebuildScript(
+        projectDir,
+        {
+          npm_config_platform: 'win32',
+          npm_config_arch: 'x64',
+          ORCA_NATIVE_REBUILD_RETRY_DELAYS_MS: '0'
+        },
+        ['--platform=win32', '--arch=x64', '--force']
+      )
+
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain('Native module rebuild failed')
+      // Why: 1 initial attempt + 1 retry (single configured delay) = 2 attempts.
+      expect(readFileSync(join(projectDir, 'electron-rebuild-attempts.log'), 'utf8')).toBe(
+        'attempt\nattempt\n'
+      )
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true })
+    }
+  })
+})
+
 function mkTempProject() {
   const projectDir = mkdtempSync(join(tmpdir(), 'orca-rebuild-native-deps-'))
   mkdirSync(join(projectDir, 'config', 'scripts'), { recursive: true })
@@ -440,6 +501,33 @@ export async function rebuild(options) {
 }
 `
       : 'export async function rebuild() {}\n'
+  )
+}
+
+function writeFlakyElectronRebuild(projectDir, { failuresBeforeSuccess }) {
+  const rebuildDir = join(projectDir, 'node_modules', '@electron', 'rebuild')
+  mkdirSync(rebuildDir, { recursive: true })
+  writeFileSync(join(rebuildDir, 'package.json'), JSON.stringify({ type: 'module' }))
+  // Why: node-gyp header downloads flake in CI; simulate N failing attempts then
+  // success by counting attempts in a cwd-relative log the test can read back.
+  writeFileSync(
+    join(rebuildDir, 'index.js'),
+    `
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const attemptsPath = resolve(process.cwd(), 'electron-rebuild-attempts.log')
+
+export async function rebuild() {
+  appendFileSync(attemptsPath, 'attempt\\n')
+  const attempts = existsSync(attemptsPath)
+    ? readFileSync(attemptsPath, 'utf8').trim().split('\\n').length
+    : 1
+  if (attempts <= ${JSON.stringify(failuresBeforeSuccess)}) {
+    throw new Error("node-gyp failed to rebuild '/fake/node-pty'")
+  }
+}
+`
   )
 }
 
