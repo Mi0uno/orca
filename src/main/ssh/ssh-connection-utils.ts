@@ -30,6 +30,12 @@ export type SshConnectionCallbacks = {
     keyboardInteractive?: SshKeyboardInteractivePromptMetadata,
     signal?: AbortSignal
   ) => Promise<string | null>
+  /** Resolve a stored password (transient or persisted) for a password-auth
+   *  target so a saved password connects without prompting. */
+  resolveSavedPassword?: (targetId: string) => string | undefined
+  /** Called after a password authenticated successfully. Lets the host persist
+   *  a freshly-entered password only once the connection is proven good. */
+  onPasswordAuthenticated?: (targetId: string, password: string) => void
 }
 
 export function isPassphraseError(err: Error): boolean {
@@ -200,6 +206,13 @@ export function buildConnectConfig(
     readyTimeout: CONNECT_TIMEOUT_MS,
     keepaliveInterval: 15_000,
     tryKeyboard: true
+  }
+
+  // Why: password-first targets must not offer agent/public keys, or a server
+  // that accepts an unrelated agent key would bypass the password the user
+  // explicitly chose (and "too many auth failures" could lock them out first).
+  if (target.authMethod === 'password') {
+    return config as ConnectConfig
   }
 
   const shouldIncludeAgent = options.includeAgent ?? true

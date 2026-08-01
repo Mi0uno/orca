@@ -39,6 +39,16 @@ export type SshTarget = {
   host: string
   port: number
   username: string
+  /** How this target authenticates. `undefined` keeps the legacy behavior:
+   *  SSH agent / identity files with a reactive password fallback. `'password'`
+   *  makes password auth the primary method (agent and key auth are skipped).
+   *  Non-secret — the password itself is never stored on the target. */
+  authMethod?: 'key' | 'password'
+  /** Whether the password for this host is persisted in the local encrypted
+   *  credential store. Non-secret flag only; the password lives in
+   *  ssh-password-store, never in persisted target state. Only meaningful when
+   *  authMethod is 'password'. */
+  savePassword?: boolean
   /** Path to private key file, if using key-based auth. */
   identityFile?: string
   /** SSH agent socket path from IdentityAgent, if configured. */

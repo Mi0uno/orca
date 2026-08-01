@@ -6,13 +6,25 @@ import {
   type SshTarget
 } from '../../../../shared/ssh-types'
 
+export type SshAuthMethod = 'key' | 'password'
+
 export type EditingTarget = {
   label: string
   configHost: string
   host: string
   port: string
   username: string
+  authMethod: SshAuthMethod
   identityFile: string
+  /** Password typed in the form. Never populated from a persisted target — a
+   *  saved password stays in the encrypted store and is only referenced by
+   *  `hasSavedPassword`. Blank on edit means "keep the saved password". */
+  password: string
+  savePassword: boolean
+  /** Whether this target already has a password persisted in the secure store.
+   *  Loaded via ssh:hasPassword when editing; drives the "leave blank to keep"
+   *  affordance. Not sent back to main. */
+  hasSavedPassword: boolean
   proxyCommand: string
   jumpHost: string
   systemSshConnectionReuse: boolean
@@ -26,7 +38,11 @@ export const EMPTY_FORM: EditingTarget = {
   host: '',
   port: '22',
   username: '',
+  authMethod: 'key',
   identityFile: '',
+  password: '',
+  savePassword: true,
+  hasSavedPassword: false,
   proxyCommand: '',
   jumpHost: '',
   systemSshConnectionReuse: true,
@@ -44,7 +60,13 @@ export function getEditingTargetForSshTarget(target: SshTarget): EditingTarget {
     host: target.host,
     port: String(target.port),
     username: target.username,
+    authMethod: target.authMethod === 'password' ? 'password' : 'key',
     identityFile: target.identityFile ?? '',
+    // Why: never surface the stored secret in the form. savePassword mirrors the
+    // target flag; hasSavedPassword is refreshed asynchronously via ssh:hasPassword.
+    password: '',
+    savePassword: target.savePassword ?? true,
+    hasSavedPassword: false,
     proxyCommand: target.proxyCommand ?? '',
     jumpHost: target.jumpHost ?? '',
     systemSshConnectionReuse: target.systemSshConnectionReuse !== false,

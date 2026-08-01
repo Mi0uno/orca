@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Plus, Upload } from 'lucide-react'
 import type { SshTarget } from '../../../../shared/ssh-types'
-import { SSH_TERMINATE_RECONNECT_REQUIRED } from '../../../../shared/constants'
 import { useAppStore } from '@/store'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { Button } from '../ui/button'
@@ -12,6 +11,8 @@ import { SshTargetDestructiveActions } from './SshTargetDestructiveActions'
 import { SshTargetForm, EMPTY_FORM, type EditingTarget } from './SshTargetForm'
 import { getEditingTargetForSshTarget } from './ssh-target-draft'
 import { buildSshTargetSavePayload } from './ssh-target-save-payload'
+import { applySshPasswordFormAction, loadSavedSshPasswordFlag } from './ssh-password-save-actions'
+import { useSshTargetActions } from './use-ssh-target-actions'
 import { HostRemoveDialog } from '../sidebar/HostRemoveDialog'
 import { resolveSshHostRemoval } from '../sidebar/ssh-host-remove-resolution'
 import { getAllWorktreesFromState } from '@/store/selectors'
@@ -32,7 +33,6 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<EditingTarget>(EMPTY_FORM)
-  const [testingIds, setTestingIds] = useState<Set<string>>(new Set())
   // Why: when a target still has workspaces, route removal through the shared
   // workspace-aware HostRemoveDialog (same as the sidebar) instead of the plain
   // confirm, so the user chooses to delete or keep them rather than silently
@@ -65,6 +65,15 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
     },
     [mountedRef, setSshTargetsMetadata]
   )
+
+  const {
+    testingIds,
+    handleConnect,
+    handleDisconnect,
+    handleTerminateSessions,
+    handleResetRelay,
+    handleTest
+  } = useSshTargetActions(mountedRef, () => loadTargets())
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -103,11 +112,16 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
     }
 
     try {
+      let savedTargetId = editingId
       if (editingId) {
         await window.api.ssh.updateTarget({ id: editingId, updates: savePayload.payload.updates })
       } else {
         const result = await window.api.ssh.addTarget({ target: savePayload.payload.target })
+        savedTargetId = result.target.id
         useAppStore.getState().recordSshRepoReadoptions(result.repoReadoptions)
+      }
+      if (savedTargetId) {
+        await applySshPasswordFormAction(savedTargetId, form)
       }
       recordFeatureInteraction('ssh')
       if (!mountedRef.current) {
@@ -130,21 +144,6 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
             : translate('auto.components.settings.SshPane.2227ce47b6', 'Failed to save target')
         )
       }
-    }
-  }
-
-  const terminateSessionsWithReconnect = async (targetId: string): Promise<void> => {
-    try {
-      await window.api.ssh.terminateSessions({ targetId })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      if (!message.includes(SSH_TERMINATE_RECONNECT_REQUIRED)) {
-        throw err
-      }
-      // Why: disconnect is now non-destructive, so preserved remote PTYs may
-      // require a fresh relay attachment before they can be explicitly killed.
-      await window.api.ssh.connect({ targetId })
-      await window.api.ssh.terminateSessions({ targetId })
     }
   }
 
@@ -192,109 +191,7 @@ export function SshPane({ addTargetIntentSignal }: SshPaneProps): React.JSX.Elem
     setEditingId(target.id)
     setForm(getEditingTargetForSshTarget(target))
     setShowForm(true)
-  }
-
-  const handleConnect = async (targetId: string): Promise<void> => {
-    try {
-      await window.api.ssh.connect({ targetId })
-      recordFeatureInteraction('ssh')
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : translate('auto.components.settings.SshPane.e95d5ae10e', 'Connection failed')
-      )
-    }
-  }
-
-  const handleDisconnect = async (targetId: string): Promise<void> => {
-    try {
-      await window.api.ssh.disconnect({ targetId })
-      recordFeatureInteraction('ssh')
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : translate('auto.components.settings.SshPane.a43de1d3ee', 'Disconnect failed')
-      )
-    }
-  }
-
-  const handleTerminateSessions = async (targetId: string): Promise<void> => {
-    try {
-      await terminateSessionsWithReconnect(targetId)
-      toast.success(
-        translate('auto.components.settings.SshPane.90e308c98b', 'Remote terminals ended')
-      )
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : translate(
-              'auto.components.settings.SshPane.025e107643',
-              'Failed to end remote terminals'
-            )
-      )
-    }
-  }
-
-  const handleResetRelay = async (targetId: string): Promise<void> => {
-    try {
-      await window.api.ssh.resetRelay({ targetId })
-      if (mountedRef.current) {
-        toast.success(
-          translate('auto.components.settings.SshPane.db2e48975e', 'Remote relay reset')
-        )
-      }
-      await loadTargets()
-    } catch (err) {
-      if (mountedRef.current) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : translate(
-                'auto.components.settings.SshPane.2c4ee7332b',
-                'Failed to reset remote relay'
-              )
-        )
-      }
-    }
-  }
-
-  const handleTest = async (targetId: string): Promise<void> => {
-    setTestingIds((prev) => new Set(prev).add(targetId))
-    try {
-      const result = await window.api.ssh.testConnection({ targetId })
-      recordFeatureInteraction('ssh')
-      if (mountedRef.current) {
-        if (result.success) {
-          toast.success(
-            translate('auto.components.settings.SshPane.81d08bcddf', 'Connection successful')
-          )
-        } else {
-          toast.error(
-            result.error ??
-              translate('auto.components.settings.SshPane.0cda732f43', 'Connection test failed')
-          )
-        }
-      }
-    } catch (err) {
-      if (mountedRef.current) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : translate('auto.components.settings.SshPane.68c13b4589', 'Test failed')
-        )
-      }
-    } finally {
-      if (mountedRef.current) {
-        setTestingIds((prev) => {
-          const next = new Set(prev)
-          next.delete(targetId)
-          return next
-        })
-      }
-    }
+    loadSavedSshPasswordFlag(target, setForm, mountedRef)
   }
 
   const handleImport = async (): Promise<void> => {

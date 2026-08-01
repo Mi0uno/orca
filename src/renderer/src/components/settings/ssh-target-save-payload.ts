@@ -50,10 +50,29 @@ export function buildSshTargetSavePayload(form: EditingTarget): SshTargetSavePay
     }
   }
 
-  const identityFile = form.identityFile.trim() || undefined
+  const usePassword = form.authMethod === 'password'
   const proxyCommand = form.proxyCommand.trim() || undefined
   const jumpHost = form.jumpHost.trim() || undefined
+
+  // Why: password auth uses the direct ssh2 transport, which can't inject a
+  // password through a spawned ProxyCommand/ProxyJump. Block the combination so
+  // the user isn't left with a host that silently can't authenticate.
+  if (usePassword && (proxyCommand || jumpHost)) {
+    return {
+      ok: false,
+      error: translate(
+        'auto.components.settings.SshPane.pwdProxyUnsupported',
+        'Password login can’t be combined with a proxy command or jump host. Use an identity file for those hosts.'
+      )
+    }
+  }
+
+  // Why: identity file is a key-auth concept; drop it in password mode so the
+  // connection layer doesn't offer a key the user explicitly opted out of.
+  const identityFile = usePassword ? undefined : form.identityFile.trim() || undefined
   const systemSshConnectionReuse = form.systemSshConnectionReuse ? undefined : false
+  const authMethod: SshTarget['authMethod'] = usePassword ? 'password' : undefined
+  const savePassword = usePassword ? form.savePassword : undefined
 
   const target: Omit<SshTarget, 'id'> = {
     label: form.label.trim() || (username ? `${username}@${host}` : configHost),
@@ -62,6 +81,8 @@ export function buildSshTargetSavePayload(form: EditingTarget): SshTargetSavePay
     port,
     username,
     relayGracePeriodSeconds: graceSeconds,
+    ...(authMethod ? { authMethod } : {}),
+    ...(savePassword !== undefined ? { savePassword } : {}),
     ...(identityFile ? { identityFile } : {}),
     ...(proxyCommand ? { proxyCommand } : {}),
     ...(jumpHost ? { jumpHost } : {}),
@@ -75,7 +96,10 @@ export function buildSshTargetSavePayload(form: EditingTarget): SshTargetSavePay
       updates: {
         ...target,
         // Why: updateTarget merges partially, so explicit undefined values are
-        // required to clear optional fields inherited from ~/.ssh/config.
+        // required to clear optional fields inherited from ~/.ssh/config or a
+        // previous auth-method choice.
+        authMethod,
+        savePassword,
         identityFile,
         proxyCommand,
         jumpHost,
@@ -84,4 +108,28 @@ export function buildSshTargetSavePayload(form: EditingTarget): SshTargetSavePay
       }
     }
   }
+}
+
+/** The password-store mutation a caller should run after persisting the target.
+ *  Keeps the secret out of addTarget/updateTarget while letting both add-host
+ *  UIs share one decision on set vs. clear vs. leave-as-is. */
+export type SshPasswordSaveAction =
+  | { kind: 'none' }
+  | { kind: 'set'; password: string; remember: boolean }
+  | { kind: 'clear' }
+
+export function resolveSshPasswordSaveAction(form: EditingTarget): SshPasswordSaveAction {
+  if (form.authMethod !== 'password') {
+    // Why: switching a host back to key auth must drop any credential it held.
+    return { kind: 'clear' }
+  }
+  if (form.password.length > 0) {
+    return { kind: 'set', password: form.password, remember: form.savePassword }
+  }
+  // Blank password field on a password host: keep an existing saved credential,
+  // but honor a toggled-off "remember" by clearing the persisted copy.
+  if (!form.savePassword) {
+    return { kind: 'clear' }
+  }
+  return { kind: 'none' }
 }

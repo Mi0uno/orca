@@ -21,6 +21,10 @@ jobs:
     if: github.repository == 'stablyai/orca'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Why: this job pushes into the upstream stablyai org project #13 via the
+    # bufo-bot app token; forks lack BUFO_BOT_PRIVATE_KEY, so it fails at token
+    # generation. Restrict it to upstream (same guard pattern as release-cut.yml).
+    if: github.repository == 'stablyai/orca'
     steps:
       - name: Generate bufo-bot token
         id: app-token

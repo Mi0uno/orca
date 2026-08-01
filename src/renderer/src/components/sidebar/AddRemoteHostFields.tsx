@@ -10,6 +10,7 @@ import {
 } from '@/lib/remote-pairing-copy'
 import type { ParseHostAccessLinkResult } from '../../../../shared/remote-pairing-address'
 import { applyParsedSshHostInput, type EditingTarget } from '../settings/ssh-target-draft'
+import { SshAuthMethodFields } from '../settings/SshAuthMethodFields'
 import { SshHostAdvancedFields } from '../settings/SshHostAdvancedFields'
 
 export function SshHostFields({
@@ -96,23 +97,12 @@ export function SshHostFields({
           placeholder="22"
         />
       </div>
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label htmlFor="add-ssh-identity-file">
-          {translate('auto.components.sidebar.AddRemoteHostDialog.identityFile', 'Identity file')}
-        </Label>
-        <Input
-          id="add-ssh-identity-file"
-          value={form.identityFile}
-          disabled={disabled}
-          onChange={(event) =>
-            onFormChange((draft) => ({ ...draft, identityFile: event.target.value }))
-          }
-          placeholder={translate(
-            'auto.components.sidebar.AddRemoteHostDialog.identityFilePlaceholder',
-            '~/.ssh/id_ed25519 (optional)'
-          )}
-        />
-      </div>
+      <SshAuthMethodFields
+        idPrefix="add-ssh"
+        form={form}
+        disabled={disabled}
+        onFormChange={onFormChange}
+      />
       <SshHostAdvancedFields
         open={advancedOpen}
         onOpenChange={setAdvancedOpen}

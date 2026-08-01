@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { FileKey } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
+import { SshAuthMethodFields } from './SshAuthMethodFields'
 import { SshHostAdvancedFields } from './SshHostAdvancedFields'
 import {
   applyParsedSshHostInput,
@@ -102,26 +102,12 @@ export function SshTargetForm({
             max={65535}
           />
         </div>
-        <div className="col-span-2 space-y-1.5">
-          <Label className="flex items-center gap-1.5">
-            <FileKey className="size-3.5" />
-            {translate('auto.components.settings.SshTargetForm.63c0c145c1', 'Identity File')}
-          </Label>
-          <Input
-            value={form.identityFile}
-            onChange={(e) => onFormChange((f) => ({ ...f, identityFile: e.target.value }))}
-            placeholder={translate(
-              'auto.components.settings.SshTargetForm.d6a5f2ee5c',
-              '~/.ssh/id_ed25519 (leave empty for SSH agent)'
-            )}
-          />
-          <p className="text-[11px] text-muted-foreground">
-            {translate(
-              'auto.components.settings.SshTargetForm.cb91f6375c',
-              'Optional. SSH agent is used by default.'
-            )}
-          </p>
-        </div>
+        <SshAuthMethodFields
+          idPrefix="ssh-target"
+          form={form}
+          disabled={false}
+          onFormChange={onFormChange}
+        />
         <SshHostAdvancedFields
           open={advancedOpen}
           onOpenChange={setAdvancedOpen}

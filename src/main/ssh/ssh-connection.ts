@@ -682,6 +682,25 @@ export class SshConnection {
       config.sock = proxy.sock
     }
 
+    // Why: password-auth targets seed the saved/typed password up front so a
+    // stored credential connects without a prompt; when none exists, prompt once
+    // before the attempt instead of burning a failed round-trip on no password.
+    if (this.target.authMethod === 'password' && !this.cachedPassword) {
+      const saved = this.callbacks.resolveSavedPassword?.(this.target.id)
+      if (saved) {
+        this.cachedPassword = saved
+      } else if (this.callbacks.onCredentialRequest) {
+        const val = await this.callbacks.onCredentialRequest(
+          this.target.id,
+          'password',
+          config.host || this.target.label
+        )
+        if (val) {
+          this.cachedPassword = val
+        }
+      }
+    }
+
     if (this.cachedPassphrase) {
       config.passphrase = this.cachedPassphrase
     }
@@ -1201,6 +1220,12 @@ export class SshConnection {
         settled = true
         this.client = client
         this.proxyProcess = null
+        // Why: a password only proves good once the handshake completes; notify
+        // here so the host can persist a freshly-typed one and never save a value
+        // that failed. The host gates persistence on the target's savePassword flag.
+        if (typeof config.password === 'string' && config.password.length > 0) {
+          this.callbacks.onPasswordAuthenticated?.(this.target.id, config.password)
+        }
         this.setupDisconnectHandler(client)
         cleanupStartupListeners()
         // Why: ssh2 leaves Nagle on; enable TCP_NODELAY so keystrokes don't stack with delayed-ACK (~40ms each). No-op for proxy sockets.

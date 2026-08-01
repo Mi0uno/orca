@@ -46,6 +46,7 @@ import {
   RECONNECT_BACKOFF_MS,
   spawnProxyCommand
 } from './ssh-connection-utils'
+import { classifySshConnectionError } from './ssh-connection-error-classification'
 import type { SshTarget } from '../../shared/ssh-types'
 import type { SshResolvedConfig } from './ssh-config-parser'
 
@@ -235,6 +236,40 @@ describe('isAuthError', () => {
 
   it('returns false for transient errors', () => {
     expect(isAuthError(new Error('connect ETIMEDOUT'))).toBe(false)
+  })
+})
+
+// ── classifySshConnectionError ──────────────────────────────────────
+
+describe('classifySshConnectionError', () => {
+  it('classifies auth failures, mentioning the password when one was used', () => {
+    const result = classifySshConnectionError(
+      new Error('All configured authentication methods failed'),
+      true
+    )
+    expect(result.reason).toBe('auth')
+    expect(result.message).toContain('password')
+  })
+
+  it('classifies permission denied as an auth failure', () => {
+    expect(classifySshConnectionError(new Error('Permission denied'), false).reason).toBe('auth')
+  })
+
+  it('classifies unreachable hosts', () => {
+    const err = new Error('connect EHOSTUNREACH') as NodeJS.ErrnoException
+    err.code = 'EHOSTUNREACH'
+    expect(classifySshConnectionError(err, false).reason).toBe('unreachable')
+  })
+
+  it('classifies timeouts and network errors distinctly', () => {
+    expect(classifySshConnectionError(new Error('connect ETIMEDOUT'), false).reason).toBe('timeout')
+    expect(classifySshConnectionError(new Error('read ECONNRESET'), false).reason).toBe('network')
+  })
+
+  it('passes through unknown errors verbatim', () => {
+    const result = classifySshConnectionError(new Error('weird failure'), false)
+    expect(result.reason).toBe('unknown')
+    expect(result.message).toBe('weird failure')
   })
 })
 
@@ -494,6 +529,18 @@ describe('buildConnectConfig', () => {
   it('uses agent auth when no explicit key and SSH_AUTH_SOCK is set', () => {
     const config = buildConnectConfig(makeTarget(), null)
     expect(config.agent).toBe('/tmp/agent.sock')
+  })
+
+  it('offers no agent or key when the target uses password auth', () => {
+    mockExistsSync.mockReturnValue(true)
+    mockReadFileSync.mockReturnValue(Buffer.from('key'))
+    const config = buildConnectConfig(
+      makeTarget({ authMethod: 'password', identityFile: '~/.ssh/id_ed25519' }),
+      null
+    )
+    expect(config.agent).toBeUndefined()
+    expect(config.privateKey).toBeUndefined()
+    expect(config.tryKeyboard).toBe(true)
   })
 
   it('enables agent forwarding when OpenSSH config requests it and an agent is available', () => {

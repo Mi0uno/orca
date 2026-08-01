@@ -3419,6 +3419,9 @@ export type PreloadApi = {
     resetRelay: (args: { targetId: string }) => Promise<void>
     getState: (args: { targetId: string }) => Promise<SshConnectionState | null>
     needsPassphrasePrompt: (args: { targetId: string }) => Promise<boolean>
+    setPassword: (args: { targetId: string; password: string; remember: boolean }) => Promise<void>
+    clearPassword: (args: { targetId: string }) => Promise<void>
+    hasPassword: (args: { targetId: string }) => Promise<boolean>
     testConnection: (args: {
       targetId: string
     }) => Promise<{ success: boolean; error?: string; state?: SshConnectionState }>
