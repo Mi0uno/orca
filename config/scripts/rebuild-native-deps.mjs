@@ -131,20 +131,7 @@ if (!ignoreModules.includes('cpu-features')) {
 }
 
 try {
-  await rebuild({
-    buildPath: projectDir,
-    electronVersion,
-    platform: rebuildPlatform,
-    arch: rebuildArch,
-    ignoreModules,
-    onlyModules: modulesToRebuild,
-    // Why: without force, @electron/rebuild skips modules it considers
-    // "already built" — even when they were compiled for the wrong ABI
-    // (e.g., system Node instead of Electron's embedded Node). This is
-    // common after pnpm install, which compiles native modules for system
-    // Node before postinstall runs this script.
-    force: true
-  })
+  await rebuildNativeModulesWithRetry()
   restoreNodePtyWindowsConptyRuntime()
 } catch (/** @type {any} */ err) {
   console.error('[rebuild] Native module rebuild failed:', err?.message ?? err)
@@ -163,6 +150,62 @@ try {
     }
   }
   process.exit(1)
+}
+
+async function rebuildNativeModulesWithRetry() {
+  const retryDelays = getNativeRebuildRetryDelays()
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rebuild({
+        buildPath: projectDir,
+        electronVersion,
+        platform: rebuildPlatform,
+        arch: rebuildArch,
+        ignoreModules,
+        onlyModules: modulesToRebuild,
+        // Why: without force, @electron/rebuild skips modules it considers
+        // "already built" — even when they were compiled for the wrong ABI
+        // (e.g., system Node instead of Electron's embedded Node). This is
+        // common after pnpm install, which compiles native modules for system
+        // Node before postinstall runs this script.
+        force: true
+      })
+      return
+    } catch (/** @type {any} */ err) {
+      const retryDelay = retryDelays[attempt]
+      // Why: @electron/rebuild throws a generic "node-gyp failed to rebuild"
+      // regardless of cause and prints node-gyp's stderr (including the network
+      // error) only to the console, so we cannot inspect the thrown error for a
+      // transient code. A Windows file lock is the one failure retrying can't
+      // fix, so bail on it immediately; otherwise retry the whole rebuild to ride
+      // out flaky Electron header downloads (ETIMEDOUT to electronjs.org headers).
+      if (retryDelay === undefined || isWindowsNativeLockError(err)) {
+        throw err
+      }
+      console.warn(
+        `[rebuild] Native module rebuild failed (${formatError(err)}); ` +
+          `retrying in ${retryDelay}ms (${attempt + 2}/${retryDelays.length + 1}).`
+      )
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, retryDelay))
+    }
+  }
+}
+
+function getNativeRebuildRetryDelays() {
+  const configured = process.env.ORCA_NATIVE_REBUILD_RETRY_DELAYS_MS
+  if (configured === undefined) {
+    return [5_000, 15_000]
+  }
+  if (configured.trim() === '') {
+    return []
+  }
+
+  const delays = configured.split(',').map(Number)
+  if (delays.some((delay) => !Number.isSafeInteger(delay) || delay < 0)) {
+    throw new Error('ORCA_NATIVE_REBUILD_RETRY_DELAYS_MS must contain non-negative integers')
+  }
+  return delays
 }
 
 function restoreNodePtyWindowsConptyRuntime() {

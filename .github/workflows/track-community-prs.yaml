@@ -15,6 +15,10 @@ permissions:
 
 jobs:
   track-community-pr:
+    # Why: this job authenticates as the stablyai bufo-bot GitHub App and writes
+    # to stablyai's project #13. The fork has no BUFO_BOT_PRIVATE_KEY secret, so
+    # create-github-app-token fails on every fork PR. Restrict to the upstream repo.
+    if: github.repository == 'stablyai/orca'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

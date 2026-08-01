@@ -223,7 +223,10 @@ describe('system SSH transport integration', () => {
         await conn.disconnect()
       }
     },
-    20_000
+    // Why: spawns a real ssh process, deploys the full relay tree, and does an
+    // RPC round-trip; 20s flaked on loaded CI runners. Match the 60s budget the
+    // other SSH integration tests (ssh-git-provider) already use.
+    60_000
   )
 
   it.skipIf(process.platform === 'win32')(
