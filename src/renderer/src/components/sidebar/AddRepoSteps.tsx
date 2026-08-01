@@ -8,21 +8,31 @@ import { createNestedRepoTelemetryAttemptId } from '../../../../shared/nested-re
 import { translate } from '@/i18n/i18n'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
 import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
+import { worktreeRefreshOptions } from './add-repo-runtime-owner'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 // ── SSH host project hook ───────────────────────────────────────────
 
 export function useRemoteRepo(
   fetchWorktrees: (
     repoId: string,
-    options?: { requireAuthoritative?: boolean }
+    options?: { requireAuthoritative?: boolean; executionHostId?: ExecutionHostId }
   ) => Promise<unknown>,
   setStep: (step: 'add' | 'clone' | 'remote' | 'create' | 'nested') => void,
   closeModal: () => void,
-  onGitRepoReady?: (repoId: string, selectedPath?: string) => void | Promise<void>,
+  onGitRepoReady?: (
+    repoId: string,
+    selectedPath?: string,
+    executionHostId?: ExecutionHostId
+  ) => void | Promise<void>,
   scanNestedRepos?: (
     path: string,
     connectionId?: string,
-    controls?: { scanId?: string; onProgress?: (scan: NestedRepoScanResult) => void }
+    controls?: {
+      scanId?: string
+      onProgress?: (scan: NestedRepoScanResult) => void
+      runtimeEnvironmentId?: string | null
+    }
   ) => Promise<NestedRepoScanResult | null>,
   showNestedRepoReview?: (
     scan: NestedRepoScanResult,
@@ -52,7 +62,7 @@ export function useRemoteRepo(
     setRemoteError(null)
     setIsAddingRemote(false)
     if (remoteNestedScanId) {
-      void cancelNestedRepoScan(remoteNestedScanId)
+      void cancelNestedRepoScan(remoteNestedScanId, { runtimeEnvironmentId: null })
     }
     setRemoteNestedScanId(null)
   }, [cancelNestedRepoScan, remoteNestedScanId])
@@ -61,7 +71,7 @@ export function useRemoteRepo(
     if (!remoteNestedScanId) {
       return
     }
-    void cancelNestedRepoScan(remoteNestedScanId)
+    void cancelNestedRepoScan(remoteNestedScanId, { runtimeEnvironmentId: null })
   }, [cancelNestedRepoScan, remoteNestedScanId])
 
   const handleOpenRemoteStep = useCallback(
@@ -146,6 +156,7 @@ export function useRemoteRepo(
       setRemoteNestedScanId(scanId)
       const scan = await scanNestedRepos?.(trimmedRemotePath, selectedTargetId, {
         scanId,
+        runtimeEnvironmentId: null,
         onProgress: (progressScan) => {
           if (
             gen !== remoteGenRef.current ||
@@ -183,14 +194,13 @@ export function useRemoteRepo(
       if ('error' in result) {
         throw new Error(result.error)
       }
-      const repo = result.repo
+      const { alreadyPresent, repo } = upsertAddedRepoWithProjectHostSetup(result.repo, {
+        sshConnectionId: selectedTargetId
+      })
 
-      const state = useAppStore.getState()
-      const existingIdx = state.repos.findIndex((r) => r.id === repo.id)
-      if (existingIdx !== -1) {
-        state.clearOrcaHookTrustForRepo(repo.id)
+      if (alreadyPresent) {
+        useAppStore.getState().clearOrcaHookTrustForRepo(repo.id)
       }
-      upsertAddedRepoWithProjectHostSetup(repo)
 
       if (!mountedRef.current || gen !== remoteGenRef.current) {
         return
@@ -201,11 +211,14 @@ export function useRemoteRepo(
       )
       // Why: the repo is already persisted here; if SSH refresh is temporarily
       // non-authoritative, finish onto the project row instead of stranding the dialog.
-      await fetchWorktrees(repo.id, { requireAuthoritative: true })
+      const ownerOptions = worktreeRefreshOptions(undefined, selectedTargetId)
+      await fetchWorktrees(repo.id, ownerOptions)
       if (!mountedRef.current || gen !== remoteGenRef.current) {
         return
       }
-      await onGitRepoReady?.(repo.id, repo.path)
+      await (ownerOptions.executionHostId
+        ? onGitRepoReady?.(repo.id, repo.path, ownerOptions.executionHostId)
+        : onGitRepoReady?.(repo.id, repo.path))
     } catch (err) {
       const message = extractIpcErrorMessage(err, String(err))
       if (message.includes('Not a valid git repository')) {

@@ -110,18 +110,34 @@ describe('useAddRepoLocalFolderFlow', () => {
       1,
       '/projects/alpha',
       'git',
-      expect.objectContaining({ requireExactGitRoot: true })
+      expect.objectContaining({ runtimeEnvironmentId: null, requireExactGitRoot: true })
     )
     expect(addRepoPath).toHaveBeenNthCalledWith(
       2,
       '/projects/beta',
       'git',
-      expect.objectContaining({ requireExactGitRoot: true })
+      expect.objectContaining({ runtimeEnvironmentId: null, requireExactGitRoot: true })
     )
-    expect(fetchWorktrees).toHaveBeenCalledWith('alpha', { requireAuthoritative: true })
-    expect(fetchWorktrees).toHaveBeenCalledWith('beta', { requireAuthoritative: true })
+    expect(scanNestedRepos).toHaveBeenCalledWith(
+      '/projects/alpha',
+      undefined,
+      expect.objectContaining({ runtimeEnvironmentId: null })
+    )
+    expect(fetchWorktrees).toHaveBeenCalledWith('alpha', {
+      requireAuthoritative: true,
+      executionHostId: 'local'
+    })
+    expect(fetchWorktrees).toHaveBeenCalledWith('beta', {
+      requireAuthoritative: true,
+      executionHostId: 'local'
+    })
     expect(onGitRepoReady).toHaveBeenCalledTimes(1)
-    expect(onGitRepoReady).toHaveBeenCalledWith('alpha', 'local_folder_picker', '/projects/alpha')
+    expect(onGitRepoReady).toHaveBeenCalledWith(
+      'alpha',
+      'local_folder_picker',
+      '/projects/alpha',
+      'local'
+    )
   })
 
   it('skips nested-review folders in a multi-folder add and continues with git folders', async () => {
@@ -156,13 +172,18 @@ describe('useAddRepoLocalFolderFlow', () => {
 
     expect(showNestedRepoReview).not.toHaveBeenCalled()
     expect(addRepoPath).toHaveBeenCalledTimes(1)
-    expect(addRepoPath).toHaveBeenCalledWith(
-      '/projects/later',
-      'git',
-      expect.objectContaining({ requireExactGitRoot: true })
-    )
+    expect(addRepoPath).toHaveBeenCalledWith('/projects/later', 'git', {
+      runtimeEnvironmentId: null,
+      initializeGit: false,
+      requireExactGitRoot: true
+    })
     expect(scanNestedRepos).toHaveBeenCalledTimes(2)
-    expect(onGitRepoReady).toHaveBeenCalledWith('later', 'local_folder_picker', '/projects/later')
+    expect(onGitRepoReady).toHaveBeenCalledWith(
+      'later',
+      'local_folder_picker',
+      '/projects/later',
+      'local'
+    )
   })
 
   it('still completes handoff when a later selected folder is skipped', async () => {
@@ -195,12 +216,12 @@ describe('useAddRepoLocalFolderFlow', () => {
 
     expect(showNestedRepoReview).not.toHaveBeenCalled()
     expect(addRepoPath).toHaveBeenCalledTimes(1)
-    expect(addRepoPath).toHaveBeenCalledWith(
-      '/projects/git',
-      'git',
-      expect.objectContaining({ requireExactGitRoot: true })
-    )
-    expect(onGitRepoReady).toHaveBeenCalledWith('git', 'local_folder_picker', '/projects/git')
+    expect(addRepoPath).toHaveBeenCalledWith('/projects/git', 'git', {
+      runtimeEnvironmentId: null,
+      initializeGit: false,
+      requireExactGitRoot: true
+    })
+    expect(onGitRepoReady).toHaveBeenCalledWith('git', 'local_folder_picker', '/projects/git', 'local')
   })
 
   it('opens selected folders directly in folder mode without scanning nested repos', async () => {
@@ -232,11 +253,11 @@ describe('useAddRepoLocalFolderFlow', () => {
     await handleBrowse()
 
     expect(scanNestedRepos).not.toHaveBeenCalled()
-    expect(addRepoPath).toHaveBeenCalledWith(
-      '/projects/outer/packages/new-project',
-      'folder',
-      expect.objectContaining({ requireExactGitRoot: true })
-    )
+    expect(addRepoPath).toHaveBeenCalledWith('/projects/outer/packages/new-project', 'folder', {
+      runtimeEnvironmentId: null,
+      initializeGit: false,
+      requireExactGitRoot: true
+    })
     expect(fetchWorktrees).not.toHaveBeenCalled()
     expect(closeModal).toHaveBeenCalledTimes(1)
   })
@@ -266,13 +287,45 @@ describe('useAddRepoLocalFolderFlow', () => {
     await handleBrowse()
 
     expect(scanNestedRepos).not.toHaveBeenCalled()
-    expect(addRepoPath).toHaveBeenCalledWith(
-      '/projects/outer/packages/new-project',
-      'git',
-      expect.objectContaining({
-        initializeGit: true,
-        requireExactGitRoot: true
+    expect(addRepoPath).toHaveBeenCalledWith('/projects/outer/packages/new-project', 'git', {
+      runtimeEnvironmentId: null,
+      initializeGit: true,
+      requireExactGitRoot: true
+    })
+  })
+
+  it('drops a local scan completion after host-scoped reset', async () => {
+    pickFolders.mockResolvedValue(['/projects/stale'])
+    let resolveScan!: (scan: NestedRepoScanResult) => void
+    scanNestedRepos.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveScan = resolve
       })
     )
+    const { useAddRepoLocalFolderFlow } = await import('./useAddRepoLocalFolderFlow')
+    const flow = useAddRepoLocalFolderFlow({
+      isOpen: true,
+      droppedLocalPath: '',
+      activeRuntimeEnvironmentId: null,
+      addRepoPath,
+      closeModal,
+      fetchWorktrees,
+      scanNestedRepos,
+      setActiveNestedScanId,
+      setNestedScanInProgress,
+      showNestedRepoReview,
+      onGitRepoReady,
+      setIsAdding,
+      setAddProjectBusyLabel
+    })
+
+    const adding = flow.handleBrowse()
+    await vi.waitFor(() => expect(scanNestedRepos).toHaveBeenCalled())
+    flow.resetLocalFolderFlow()
+    resolveScan(makeScan('/projects/stale'))
+    await adding
+
+    expect(addRepoPath).not.toHaveBeenCalled()
+    expect(onGitRepoReady).not.toHaveBeenCalled()
   })
 })

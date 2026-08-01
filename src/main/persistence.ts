@@ -75,9 +75,16 @@ import { projectHostSetupProjectionFromRepos } from '../shared/project-host-setu
 import { isPluginPanelTabKey } from '../shared/plugins/plugin-manifest'
 import type { GitRemoteIdentity } from '../shared/git-remote-identity'
 import {
+  areTaskSourceContextsEqual,
   buildTaskSourceContextFromRepo,
-  buildWorkspaceRunContext
+  buildWorkspaceRunContext,
+  normalizeStoredTaskSourceContext
 } from '../shared/task-source-context'
+import {
+  areWorkspaceLinkedItemsEqual,
+  normalizeWorkspaceLinkedItem
+} from '../shared/workspace-linked-item'
+import { isWorkspaceLinkedItemSourceContextMatch } from '../shared/workspace-linked-item-source-context'
 import type { MigrationUnsupportedPtyEntry } from '../shared/agent-status-types'
 import { MOBILE_PAIRING_USERDATA_FILES } from './runtime/mobile-pairing-files'
 import { normalizePersistedMobileClientTabSelections } from './runtime/client-session-tab-selection-persistence'
@@ -90,6 +97,7 @@ import { hardenExistingSecureFile } from '../shared/secure-file'
 import {
   LEGACY_DEFAULT_SSH_RELAY_GRACE_PERIOD_SECONDS,
   type RemovedSshTargetTombstone,
+  type SshPtyConsumerRecovery,
   type SshRemotePtyLease,
   type SshTarget
 } from '../shared/ssh-types'
@@ -162,6 +170,11 @@ import {
 import { normalizeTerminalQuickCommands } from '../shared/terminal-quick-commands'
 import { normalizeTaskProviderSettings } from '../shared/task-providers'
 import { normalizeAutoRenameBranchFromWorkDefaultOn } from '../shared/auto-rename-branch-from-work-settings'
+import {
+  addMobilePairingCustomAddress,
+  normalizeMobilePairingCustomAddress,
+  normalizeMobilePairingCustomAddresses
+} from '../shared/mobile-pairing-custom-address'
 import { normalizeOpenInApplications } from '../shared/open-in-applications'
 import { normalizeTerminalShortcutPolicy } from '../shared/keybindings'
 import { normalizeSourceControlGroupOrder } from '../shared/source-control-group-order'
@@ -194,6 +207,7 @@ import {
   normalizeWorkspaceStatuses
 } from '../shared/workspace-statuses'
 import { clampMarkdownTocPanelWidth } from '../shared/markdown-toc-panel-width'
+import { clampCombinedDiffFileTreeWidth } from '../shared/combined-diff-file-tree-width'
 import { isLegacyRepoForExternalWorktreeVisibility } from '../shared/worktree-ownership'
 import { sanitizeRepoIcon } from '../shared/repo-icon'
 import { normalizeRepoBadgeColor } from '../shared/repo-badge-color'
@@ -413,6 +427,49 @@ function gcStaleWorktreeMeta(state: PersistedState): number {
     removed++
   }
   return removed
+}
+
+function normalizeWorktreeLinkedItemMetadata(state: PersistedState): boolean {
+  let changed = false
+  const rawWorktreeMeta = state.worktreeMeta as unknown
+  if (
+    typeof rawWorktreeMeta !== 'object' ||
+    rawWorktreeMeta === null ||
+    Array.isArray(rawWorktreeMeta)
+  ) {
+    state.worktreeMeta = {}
+    changed = rawWorktreeMeta !== undefined
+  }
+  for (const [key, meta] of Object.entries(state.worktreeMeta)) {
+    // Why: hand-corrupted non-object entries are a real input class; drop them here because gcStaleWorktreeMeta
+    // keeps timestamp-less keys forever and every downstream consumer trusts the Record<string, WorktreeMeta> type.
+    if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) {
+      delete state.worktreeMeta[key]
+      // Companions go with it, matching gcStaleWorktreeMeta/removeWorktreeMeta; a stranded lineage row would
+      // otherwise re-attach to a worktree recreated at the same repoId::path.
+      delete state.worktreeLineageById[key]
+      delete state.workspaceLineageByChildKey[worktreeWorkspaceKey(key)]
+      changed = true
+      continue
+    }
+    const linkedWorkItem = normalizeWorkspaceLinkedItem(meta.linkedWorkItem)
+    const sourceContext = normalizeStoredTaskSourceContext(meta.linkedTaskSourceContext)
+    const linkedTaskSourceContext = isWorkspaceLinkedItemSourceContextMatch(
+      linkedWorkItem,
+      sourceContext
+    )
+      ? sourceContext
+      : null
+    if (!areWorkspaceLinkedItemsEqual(meta.linkedWorkItem, linkedWorkItem)) {
+      meta.linkedWorkItem = linkedWorkItem
+      changed = true
+    }
+    if (!areTaskSourceContextsEqual(meta.linkedTaskSourceContext, linkedTaskSourceContext)) {
+      meta.linkedTaskSourceContext = linkedTaskSourceContext
+      changed = true
+    }
+  }
+  return changed
 }
 
 function readGithubCacheSnapshot(dataFile: string): PersistedState['githubCache'] | null {
@@ -1112,6 +1169,7 @@ function backfillLegacyAutomationContexts(
 type LegacySshTarget = SshTarget & {
   remoteWorkspaceSyncEnabled?: unknown
   remoteWorkspaceSyncGracePeriodSeconds?: unknown
+  experimentalPtySourceCreditV1?: unknown
 }
 
 // Why: old targets predate configHost; default to label-based lookup so imported SSH aliases still resolve via ssh -G.
@@ -1126,6 +1184,7 @@ function normalizeSshTarget(t: SshTarget): SshTarget {
   delete target.remoteWorkspaceSyncGracePeriodSeconds
   delete target.relayGracePeriodSeconds
   delete target.systemSshConnectionReuse
+  delete target.experimentalPtySourceCreditV1
   // Why: prefer the synced grace over stale relayGracePeriodSeconds so a user's "unlimited" (0) survives migration.
   const relayGracePeriodSeconds =
     legacySyncEnabled === true && typeof legacyGracePeriodSeconds === 'number'
@@ -1529,6 +1588,57 @@ function normalizeSshRemotePtyLease(value: unknown): SshRemotePtyLease | null {
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : now,
     ...(typeof raw.lastAttachedAt === 'number' ? { lastAttachedAt: raw.lastAttachedAt } : {}),
     ...(typeof raw.lastDetachedAt === 'number' ? { lastDetachedAt: raw.lastDetachedAt } : {})
+  }
+}
+
+const SSH_PTY_OWNER_LEASE_MAX_LENGTH = 512
+const ENCRYPTED_SSH_PTY_OWNER_LEASE_MAX_LENGTH = 4096
+
+function normalizeSshPtyConsumerRecovery(
+  value: unknown,
+  ownerLeaseMaxLength = SSH_PTY_OWNER_LEASE_MAX_LENGTH
+): SshPtyConsumerRecovery | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+  const raw = value as Partial<SshPtyConsumerRecovery>
+  const clientGeneration = raw.clientGeneration
+  const ownerGeneration = raw.ownerGeneration
+  if (
+    typeof raw.targetId !== 'string' ||
+    raw.targetId.length === 0 ||
+    raw.targetId.length > 512 ||
+    typeof raw.clientInstanceId !== 'string' ||
+    raw.clientInstanceId.length === 0 ||
+    raw.clientInstanceId.length > 512 ||
+    typeof raw.serverBuildId !== 'string' ||
+    raw.serverBuildId.length === 0 ||
+    raw.serverBuildId.length > 512 ||
+    typeof clientGeneration !== 'number' ||
+    !Number.isSafeInteger(clientGeneration) ||
+    clientGeneration <= 0 ||
+    typeof ownerGeneration !== 'number' ||
+    !Number.isSafeInteger(ownerGeneration) ||
+    ownerGeneration <= 0 ||
+    typeof raw.ownerLease !== 'string' ||
+    raw.ownerLease.length === 0 ||
+    raw.ownerLease.length > ownerLeaseMaxLength
+  ) {
+    return null
+  }
+  const flow = raw.outputFlowControl
+  const outputFlowControl =
+    flow?.version === 1 && Number.isSafeInteger(flow.windowSu) && flow.windowSu > 0
+      ? { version: 1 as const, windowSu: flow.windowSu }
+      : undefined
+  return {
+    targetId: raw.targetId,
+    clientInstanceId: raw.clientInstanceId,
+    serverBuildId: raw.serverBuildId,
+    clientGeneration,
+    ownerGeneration,
+    ownerLease: raw.ownerLease,
+    ...(outputFlowControl ? { outputFlowControl } : {})
   }
 }
 
@@ -2878,6 +2988,16 @@ export class Store {
         if (parsed.ui?.browserKagiSessionLink) {
           parsed.ui.browserKagiSessionLink = decryptOptionalSecret(parsed.ui.browserKagiSessionLink)
         }
+        parsed.sshPtyConsumerRecoveries = (
+          Array.isArray(parsed.sshPtyConsumerRecoveries) ? parsed.sshPtyConsumerRecoveries : []
+        )
+          .map((record) =>
+            normalizeSshPtyConsumerRecovery(record, ENCRYPTED_SSH_PTY_OWNER_LEASE_MAX_LENGTH)
+          )
+          .filter((record): record is SshPtyConsumerRecovery => record !== null)
+          .map((record) => ({ ...record, ownerLease: decrypt(record.ownerLease) }))
+          .map((record) => normalizeSshPtyConsumerRecovery(record))
+          .filter((record): record is SshPtyConsumerRecovery => record !== null)
 
         // Merge with defaults in case new fields were added
         const homeDir = homedir()
@@ -3093,6 +3213,34 @@ export class Store {
           parsed.settings?.compactWorktreeCards ??
           parsed.settings?.experimentalCompactWorktreeCards ??
           defaults.settings.compactWorktreeCards
+        const mobilePairingCustomAddress = normalizeMobilePairingCustomAddress(
+          parsed.settings?.mobilePairingCustomAddress
+        )
+        const rawMobilePairingCustomAddresses = parsed.settings?.mobilePairingCustomAddresses
+        const mobilePairingCustomAddresses = mobilePairingCustomAddress
+          ? addMobilePairingCustomAddress(
+              normalizeMobilePairingCustomAddresses(rawMobilePairingCustomAddresses),
+              mobilePairingCustomAddress
+            )
+          : normalizeMobilePairingCustomAddresses(rawMobilePairingCustomAddresses)
+        if (
+          parsed.settings?.mobilePairingCustomAddress !== undefined &&
+          parsed.settings.mobilePairingCustomAddress !== mobilePairingCustomAddress
+        ) {
+          this.loadNeedsSave = true
+        }
+        const customAddressesMatch =
+          Array.isArray(rawMobilePairingCustomAddresses) &&
+          rawMobilePairingCustomAddresses.length === mobilePairingCustomAddresses.length &&
+          rawMobilePairingCustomAddresses.every(
+            (address, index) => address === mobilePairingCustomAddresses[index]
+          )
+        if (
+          (rawMobilePairingCustomAddresses !== undefined || mobilePairingCustomAddress !== null) &&
+          !customAddressesMatch
+        ) {
+          this.loadNeedsSave = true
+        }
         const normalizedSourceControlGroupOrder = normalizeSourceControlGroupOrder(
           parsed.settings?.sourceControlGroupOrder
         )
@@ -3176,6 +3324,8 @@ export class Store {
               parsed.settings?.terminalCustomThemes
             ),
             appIcon: normalizeAppIconId(parsed.settings?.appIcon),
+            mobilePairingCustomAddress,
+            mobilePairingCustomAddresses,
             // Why: persisted settings may be hand-edited or from older builds; keep tray-minimize false unless stored value is true.
             minimizeToTrayOnClose: parsed.settings?.minimizeToTrayOnClose === true,
             // Why: missing means default-on; round-trips unchanged on non-mac since darwin consumers gate the effect.
@@ -3251,6 +3401,8 @@ export class Store {
             const inlineAgentsMigrated = parsed.ui?._inlineAgentsDefaultedForAllUsers === true
             const expandedCardPropsMigrated =
               parsed.ui?._expandedWorktreeCardPropertiesDefaulted === true
+            const jiraIssueCardPropDefaulted =
+              parsed.ui?._jiraIssueWorktreeCardPropertyDefaulted === true
             const hadExperimentOn = readDeprecatedExperimentFlag(parsed)
             const deliberateUncheck =
               hadExperimentOn &&
@@ -3289,7 +3441,12 @@ export class Store {
                 }
                 return next
               })()
-              const normalized = normalizeWorktreeCardProperties(expandedCandidate)
+              // Why: 'jira-issue' joined the defaults after the expansion migration already stamped upgraded profiles, so it needs its own one-shot backfill.
+              const jiraCandidate =
+                jiraIssueCardPropDefaulted || expandedCandidate.includes('jira-issue')
+                  ? expandedCandidate
+                  : [...expandedCandidate, 'jira-issue' as const]
+              const normalized = normalizeWorktreeCardProperties(jiraCandidate)
               const changed =
                 normalized.length !== rawCardProps.length ||
                 normalized.some((property, index) => property !== rawCardProps[index])
@@ -3298,7 +3455,8 @@ export class Store {
             if (
               migratedCardProps !== undefined ||
               !inlineAgentsMigrated ||
-              !expandedCardPropsMigrated
+              !expandedCardPropsMigrated ||
+              !jiraIssueCardPropDefaulted
             ) {
               this.loadNeedsSave = true
             }
@@ -3366,7 +3524,8 @@ export class Store {
               // Why: keep stamping the legacy flag for rollback forward-compat; the new flag actually gates the migration.
               _inlineAgentsDefaultedForExperiment: true,
               _inlineAgentsDefaultedForAllUsers: true,
-              _expandedWorktreeCardPropertiesDefaulted: true
+              _expandedWorktreeCardPropertiesDefaulted: true,
+              _jiraIssueWorktreeCardPropertyDefaulted: true
             }
           })(),
           // Why: volatile schema; zod-validate workspaceSession at read so a bad payload falls to defaults, not a renderer crash.
@@ -3398,6 +3557,7 @@ export class Store {
           sshRemotePtyLeases: (parsed.sshRemotePtyLeases ?? [])
             .map(normalizeSshRemotePtyLease)
             .filter((lease): lease is SshRemotePtyLease => lease !== null),
+          sshPtyConsumerRecoveries: parsed.sshPtyConsumerRecoveries,
           claudeLivePtySessionIds: normalizeClaudeLivePtySessionIds(parsed.claudeLivePtySessionIds),
           migrationUnsupportedPtyEntries: normalizeMigrationUnsupportedPtyEntries(
             parsed.migrationUnsupportedPtyEntries
@@ -3486,6 +3646,10 @@ export class Store {
       this.loadNeedsSave = true
     }
     result = folderScopeConnectionMigration.state
+
+    if (normalizeWorktreeLinkedItemMetadata(result)) {
+      this.loadNeedsSave = true
+    }
 
     if (gcStaleWorktreeMeta(result) > 0) {
       this.loadNeedsSave = true
@@ -3646,6 +3810,10 @@ export class Store {
     // Why: clone before encrypting secrets so in-memory this.state stays plaintext.
     const stateToSave = {
       ...this.getDurableState(),
+      sshPtyConsumerRecoveries: (this.state.sshPtyConsumerRecoveries ?? []).map((record) => ({
+        ...record,
+        ownerLease: encryptToSentinel(record.ownerLease)
+      })),
       settings: {
         ...this.state.settings,
         opencodeSessionCookie: encryptToSentinel(this.state.settings.opencodeSessionCookie),
@@ -4062,6 +4230,7 @@ export class Store {
     name?: string
     folderPath?: string | null
     linkedTask?: FolderWorkspace['linkedTask']
+    linkedTaskSourceContext?: FolderWorkspace['linkedTaskSourceContext']
     connectionId?: string | null
     createdWithAgent?: FolderWorkspace['createdWithAgent']
     pendingFirstAgentMessageRename?: boolean
@@ -4077,13 +4246,18 @@ export class Store {
       throw new Error('Folder-backed project group not found.')
     }
     const now = Date.now()
+    const linkedTask = normalizeWorkspaceLinkedItem(input.linkedTask)
+    const sourceContext = normalizeStoredTaskSourceContext(input.linkedTaskSourceContext)
     const workspace: FolderWorkspace = {
       id: randomUUID(),
       projectGroupId: group.id,
       name: normalizeFolderWorkspaceName(input.name, `${group.name} workspace`),
       folderPath,
       connectionId: input.connectionId ?? group.connectionId ?? null,
-      linkedTask: input.linkedTask ?? null,
+      linkedTask,
+      linkedTaskSourceContext: isWorkspaceLinkedItemSourceContextMatch(linkedTask, sourceContext)
+        ? sourceContext
+        : null,
       comment: '',
       isArchived: false,
       isUnread: false,
@@ -4110,6 +4284,7 @@ export class Store {
         | 'name'
         | 'folderPath'
         | 'linkedTask'
+        | 'linkedTaskSourceContext'
         | 'comment'
         | 'isArchived'
         | 'isUnread'
@@ -4135,7 +4310,27 @@ export class Store {
       workspace.folderPath = updates.folderPath
     }
     if (updates.linkedTask !== undefined) {
-      workspace.linkedTask = updates.linkedTask
+      workspace.linkedTask = normalizeWorkspaceLinkedItem(updates.linkedTask)
+      if (
+        workspace.linkedTaskSourceContext &&
+        !isWorkspaceLinkedItemSourceContextMatch(
+          workspace.linkedTask,
+          workspace.linkedTaskSourceContext
+        )
+      ) {
+        workspace.linkedTaskSourceContext = null
+      }
+    }
+    if (updates.linkedTaskSourceContext !== undefined) {
+      const linkedTaskSourceContext = normalizeStoredTaskSourceContext(
+        updates.linkedTaskSourceContext
+      )
+      workspace.linkedTaskSourceContext = isWorkspaceLinkedItemSourceContextMatch(
+        workspace.linkedTask,
+        linkedTaskSourceContext
+      )
+        ? linkedTaskSourceContext
+        : null
     }
     if (updates.comment !== undefined) {
       workspace.comment = updates.comment
@@ -4472,9 +4667,13 @@ export class Store {
     > & {
       sourceControlAi?: Repo['sourceControlAi'] | null
       externalWorktreeDiscoverySuppressedAt?: Repo['externalWorktreeDiscoverySuppressedAt'] | null
-    }
+    },
+    hostId?: ExecutionHostId
   ): Repo | null {
-    const repo = this.state.repos.find((r) => r.id === id)
+    const repo = this.state.repos.find(
+      (candidate) =>
+        candidate.id === id && (!hostId || getRepoExecutionHostId(candidate) === hostId)
+    )
     if (!repo) {
       return null
     }
@@ -5013,6 +5212,16 @@ export class Store {
   setWorktreeMeta(worktreeId: string, meta: Partial<WorktreeMeta>): WorktreeMeta {
     const existing = this.state.worktreeMeta[worktreeId] || getDefaultWorktreeMeta()
     const updated = { ...existing, ...meta }
+    updated.linkedWorkItem = normalizeWorkspaceLinkedItem(updated.linkedWorkItem)
+    const linkedTaskSourceContext = normalizeStoredTaskSourceContext(
+      updated.linkedTaskSourceContext
+    )
+    updated.linkedTaskSourceContext = isWorkspaceLinkedItemSourceContextMatch(
+      updated.linkedWorkItem,
+      linkedTaskSourceContext
+    )
+      ? linkedTaskSourceContext
+      : null
     if (!updated.instanceId) {
       updated.instanceId = randomUUID()
     }
@@ -5416,6 +5625,33 @@ export class Store {
         updates.prBotAuthorOverrides
       )
     }
+    if ('mobilePairingCustomAddress' in updates) {
+      sanitizedUpdates.mobilePairingCustomAddress = normalizeMobilePairingCustomAddress(
+        updates.mobilePairingCustomAddress
+      )
+    }
+    if ('mobilePairingCustomAddresses' in updates) {
+      sanitizedUpdates.mobilePairingCustomAddresses = normalizeMobilePairingCustomAddresses(
+        updates.mobilePairingCustomAddresses
+      )
+    }
+    if (
+      'mobilePairingCustomAddress' in sanitizedUpdates ||
+      'mobilePairingCustomAddresses' in sanitizedUpdates
+    ) {
+      const mobilePairingCustomAddress =
+        'mobilePairingCustomAddress' in sanitizedUpdates
+          ? sanitizedUpdates.mobilePairingCustomAddress
+          : this.state.settings.mobilePairingCustomAddress
+      if (mobilePairingCustomAddress) {
+        sanitizedUpdates.mobilePairingCustomAddresses = addMobilePairingCustomAddress(
+          sanitizedUpdates.mobilePairingCustomAddresses ??
+            this.state.settings.mobilePairingCustomAddresses ??
+            [],
+          mobilePairingCustomAddress
+        )
+      }
+    }
     const historyWithPreviousLayout = buildWorkspaceDirHistoryForUpdate(
       this.state.settings,
       sanitizedUpdates
@@ -5507,6 +5743,9 @@ export class Store {
       osc52ClipboardDefaultOnNoticePending:
         this.state.ui?.osc52ClipboardDefaultOnNoticePending === true,
       markdownTocPanelWidth: clampMarkdownTocPanelWidth(this.state.ui?.markdownTocPanelWidth),
+      combinedDiffFileTreeWidth: clampCombinedDiffFileTreeWidth(
+        this.state.ui?.combinedDiffFileTreeWidth
+      ),
       visibleWorkspaceHostIds: normalizeVisibleExecutionHostIds(
         this.state.ui?.visibleWorkspaceHostIds
       ),
@@ -5606,6 +5845,9 @@ export class Store {
       ),
       markdownTocPanelWidth: clampMarkdownTocPanelWidth(
         sanitizedUpdates.markdownTocPanelWidth ?? this.state.ui?.markdownTocPanelWidth
+      ),
+      combinedDiffFileTreeWidth: clampCombinedDiffFileTreeWidth(
+        sanitizedUpdates.combinedDiffFileTreeWidth ?? this.state.ui?.combinedDiffFileTreeWidth
       ),
       visibleWorkspaceHostIds:
         updates.visibleWorkspaceHostIds !== undefined
@@ -5760,6 +6002,17 @@ export class Store {
       return this.state.workspaceSession ?? getDefaultWorkspaceSession()
     }
     return this.state.workspaceSessionsByHostId?.[resolved] ?? getDefaultWorkspaceSession()
+  }
+
+  getWorkspaceSessionHostIds(): ExecutionHostId[] {
+    const hostIds = new Set<ExecutionHostId>([LOCAL_EXECUTION_HOST_ID])
+    for (const key of Object.keys(this.state.workspaceSessionsByHostId ?? {})) {
+      const hostId = normalizeExecutionHostId(key)
+      if (hostId) {
+        hostIds.add(hostId)
+      }
+    }
+    return [...hostIds]
   }
 
   readTerminalScrollbackSnapshot(ref: string): string | null {
@@ -6254,10 +6507,15 @@ export class Store {
   }
 
   removeSshTarget(id: string): void {
-    if (!this.state.sshTargets) {
+    const targets = this.state.sshTargets ?? []
+    const recoveries = this.state.sshPtyConsumerRecoveries ?? []
+    const nextTargets = targets.filter((target) => target.id !== id)
+    const nextRecoveries = recoveries.filter((record) => record.targetId !== id)
+    if (nextTargets.length === targets.length && nextRecoveries.length === recoveries.length) {
       return
     }
-    this.state.sshTargets = this.state.sshTargets.filter((t) => t.id !== id)
+    this.state.sshTargets = nextTargets
+    this.state.sshPtyConsumerRecoveries = nextRecoveries
     this.scheduleSave()
   }
 
@@ -6404,6 +6662,12 @@ export class Store {
         carrierChanged = true
       }
     }
+    const recoveries = this.state.sshPtyConsumerRecoveries ?? []
+    const retainedRecoveries = recoveries.filter((record) => record.targetId !== oldTargetId)
+    if (retainedRecoveries.length !== recoveries.length) {
+      this.state.sshPtyConsumerRecoveries = retainedRecoveries
+      carrierChanged = true
+    }
     let setupsChanged = false
     const keptSetups: ProjectHostSetup[] = []
     for (const setup of this.state.projectHostSetups) {
@@ -6436,6 +6700,47 @@ export class Store {
       this.scheduleSave()
     }
     return [...repoIds]
+  }
+
+  // ── SSH PTY Consumer Recovery ──────────────────────────────────────
+
+  getSshPtyConsumerRecovery(targetId: string): SshPtyConsumerRecovery | null {
+    const record = (this.state.sshPtyConsumerRecoveries ?? []).find(
+      (candidate) => candidate.targetId === targetId
+    )
+    return record ? structuredClone(record) : null
+  }
+
+  upsertSshPtyConsumerRecovery(record: SshPtyConsumerRecovery): void {
+    const normalized = normalizeSshPtyConsumerRecovery(record)
+    if (!normalized) {
+      throw new Error('Invalid SSH PTY consumer recovery record')
+    }
+    const recoveries = this.state.sshPtyConsumerRecoveries ?? []
+    this.state.sshPtyConsumerRecoveries = [
+      ...recoveries.filter((candidate) => candidate.targetId !== normalized.targetId),
+      normalized
+    ]
+    this.flushSshPtyConsumerRecovery()
+  }
+
+  removeSshPtyConsumerRecovery(targetId: string): void {
+    const recoveries = this.state.sshPtyConsumerRecoveries ?? []
+    const next = recoveries.filter((record) => record.targetId !== targetId)
+    if (next.length === recoveries.length) {
+      return
+    }
+    this.state.sshPtyConsumerRecoveries = next
+    this.flushSshPtyConsumerRecovery()
+  }
+
+  private flushSshPtyConsumerRecovery(): void {
+    try {
+      // Why: ownership must be durable before relay setup continues, but active-view and GitHub sidecars are unrelated startup work.
+      this.flushOrThrow()
+    } catch (err) {
+      console.error('[persistence] Failed to flush SSH PTY consumer recovery:', err)
+    }
   }
 
   // ── SSH Remote PTY Leases ──────────────────────────────────────────
@@ -6702,6 +7007,8 @@ function getDefaultWorktreeMeta(): WorktreeMeta {
     linkedBitbucketPR: null,
     linkedAzureDevOpsPR: null,
     linkedGiteaPR: null,
+    linkedWorkItem: null,
+    linkedTaskSourceContext: null,
     isArchived: false,
     isUnread: false,
     isPinned: false,

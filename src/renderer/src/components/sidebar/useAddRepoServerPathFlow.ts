@@ -10,7 +10,10 @@ import {
 import type { AddRepoExistingWorkspaceSource } from '../../../../shared/telemetry-events'
 import type { NestedRepoScanResult, Repo } from '../../../../shared/types'
 import type { AddRepoOptions } from '../../../../shared/add-repo-options'
+import type { WorktreeFetchOptions } from '@/store/slices/worktree-helpers'
 import { createNestedRepoScanId } from './add-repo-dialog-types'
+import { worktreeRefreshOptions } from './add-repo-runtime-owner'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 type ShowNestedRepoReview = (args: {
   scan: NestedRepoScanResult
@@ -20,10 +23,12 @@ type ShowNestedRepoReview = (args: {
   runtimeKind: NestedRepoTelemetryRuntimeKind
   inProgress: boolean
   scanId: string | null
+  runtimeEnvironmentId?: string | null
 }) => void
 
 export function useAddRepoServerPathFlow({
   addRepoPath,
+  activeRuntimeEnvironmentId,
   closeModal,
   fetchWorktrees,
   getNestedRepoRuntimeKind,
@@ -37,23 +42,29 @@ export function useAddRepoServerPathFlow({
   addRepoPath: (
     path: string,
     kind?: 'git' | 'folder',
-    options?: AddRepoOptions
+    options?: AddRepoOptions & { runtimeEnvironmentId?: string | null }
   ) => Promise<Repo | null>
+  activeRuntimeEnvironmentId: string | null
   closeModal: () => void
-  fetchWorktrees: (repoId: string, options?: { requireAuthoritative?: boolean }) => Promise<unknown>
+  fetchWorktrees: (repoId: string, options?: WorktreeFetchOptions) => Promise<unknown>
   getNestedRepoRuntimeKind: (connectionId: string | null) => NestedRepoTelemetryRuntimeKind
   scanNestedRepos: (
     path: string,
     connectionId?: string,
-    controls?: { scanId?: string; onProgress?: (scan: NestedRepoScanResult) => void }
+    controls?: {
+      scanId?: string
+      onProgress?: (scan: NestedRepoScanResult) => void
+      runtimeEnvironmentId?: string | null
+    }
   ) => Promise<NestedRepoScanResult | null>
-  setActiveNestedScanId: (scanId: string | null) => void
+  setActiveNestedScanId: (scanId: string | null, runtimeEnvironmentId?: string | null) => void
   setNestedScanInProgress: (inProgress: boolean) => void
   showNestedRepoReview: ShowNestedRepoReview
   onGitRepoReady: (
     repoId: string,
     source: AddRepoExistingWorkspaceSource,
-    selectedPath?: string
+    selectedPath?: string,
+    executionHostId?: ExecutionHostId
   ) => Promise<void>
   setAddProjectBusyLabel: (label: string | null) => void
 }): {
@@ -89,16 +100,15 @@ export function useAddRepoServerPathFlow({
           const supportsStreamingScan = runtimeKind !== 'runtime'
           const scanId = supportsStreamingScan ? createNestedRepoScanId() : null
           if (scanId) {
-            setActiveNestedScanId(scanId)
+            setActiveNestedScanId(scanId, activeRuntimeEnvironmentId)
             setNestedScanInProgress(true)
           }
-          const scan = await scanNestedRepos(
-            path,
-            undefined,
-            scanId
+          const scan = await scanNestedRepos(path, undefined, {
+            runtimeEnvironmentId: activeRuntimeEnvironmentId,
+            ...(scanId
               ? {
                   scanId,
-                  onProgress: (progressScan) => {
+                  onProgress: (progressScan: NestedRepoScanResult) => {
                     if (
                       gen !== serverAddGenRef.current ||
                       progressScan.selectedPathKind !== 'non_git_folder' ||
@@ -113,12 +123,13 @@ export function useAddRepoServerPathFlow({
                       attemptId,
                       runtimeKind,
                       inProgress: true,
-                      scanId
+                      scanId,
+                      runtimeEnvironmentId: activeRuntimeEnvironmentId
                     })
                   }
                 }
-              : undefined
-          )
+              : {})
+          })
           if (gen !== serverAddGenRef.current) {
             return
           }
@@ -141,24 +152,35 @@ export function useAddRepoServerPathFlow({
               attemptId,
               runtimeKind,
               inProgress: false,
-              scanId
+              scanId,
+              runtimeEnvironmentId: activeRuntimeEnvironmentId
             })
             return
           }
         }
         setAddProjectBusyLabel(kind === 'git' ? 'Opening project...' : 'Opening folder...')
-        const repo = await addRepoPath(path, kind, { requireExactGitRoot: true })
+        // Why: server-path adds forward initializeGit only for git adds; folder adds leave it absent so the
+        // store route treats the add as a plain folder open. requireExactGitRoot keeps a git selection inside
+        // its own root instead of jumping to an unrelated parent worktree.
+        const repo = await addRepoPath(path, kind, {
+          runtimeEnvironmentId: activeRuntimeEnvironmentId,
+          ...(kind === 'git' ? { initializeGit: false } : {}),
+          requireExactGitRoot: true
+        })
         if (gen !== serverAddGenRef.current) {
           return
         }
         if (repo && isGitRepoKind(repo)) {
           // Why: once the repo exists, a transient non-authoritative refresh
           // should fall through to project reveal instead of leaving the add flow open.
-          await fetchWorktrees(repo.id, { requireAuthoritative: true })
+          const ownerOptions = worktreeRefreshOptions(activeRuntimeEnvironmentId ?? null)
+          await fetchWorktrees(repo.id, ownerOptions)
           if (gen !== serverAddGenRef.current) {
             return
           }
-          await onGitRepoReady(repo.id, 'runtime_server_path', repo.path)
+          await (ownerOptions.executionHostId
+            ? onGitRepoReady(repo.id, 'runtime_server_path', repo.path, ownerOptions.executionHostId)
+            : onGitRepoReady(repo.id, 'runtime_server_path', repo.path))
         } else if (repo) {
           // Why: folder repos skip the Git default-checkout handoff; their synthetic
           // root workspace is opened by the folder add flow.
@@ -176,6 +198,7 @@ export function useAddRepoServerPathFlow({
     },
     [
       addRepoPath,
+      activeRuntimeEnvironmentId,
       closeModal,
       fetchWorktrees,
       getNestedRepoRuntimeKind,

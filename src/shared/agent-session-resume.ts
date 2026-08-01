@@ -63,6 +63,9 @@ export type SleepingAgentSessionRecord = {
    *  Terminal-close records are explicit sidebar history and only resume when
    *  the user clicks that muted row. */
   origin?: 'worktree-sleep' | 'quit' | 'live' | 'terminal-close'
+  /** Prevents provider-session relaunch while main reconciles a durable
+   *  orchestration assignment against authoritative PTY inventory. */
+  automaticResumeBlockedBy?: 'legacy-orchestration-worker'
 }
 
 const RESUMABLE_TUI_AGENT_SET: ReadonlySet<string> = new Set(RESUMABLE_TUI_AGENTS)
