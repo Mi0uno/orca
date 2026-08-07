@@ -1208,6 +1208,32 @@ describe('repos:addRemote', () => {
     expect(result).toHaveProperty('repo.displayName', 'My Server Repo')
   })
 
+  it('adds a distinct SSH Git repo when a folder project uses the same path', async () => {
+    const existing = {
+      id: 'ssh-folder-project',
+      path: '/home/user/project',
+      connectionId: 'conn-1',
+      displayName: 'project',
+      badgeColor: '#22c55e',
+      addedAt: 1,
+      kind: 'folder' as const
+    }
+    mockStore.getRepos.mockReturnValue([existing])
+
+    const result = await handlers.get('repos:addRemote')!(null, {
+      connectionId: 'conn-1',
+      remotePath: existing.path,
+      kind: 'git'
+    })
+
+    expect(mockStore.updateRepo).not.toHaveBeenCalled()
+    expect(mockStore.addRepo).toHaveBeenCalledWith(
+      expect.objectContaining({ path: existing.path, connectionId: 'conn-1', kind: 'git' })
+    )
+    expect(result).toHaveProperty('repo.kind', 'git')
+    expect(result).not.toHaveProperty('repo.id', existing.id)
+  })
+
   it('clones a repo on an SSH target and registers the cloned path', async () => {
     const result = await handlers.get('repos:cloneRemote')!(null, {
       connectionId: 'conn-1',
@@ -1889,6 +1915,33 @@ describe('repos:add + repos:clone', () => {
     expect(result).toHaveProperty('repo.externalWorktreeVisibility', 'hide')
   })
 
+  it('adds a distinct local Git repo when a folder project uses the same path', async () => {
+    const existing = {
+      id: 'local-folder-project',
+      path: '/tmp/from-add',
+      displayName: 'from-add',
+      badgeColor: '#22c55e',
+      addedAt: 1,
+      kind: 'folder' as const
+    }
+    mockStore.getRepos.mockReturnValue([existing])
+    vi.mocked(isGitRepo).mockReturnValue(true)
+    vi.mocked(getGitRepoRoot).mockReturnValue(existing.path)
+
+    const result = await handlers.get('repos:add')!(null, {
+      path: existing.path,
+      kind: 'git',
+      requireExactGitRoot: true
+    })
+
+    expect(mockStore.updateRepo).not.toHaveBeenCalled()
+    expect(mockStore.addRepo).toHaveBeenCalledWith(
+      expect.objectContaining({ path: existing.path, kind: 'git' })
+    )
+    expect(result).toHaveProperty('repo.kind', 'git')
+    expect(result).not.toHaveProperty('repo.id', existing.id)
+  })
+
   it('prepares the worktree root when adding a local git repo', async () => {
     await handlers.get('repos:add')!(null, { path: '/tmp/from-add', kind: 'git' })
 
@@ -2115,6 +2168,8 @@ describe('repos:add + repos:clone', () => {
 
   it('sets up a folder when the selected project exists only on another host', async () => {
     const added: Record<string, unknown>[] = []
+    vi.mocked(isGitRepo).mockReturnValue(true)
+    vi.mocked(getGitRepoRoot).mockReturnValue('/tmp/orca-local')
     mockStore.getRepos.mockImplementation(() => added)
     mockStore.addRepo.mockImplementation((repo: Record<string, unknown>) => added.push(repo))
     mockStore.updateRepo.mockImplementation((id, updates) => {
@@ -2166,6 +2221,8 @@ describe('repos:add + repos:clone', () => {
 
   it('rolls back a new repo when the supplied identity does not match the project', async () => {
     const added: Record<string, unknown>[] = []
+    vi.mocked(isGitRepo).mockReturnValue(true)
+    vi.mocked(getGitRepoRoot).mockReturnValue('/tmp/mismatched-project')
     mockStore.getRepos.mockImplementation(() => added)
     mockStore.addRepo.mockImplementation((repo: Record<string, unknown>) => added.push(repo))
 

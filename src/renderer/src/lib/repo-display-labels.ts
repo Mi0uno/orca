@@ -1,4 +1,5 @@
 import { getRepoExecutionHostId, type ExecutionHostId } from '../../../shared/execution-host'
+import { normalizeRuntimePathForComparison } from '../../../shared/cross-platform-path'
 
 type RepoDisplayLabelItem = {
   path: string

@@ -6,34 +6,15 @@ import {
   buildNestedRepoScanTelemetry,
   createNestedRepoTelemetryAttemptId
 } from '../../../../shared/nested-repo-telemetry'
-import type { AddRepoExistingWorkspaceSource } from '../../../../shared/telemetry-events'
-import type { NestedRepoScanResult, Repo } from '../../../../shared/types'
-import type { WorktreeFetchOptions } from '@/store/slices/worktree-helpers'
-import type { RepoSlice } from '@/store/slices/repos'
 import { createNestedRepoScanId } from './add-repo-dialog-types'
 import { translate } from '@/i18n/i18n'
 import { worktreeRefreshOptions } from './add-repo-runtime-owner'
-import type { ExecutionHostId } from '../../../../shared/execution-host'
-
-type ShowNestedRepoReview = (args: {
-  scan: NestedRepoScanResult
-  selectedPath: string
-  connectionId: string | null
-  attemptId: string
-  runtimeKind: NestedRepoTelemetryRuntimeKind
-  inProgress: boolean
-  scanId: string | null
-  runtimeEnvironmentId?: string | null
-}) => void
-
-type LocalPathAddResult =
-  | { status: 'completed'; repo: Repo }
-  | { status: 'cancelled' | 'paused' | 'skipped' }
-
-type LocalPathAddMode = 'single' | 'batch'
-import type { AddRepoOptions } from '../../../../shared/add-repo-options'
-
-type AddRepoPathOptions = AddRepoOptions & { runtimeEnvironmentId?: string | null }
+import type {
+  AddRepoLocalFolderSource,
+  LocalPathAddMode,
+  LocalPathAddResult,
+  UseAddRepoLocalFolderFlowArgs
+} from './add-repo-local-folder-flow-types'
 
 export function useAddRepoLocalFolderFlow({
   isOpen,
@@ -51,31 +32,7 @@ export function useAddRepoLocalFolderFlow({
   onGitRepoReady,
   setIsAdding,
   setAddProjectBusyLabel
-}: {
-  isOpen: boolean
-  droppedLocalPath: string
-  activeRuntimeEnvironmentId: string | null | undefined
-  addProjectKind?: 'git' | 'folder'
-  initializeGitOnAdd?: boolean
-  addRepoPath: (
-    path: string,
-    kind?: 'git' | 'folder',
-    options?: AddRepoPathOptions
-  ) => Promise<Repo | null>
-  closeModal: () => void
-  fetchWorktrees: (repoId: string, options?: WorktreeFetchOptions) => Promise<unknown>
-  scanNestedRepos: RepoSlice['scanNestedRepos']
-  setActiveNestedScanId: (scanId: string | null, runtimeEnvironmentId?: string | null) => void
-  setNestedScanInProgress: (inProgress: boolean) => void
-  showNestedRepoReview: ShowNestedRepoReview
-  onGitRepoReady: (
-    repoId: string,
-    source: AddRepoExistingWorkspaceSource,
-    executionHostId?: ExecutionHostId
-  ) => Promise<void>
-  setIsAdding: (isAdding: boolean) => void
-  setAddProjectBusyLabel: (label: string | null) => void
-}): {
+}: UseAddRepoLocalFolderFlowArgs): {
   handleBrowse: () => Promise<void>
   resetLocalFolderFlow: () => void
 } {
@@ -95,7 +52,7 @@ export function useAddRepoLocalFolderFlow({
   const addLocalPathForGeneration = useCallback(
     async (
       path: string,
-      source: AddRepoExistingWorkspaceSource,
+      source: AddRepoLocalFolderSource,
       gen: number,
       mode: LocalPathAddMode = 'single'
     ): Promise<LocalPathAddResult> => {
@@ -236,7 +193,7 @@ export function useAddRepoLocalFolderFlow({
   const handleAddLocalPath = useCallback(
     async (
       path: string,
-      source: AddRepoExistingWorkspaceSource,
+      source: AddRepoLocalFolderSource,
       mode: LocalPathAddMode = 'single'
     ): Promise<LocalPathAddResult> => {
       const gen = ++localAddGenRef.current
@@ -255,7 +212,7 @@ export function useAddRepoLocalFolderFlow({
   )
 
   const handleAddLocalPaths = useCallback(
-    async (paths: string[], source: AddRepoExistingWorkspaceSource, gen: number): Promise<void> => {
+    async (paths: string[], source: AddRepoLocalFolderSource, gen: number): Promise<void> => {
       const gitRepoIds: string[] = []
       const shouldDeferGitRepoReady = paths.length > 1
       let skippedCount = 0

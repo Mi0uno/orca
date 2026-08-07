@@ -47,6 +47,7 @@ describe('individual SSH config host selection', () => {
         savedTarget = target
         return { target: { ...target, id: 'ssh-prod', source: 'manual' }, repoReadoptions: [] }
       }),
+      setPassword: vi.fn(),
       listConfigHosts: vi.fn(),
       importConfig: vi.fn()
     }
@@ -100,6 +101,7 @@ describe('manual SSH host label fallback', () => {
         savedTarget = target
         return { target: { ...target, id: 'ssh-1', source: 'manual' }, repoReadoptions: [] }
       }),
+      setPassword: vi.fn(),
       listConfigHosts: vi.fn(),
       importConfig: vi.fn()
     }
@@ -133,6 +135,7 @@ describe('bulk add of ~/.ssh/config hosts', () => {
       importConfig,
       listTargets: vi.fn().mockResolvedValue([]),
       addTarget: vi.fn(),
+      setPassword: vi.fn(),
       listConfigHosts: vi.fn(),
       resolveConfigHost: vi.fn()
     }
@@ -156,6 +159,7 @@ describe('bulk add of ~/.ssh/config hosts', () => {
         importConfig,
         listTargets: vi.fn().mockResolvedValue([]),
         addTarget: vi.fn(),
+        setPassword: vi.fn(),
         listConfigHosts: vi.fn(),
         resolveConfigHost: vi.fn()
       },

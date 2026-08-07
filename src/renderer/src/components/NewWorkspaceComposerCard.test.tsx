@@ -747,6 +747,8 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
     expect(storeMocks.closeModal).not.toHaveBeenCalled()
     expect(storeMocks.openSettingsPage).not.toHaveBeenCalled()
     expect(storeMocks.openSettingsTarget).not.toHaveBeenCalled()
+  })
+
   it('shows a Git worktree entry for folder projects and emits initialization changes', () => {
     const initializeChanges: boolean[] = []
     const useGitWorktrees = vi.fn()

@@ -151,23 +151,22 @@ describe('verifyRequiredReleaseAssets', () => {
     expect(arm64Manifest).toBeTruthy()
   })
 
-  it('defaults fork release verification to Windows assets', async () => {
+  it('defaults fork release verification to Windows and macOS assets', async () => {
     const tag = 'v1.4.27'
-    const release = releaseWithAssets(tag, getRequiredReleaseAssetNames(tag, 'windows'))
+    const required = getRequiredReleaseAssetNames(tag, 'windows,mac')
+    const release = releaseWithAssets(tag, required)
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse([release]))
-      .mockResolvedValueOnce(
-        jsonResponse(['version: 1.4.27', 'files:', '  - url: orca-windows-setup.exe'].join('\n'))
-      )
+      .mockResolvedValue(jsonResponse('version: 1.4.27\n'))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
       verifyRequiredReleaseAssets({ repo: 'Mi0uno/orca', tag, token: 'token' })
     ).resolves.toMatchObject({
-      checked: ['latest.yml', 'orca-windows-setup.exe', 'orca-windows-setup.exe.blockmap'],
-      platforms: ['windows']
+      checked: [...required].sort(),
+      platforms: ['windows', 'mac']
     })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

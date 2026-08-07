@@ -18,7 +18,6 @@ import {
   useAddRepoHostedController,
   type AddRepoDialogHostedController
 } from './use-add-repo-hosted-controller'
-import { useAddRepoRemoteNestedScan } from './use-add-repo-remote-nested-scan'
 import { useAddRepoProjectMode } from './use-add-repo-project-mode'
 
 export default React.memo(function AddRepoDialog({

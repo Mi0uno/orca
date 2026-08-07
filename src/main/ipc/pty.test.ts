@@ -17121,7 +17121,7 @@ describe('registerPtyHandlers', () => {
     expect(recordCodexPaneAccountMock.mock.calls).toEqual([
       ['pty-resumed', { selectionKey: 'host', accountId: 'account-a', homeRoute: 'account-home' }]
     ])
-    expect(readFileSyncMock).toHaveBeenCalledWith('/managed/origin/home/auth.json', 'utf8')
+    expect(readFileSyncMock).toHaveBeenCalledWith(join('/managed/origin/home', 'auth.json'), 'utf8')
     expect(forgetCodexPaneAccountMock).not.toHaveBeenCalled()
   })
 
@@ -17244,7 +17244,7 @@ describe('registerPtyHandlers', () => {
         { selectionKey: 'host', accountId: 'account-a', homeRoute: 'account-home' }
       ]
     ])
-    expect(readFileSyncMock).toHaveBeenCalledWith('/managed/origin/home/auth.json', 'utf8')
+    expect(readFileSyncMock).toHaveBeenCalledWith(join('/managed/origin/home', 'auth.json'), 'utf8')
     expect(forgetCodexPaneAccountMock).not.toHaveBeenCalled()
   })
 

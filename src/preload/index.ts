@@ -33,6 +33,7 @@ import type { VerifyAndAddRuntimeEnvironmentResult } from '../shared/remote-pair
 import type {
   SshMutationExpectation,
   SshConnectionState,
+  SshCredentialRequestEvent,
   SshConfigHostListArgs,
   SshConfigHostListResult,
   SshConfigHostResolution,
@@ -195,15 +196,6 @@ import {
   type RichMarkdownContextMenuCommandPayload,
   type RichMarkdownContextMenuTableTarget
 } from '../shared/rich-markdown-context-menu'
-import type {
-  SshConnectionState,
-  SshCredentialRequestEvent,
-  SshConfigImportResult,
-  SshTargetAddResult,
-  SshTarget,
-  PortForwardEntry,
-  EnrichedDetectedPort
-} from '../shared/ssh-types'
 import type {
   AgentStatusClearIpcPayload,
   AgentStatusIpcPayload,

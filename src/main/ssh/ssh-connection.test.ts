@@ -989,7 +989,7 @@ describe('SshConnection', () => {
     await conn.disconnect()
 
     await expect(connectResult).resolves.toMatchObject({
-      message: 'Connection lost before handshake'
+      message: 'SSH connection attempt was cancelled'
     })
     expect(conn.getState()).toMatchObject({ status: 'disconnected', error: null })
     expect(callbacks.onStateChange).not.toHaveBeenCalledWith(

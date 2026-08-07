@@ -2,7 +2,7 @@
 
 This document captures the maintainer workflow for the `Mi0uno/orca` fork. It is
 separate from the upstream contributor release notes in `.github/CONTRIBUTING.md`
-because this fork intentionally ships a Windows-first updater channel.
+because this fork ships Windows and macOS updater channels.
 
 ## Repository Topology
 
@@ -113,11 +113,13 @@ git pull --rebase origin main
 Fork release behavior differs from the official repository:
 
 - `release-cut.yml` allows release cuts for `Mi0uno/orca` and `stablyai/orca`.
-- In this fork, `ORCA_REQUIRED_RELEASE_PLATFORMS` resolves to `windows`; the
-  official repository requires all platforms.
-- Non-Windows release builds and some release-evidence jobs are best-effort in
-  the fork, so a macOS or Linux failure should not block a Windows installer
-  release.
+- In this fork, `ORCA_REQUIRED_RELEASE_PLATFORMS` resolves to `windows,mac`;
+  the official repository requires all platforms.
+- Windows and macOS release builds and updater assets must succeed before a
+  draft can publish. Linux release builds remain best-effort for the fork.
+- E2E and release-evidence failures are non-blocking release evidence. They
+  should be investigated, but do not prevent a release once Windows and macOS
+  artifacts are complete.
 - If SignPath or Slack secrets are absent, fork CI publishes unsigned Windows
   artifacts and the packager avoids embedding the official SignPath publisher
   requirement.

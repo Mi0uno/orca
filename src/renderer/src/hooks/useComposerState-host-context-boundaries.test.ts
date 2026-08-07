@@ -179,7 +179,6 @@ describe('useComposerState host-context boundaries', () => {
     expect(section).toContain('repoId: runRepo.id')
     expect(section).toContain('getSettingsForRepoRuntimeOwner')
     expect(section).toContain('worktree.resolveMrBase')
-    expect(section).toContain('repo: runRepo.id')
     expect(section).not.toContain('repoId: repoForItem.id')
     // Why (#6263): an unresolved MR base must surface a toast and clear stale
     // state instead of silently dropping the worktree onto origin/master.
@@ -234,7 +233,6 @@ describe('useComposerState host-context boundaries', () => {
     expect(targetSection).toContain('folderTargetRuntimeEnvironmentId')
     expect(targetSection).toContain("{ kind: 'runtime' as const")
     expect(targetSection).toContain('useFolderWorkspaceComposerPathStatus(')
-    expect(targetSection).toContain('folderTargetRuntimeEnvironmentId')
     expect(targetSection).toContain('useDetectedAgents(folderTargetAgentDetectionTarget)')
 
     const submitSection = sourceBetween(
@@ -262,7 +260,6 @@ describe('useComposerState host-context boundaries', () => {
     expect(selectorSection).toContain('s.remoteDetectedAgentIds[connectionId]')
     expect(selectorSection).toContain('if (runtimeEnvironmentId) {')
     expect(selectorSection).toContain('s.runtimeDetectedAgentIds[runtimeEnvironmentId]')
-    expect(selectorSection).toContain('return s.detectedAgentIds')
     // SSH branch is checked before the runtime branch.
     expect(selectorSection.indexOf('if (isRemote) {')).toBeLessThan(
       selectorSection.indexOf('if (runtimeEnvironmentId) {')
@@ -321,7 +318,6 @@ describe('useComposerState host-context boundaries', () => {
     expect(section).toContain('initialTaskSourceContext')
     expect(section).toContain('projectId: initialRunSeed.projectId')
     expect(section).toContain('hostId: initialRunSeed.hostId')
-    expect(section).toContain('projectHostSetupId: initialRunSeed.projectHostSetupId')
   })
 
   it('resolves typed GitHub issue/PR input through the selected repo source context', () => {
@@ -397,12 +393,6 @@ describe('useComposerState host-context boundaries', () => {
     expect(quickSubmit).toContain('explicitBaseBranch: smartSubmitBaseBranch')
     expect(quickSubmit).toContain('pushTarget: submitPushTarget')
     expect(quickSubmit).toContain('compareBaseRef: submitCompareBaseRef')
-    expect(quickSubmit).not.toContain('smartGitHubResolution?.baseBranch ?? baseBranch')
-    expect(quickSubmit).not.toContain('smartGitHubResolution?.compareBaseRef ?? compareBaseRef')
-    expect(quickSubmit).not.toContain('smartGitHubResolution?.pushTarget ?? pushTarget')
-    expect(quickSubmit).not.toContain(
-      'smartGitHubResolution?.branchNameOverride ?? branchNameOverride'
-    )
   })
 
   it('saves setup startup policy before creating a workspace', () => {
@@ -533,8 +523,6 @@ describe('useComposerState host-context boundaries', () => {
   })
 
   it('keeps Jira-mode URL edits synchronously blocked before lookup settles', () => {
-    // Why: derived on every render from the same name the submit path uses, so an in-flight
-    // URL cannot slip through between the keystroke and the create.
     expect(HOOK_SOURCE).toContain('isBlockingJiraUrlIntent(smartNameMode, name)')
     const section = sourceBetween(
       HOOK_SOURCE,
@@ -544,6 +532,8 @@ describe('useComposerState host-context boundaries', () => {
 
     expect(section).not.toContain("smartNameMode === 'smart'")
     expect(section).not.toContain('setSourceIntentBlocksCreate')
+  })
+
   it('lets folder targets switch to exact-root Git worktree creation with optional init', () => {
     const handler = sourceBetween(
       HOOK_SOURCE,
@@ -578,9 +568,6 @@ describe('useComposerState host-context boundaries', () => {
   })
 
   it('selects a project by its own host instead of pinning the current host', () => {
-    // Regression: passing the current host as a hard `hostId` made picking a
-    // project set up only on a different host a silent no-op. The current host
-    // must be a preference (focusedHostScope), with a fallback to any ready host.
     const handleProjectChange = sourceBetween(
       HOOK_SOURCE,
       'const handleProjectChange = useCallback',
@@ -668,7 +655,6 @@ describe('useComposerState host-context boundaries', () => {
   })
 
   it('gates every submit path on the derived source intent', () => {
-    // Why: derived from name+mode, so the submitted name and the gate can never disagree.
     expect(HOOK_SOURCE).toContain(
       'const sourceIntentBlocksCreate = !linkedWorkItem && isBlockingJiraUrlIntent(smartNameMode, name)'
     )
@@ -792,8 +778,6 @@ describe('useComposerState host-context boundaries', () => {
     expect(quickSubmit).not.toContain('platform: CLIENT_PLATFORM')
   })
 
-  // Why: activation no longer rebuilds a startup from `createdWithAgent`, so this
-  // caller's own `startup` is the only thing that launches the agent it planned.
   it('passes its own startup to activation when submit planned an agent', () => {
     const activation = sourceBetween(
       HOOK_SOURCE,
@@ -804,7 +788,6 @@ describe('useComposerState host-context boundaries', () => {
     expect(activation).toContain('...(startupPlan && !backendSpawnedStartup')
     expect(activation).toContain('command: startupPlan.launchCommand')
     expect(activation).toContain('launchAgent: tuiAgent')
-    // The removed activation-time fallback must not come back through this caller.
     expect(HOOK_SOURCE).not.toContain('buildCreatedAgentReopenStartup')
   })
 

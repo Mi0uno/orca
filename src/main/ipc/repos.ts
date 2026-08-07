@@ -285,10 +285,17 @@ async function addLocalRepoFromPath(
   options: AddRepoOptions = {}
 ): Promise<{ repo: Repo; alreadyExisted: boolean } | { error: string }> {
   const repoKind = kind === 'folder' ? 'folder' : 'git'
+  const matchesRepoKind = (repo: Repo): boolean =>
+    repoKind === 'folder' ? isFolderRepo(repo) : !isFolderRepo(repo)
   const pathKey = normalizeRuntimePathForComparison(path)
   const existing = store
     .getRepos()
-    .find((repo) => !repo.connectionId && normalizeRuntimePathForComparison(repo.path) === pathKey)
+    .find(
+      (repo) =>
+        !repo.connectionId &&
+        normalizeRuntimePathForComparison(repo.path) === pathKey &&
+        matchesRepoKind(repo)
+    )
   if (existing) {
     return { repo: existing, alreadyExisted: true }
   }
@@ -325,7 +332,9 @@ async function addLocalRepoFromPath(
       .getRepos()
       .find(
         (repo) =>
-          !repo.connectionId && normalizeRuntimePathForComparison(repo.path) === resolvedPathKey
+          !repo.connectionId &&
+          normalizeRuntimePathForComparison(repo.path) === resolvedPathKey &&
+          matchesRepoKind(repo)
       )
     if (existingAfterRootResolve) {
       return { repo: existingAfterRootResolve, alreadyExisted: true }
@@ -422,6 +431,8 @@ async function addRemoteRepoFromPath(
 
   let repoKind: 'git' | 'folder' = args.kind ?? 'git'
   let resolvedPath = await resolveRemoteHomePath(args.connectionId, args.remotePath)
+  const matchesRepoKind = (repo: Repo): boolean =>
+    repoKind === 'folder' ? isFolderRepo(repo) : !isFolderRepo(repo)
 
   const existing = store
     .getRepos()
@@ -429,7 +440,8 @@ async function addRemoteRepoFromPath(
       (repo) =>
         repo.connectionId === args.connectionId &&
         normalizeRuntimePathForComparison(repo.path) ===
-          normalizeRuntimePathForComparison(resolvedPath)
+          normalizeRuntimePathForComparison(resolvedPath) &&
+        matchesRepoKind(repo)
     )
   if (existing) {
     return { repo: existing, alreadyExisted: true }
@@ -484,7 +496,8 @@ async function addRemoteRepoFromPath(
       (repo) =>
         repo.connectionId === args.connectionId &&
         normalizeRuntimePathForComparison(repo.path) ===
-          normalizeRuntimePathForComparison(resolvedPath)
+          normalizeRuntimePathForComparison(resolvedPath) &&
+        matchesRepoKind(repo)
     )
   if (existingAfterRootResolve) {
     return { repo: existingAfterRootResolve, alreadyExisted: true }

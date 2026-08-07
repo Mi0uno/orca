@@ -1734,10 +1734,9 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
           delete nextLastTerminalInputAtByPaneKey[paneKey]
         }
       }
-      const nextSleepingAgentSessionsByPaneKey =
-        retiresSession && opts?.retainAgentHistory === false
-          ? removeSleepingAgentSessionsForTab(s.sleepingAgentSessionsByPaneKey, tabId)
-          : s.sleepingAgentSessionsByPaneKey
+      const nextSleepingAgentSessionsByPaneKey = retiresSession
+        ? removeSleepingAgentSessionsForTab(s.sleepingAgentSessionsByPaneKey, tabId)
+        : s.sleepingAgentSessionsByPaneKey
       const nextPendingStartupByTabId = { ...s.pendingStartupByTabId }
       delete nextPendingStartupByTabId[tabId]
       const nextAutomaticAgentResumeClaimsByTabId = { ...s.automaticAgentResumeClaimsByTabId }

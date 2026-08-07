@@ -75,7 +75,7 @@ export function getRequiredReleasePlatforms(input = 'all') {
 }
 
 function getDefaultReleasePlatformInput(repo) {
-  return repo.toLowerCase() === OFFICIAL_REPOSITORY ? 'all' : 'windows'
+  return repo.toLowerCase() === OFFICIAL_REPOSITORY ? 'all' : 'windows,mac'
 }
 
 export function getRequiredReleaseAssetNames(tag, platformInput = 'all') {

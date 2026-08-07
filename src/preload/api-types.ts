@@ -65,6 +65,7 @@ import type { VerifyAndAddRuntimeEnvironmentResult } from '../shared/remote-pair
 import type {
   SshMutationExpectation,
   SshConnectionState,
+  SshCredentialRequestEvent,
   SshConfigHostListArgs,
   SshConfigHostListResult,
   SshConfigHostResolution,
@@ -479,15 +480,6 @@ import type {
   WorkspacePortScanResult
 } from '../shared/workspace-ports'
 import type { GhAuthDiagnostic } from '../shared/github-auth-types'
-import type {
-  SshConnectionState,
-  SshCredentialRequestEvent,
-  SshConfigImportResult,
-  SshTargetAddResult,
-  SshTarget,
-  PortForwardEntry,
-  EnrichedDetectedPort
-} from '../shared/ssh-types'
 import type {
   CodexUsageBreakdownKind,
   CodexUsageBreakdownRow,
